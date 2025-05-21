@@ -92,8 +92,11 @@ const LoginForm: React.FC = () => {
   // Navigate when authenticated and not in controlled loading state
   useEffect(() => {
     if (isAuthenticated && !isLoggingIn && loginResult?.success) {
-      console.log('User is authenticated, navigating to search page');
-      navigate('/search');
+      // Show success for 1.5s, then navigate
+      const timer = setTimeout(() => {
+        navigate('/search');
+      }, 1500);
+      return () => clearTimeout(timer);
     }
   }, [isAuthenticated, navigate, isLoggingIn, loginResult]);
 
@@ -262,6 +265,16 @@ const LoginForm: React.FC = () => {
           autoComplete="current-password"
         />
         
+        {loginResult?.success && (
+          <motion.p 
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-green-500 text-sm font-medium mt-2"
+            data-testid="login-success"
+          >
+            Login successful! Redirecting...
+          </motion.p>
+        )}
         {errors.form && (
           <motion.p 
             initial={{ opacity: 0, y: -5 }}

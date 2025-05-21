@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8083:5000" # Expose app on 8083, mapping to container's 5000
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASS=${DB_PASS:-password}
+      - DB_NAME=${DB_NAME:-billingdb}
+      - PORT=5000 # Port the app inside the container will listen on
+      # Add other necessary environment variables from your .env
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    volumes:
+      - ./backend:/usr/src/app # Mount backend for development if needed, remove for pure production
+      - /usr/src/app/node_modules # Anonymous volume to prevent host node_modules from overwriting container's
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s # Give time for the app to start
+    networks:
+      - billing-network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-password}
+      POSTGRES_DB: ${DB_NAME:-billingdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT_HOST:-5433}:5432" # Expose Postgres on host if needed for direct access
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-billingdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billing-network
+
+volumes:
+  postgres_data:
+
+networks:
+  billing-network:
+    driver: bridge

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo, useCallback } from 'react';
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-motion';
-import { Menu, X, History, Clock, LogOut } from 'lucide-react';
+import { Menu, X, History, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
