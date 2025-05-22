@@ -67,13 +67,19 @@ const pool = new Pool({  host: DB_HOST,
   application_name: 'project-bolt'   // Identify connections in pg_stat_activity
 });
 
+// Suppress TS7006 errors for implicit 'any' types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function onClient(client: any) {}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function onError(err: any, client: any) {}
+
 // Silently track connection count with minimal logging
 let connectionCount = 0;
 let logThrottleTime = Date.now();
 const logThrottleInterval = 60000; // Log at most once per minute
 
 // Only log initial connection and throttle subsequent logs heavily
-pool.on('connect', client => {
+pool.on('connect', (client: any) => {
   connectionCount++;
   // Log only once at startup or very occasionally
   if (connectionCount === 1 || Date.now() - logThrottleTime > logThrottleInterval) {
@@ -83,7 +89,7 @@ pool.on('connect', client => {
 });
 
 // Handle connection errors
-pool.on('error', (err, client) => {
+pool.on('error', (err: any, client: any) => {
   console.error('Unexpected error on idle PostgreSQL client:', err);
 });
 

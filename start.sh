@@ -7,5 +7,6 @@ node dist/index.js &
 BACKEND_PID=$!
 echo "Backend service started with PID $BACKEND_PID, listening internally on port 5000."
 
-# This script will now exit, and CMD will proceed to start nginx.
-# No need to wait or manage frontend PIDs here.
+# Start nginx in the foreground
+echo "--- Starting nginx ---"
+nginx -g 'daemon off;'

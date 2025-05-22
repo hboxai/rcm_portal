@@ -1,28 +1,22 @@
 services:
   rcm-portal:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: rcm-portal
     restart: unless-stopped
     ports:
       - "8082:8082"  # Nginx serves everything on 8082
-    environment:
-      - NODE_ENV=development
-      - DB_HOST=localhost.aptible.in
-      - DB_PORT=42550
-      - DB_NAME=db
-      - DB_USER=aptible
-      - DB_PASSWORD=YzqLyJk6GKEDA_RxAiEdLUtaSjRhUelc
-      - DB_SSL_ENABLED=true
-      - DB_SSL_REJECT_UNAUTHORIZED=false
+    env_file:
+      - .env
     volumes:
       - ./.env:/app/.env # For start.sh to copy to frontend, and general app availability
       - ./.env:/app/backend/.env # Mount the root .env directly for the backend
     networks:
       - rcm-network
     extra_hosts:
-      - "localhost.aptible.in:host-gateway" # Helps container find host for tunnel
+      - "localhost.aptible.in:host-gateway" # Allows container to reach host for tunnel
+      - "host.docker.internal:host-gateway" # Alternative way to reach host
 
 networks:
   rcm-network:

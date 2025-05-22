@@ -4,8 +4,8 @@ import * as jose from 'jose';
 // Use a direct string to avoid any environment variable issues
 const API_BASE_URL = '/api';
 
-// Mock JWT secret key from backend's .env file
-const MOCK_JWT_SECRET = 'rcm_secure_jwt_key_42550';
+// Use environment variable for mock JWT secret (for frontend dev only)
+const MOCK_JWT_SECRET = import.meta.env.VITE_MOCK_JWT_SECRET || '';
 
 /**
  * Authentication service for handling user login and token management
@@ -29,6 +29,7 @@ export const authService = {
           id: '1',
           email: 'HBilling_RCM@hbox.ai',
           name: 'Admin User',
+          username: 'admin',
           role: 'Admin'
         };
         
@@ -60,6 +61,7 @@ export const authService = {
           id: '2',
           email: 'syed.a@hbox.ai',
           name: 'Regular User',
+          username: 'user',
           role: 'User'
         };
         
@@ -170,6 +172,7 @@ export const authService = {
           id: payload.id || '0',
           email: payload.email || 'unknown',
           name: payload.name || payload.email?.split('@')[0] || 'Unknown User',
+          username: payload.username || payload.name || payload.email?.split('@')[0] || 'user',
           role: payload.role || 'User'
         };
       }
@@ -199,6 +202,7 @@ export const authService = {
                 id: payload.id as string,
                 email: payload.email as string,
                 name: payload.name as string || (payload.email as string).split('@')[0],
+                username: payload.username as string || payload.name as string || (payload.email as string).split('@')[0],
                 role: payload.role as string
               } 
             };

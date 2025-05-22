@@ -80,13 +80,13 @@ async function seedUsers() {
   try {
     await pool.end();
     console.log('Database pool closed.');
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error closing database pool:', err);
   }
 }
 
 seedUsers().catch(err => {
   console.error('Critical error during seeding process:', err);
-  pool.end().catch(poolErr => console.error('Error closing pool on critical failure:', poolErr)); // Attempt to close pool on error too
+  pool.end().catch((poolErr: any) => console.error('Error closing pool on critical failure:', poolErr)); // Attempt to close pool on error too
   process.exit(1);
 });

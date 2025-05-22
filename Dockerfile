@@ -48,8 +48,11 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY start.sh ./ 
 RUN chmod +x ./start.sh
 
+# Diagnostic: List files to verify start.sh is present
+RUN ls -l /app
+
 # Expose port 8082 for nginx
 EXPOSE 8082
 
 # Command to run both services and nginx
-CMD ["sh", "-c", "./start.sh && nginx -g 'daemon off;'"]
+CMD ["sh", "-c", "./start.sh"]

@@ -842,7 +842,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         const claims = claimsResult.rows;
         
         // Generate mock history data based on existing claims
-        const mockHistory = claims.flatMap((claim, index) => {
+        const mockHistory = claims.flatMap((claim: any, index: any) => {
           const date = new Date();
           date.setDate(date.getDate() - index); // Different days for variety
           
@@ -1068,4 +1068,9 @@ export const deleteEraPdf = async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : String(error) 
     });
   }
+};
+
+// Add explicit 'any' types to fix TS7006
+const processClaim = (claim: any, index: any) => {
+  // ...existing code...
 };
