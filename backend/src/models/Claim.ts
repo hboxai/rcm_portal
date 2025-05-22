@@ -4,11 +4,8 @@
 interface Claim {
   id: number;
   patient_id: number;
-  cpt_id: number;
   patient_emr_no: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string;
+  cpt_id: number; // Renamed from billing_id to cpt_id to match database
   cpt_code: string;
   service_start: string;
   service_end: string;

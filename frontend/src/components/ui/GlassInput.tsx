@@ -7,6 +7,8 @@ interface GlassInputProps extends InputHTMLAttributes<HTMLInputElement> {
   clearIcon?: React.ReactNode;
   error?: string;
   status?: 'loading' | 'success' | 'error' | null;
+  labelClassName?: string; // Added labelClassName
+  inputClassName?: string; // Added inputClassName
 }
 
 const GlassInput: React.FC<GlassInputProps> = ({ 
@@ -16,6 +18,8 @@ const GlassInput: React.FC<GlassInputProps> = ({
   error, 
   className = '', 
   status,
+  labelClassName = 'text-black/80', // Default value
+  inputClassName = 'text-black', // Default value for input text color
   ...props 
 }) => {
   const [isFocused, setIsFocused] = useState(false);
@@ -30,12 +34,10 @@ const GlassInput: React.FC<GlassInputProps> = ({
       input:-webkit-autofill:hover,
       input:-webkit-autofill:focus,
       input:-webkit-autofill:active {
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: #ffffff !important;
+        -webkit-text-fill-color: ${inputClassName === 'text-white' ? '#FFFFFF' : '#000000'} !important;
         transition: background-color 5000s ease-in-out 0s;
-        box-shadow: inset 0 0 20px 20px rgba(17, 24, 39, 0.8) !important;
-        background-color: transparent !important;
-        caret-color: white;
+        box-shadow: inset 0 0 20px 20px #f9fafb !important; /* Consider making this adaptable too if needed */
+        caret-color: ${inputClassName === 'text-white' ? '#FFFFFF' : '#000000'};
       }
     `;
     // Append the style to the head
@@ -45,13 +47,13 @@ const GlassInput: React.FC<GlassInputProps> = ({
     return () => {
       document.head.removeChild(style);
     };
-  }, []);
+  }, [inputClassName]);
 
   return (
     <div className="mb-4">
       {label && (
-        <label className="block text-white/80 mb-2 font-medium">
-          {label}
+        <label className={`block mb-2 font-medium ${labelClassName}`}> 
+          {label} 
         </label>
       )}
       
@@ -92,7 +94,7 @@ const GlassInput: React.FC<GlassInputProps> = ({
           ${status === 'loading' ? 'border-warning-500/50' : ''}
           ${status === 'success' ? 'border-success-500/50' : ''}
           ${status === 'error' ? 'border-error-500/50' : ''}
-          ${className}`}
+          ${className} ${inputClassName}`} // Applied inputClassName
           onFocus={(e) => {
             setIsFocused(true);
             if (props.onFocus) props.onFocus(e);
@@ -103,7 +105,7 @@ const GlassInput: React.FC<GlassInputProps> = ({
           }}
           style={{
             backgroundColor: 'transparent',
-            color: '#ffffff'
+            // color style is now handled by inputClassName
           }}
           {...props}
         />
@@ -125,7 +127,7 @@ const GlassInput: React.FC<GlassInputProps> = ({
       </div>
       
       {error && (
-        <p className="mt-1 text-error-400 text-sm">{error}</p>
+        <p className={`mt-1 text-sm ${error ? 'text-error-400' : ''}`}>{error}</p>
       )}
     </div>
   );

@@ -62,8 +62,8 @@ const Header: React.FC = () => {
     <motion.header 
       className={`fixed top-0 left-0 right-0 z-50 py-4 transition-all duration-300 ease-in-out ${
         isScrolled 
-          ? 'bg-dark-300/85 backdrop-blur-md shadow-lg shadow-black/10' 
-          : 'bg-dark-300/50 backdrop-blur-sm'
+          ? 'bg-olive-green/85 backdrop-blur-md shadow-lg shadow-dark-olive-green/20' 
+          : 'bg-olive-green/80 backdrop-blur-sm'
       }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -82,7 +82,7 @@ const Header: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <Link to="/search" className="text-white text-xl font-bold tracking-tight">
+            <Link to="/search" className="text-textLight text-xl font-bold tracking-tight">
               <motion.span
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -107,8 +107,8 @@ const Header: React.FC = () => {
                 to="/search" 
                 className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 ${
                   isActive('/search') 
-                    ? 'text-white bg-white/10 shadow-sm shadow-white/5' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                    ? 'text-textLight bg-white/10 shadow-sm shadow-white/5' 
+                    : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
                 }`}
               >
                 Search
@@ -127,8 +127,8 @@ const Header: React.FC = () => {
                 to="/history" 
                 className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 flex items-center gap-1 ${
                   isActive('/history') 
-                    ? 'text-white bg-white/10 shadow-sm shadow-white/5' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                    ? 'text-textLight bg-white/10 shadow-sm shadow-white/5' 
+                    : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
                 }`}
               >
                 <History size={16} />
@@ -149,8 +149,8 @@ const Header: React.FC = () => {
                   to="/user-management" 
                   className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 ${
                     isActive('/user-management') 
-                      ? 'text-white bg-white/10 shadow-sm shadow-white/5' 
-                      : 'text-white/70 hover:text-white hover:bg-white/5'
+                      ? 'text-textLight bg-white/10 shadow-sm shadow-white/5' 
+                      : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
                   }`}
                 >
                   User Management
@@ -163,7 +163,7 @@ const Header: React.FC = () => {
           <div className="flex items-center">
             <motion.button 
               onClick={handleLogout}
-              className="hidden md:flex items-center gap-2 text-white/80 hover:text-white px-4 py-2 rounded-md border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all duration-200 shadow-sm hover:shadow"
+              className="hidden md:flex items-center gap-2 text-textLight/80 hover:text-textLight px-4 py-2 rounded-md border border-textLight/10 hover:border-textLight/20 bg-white/5 hover:bg-white/10 transition-all duration-200 shadow-sm hover:shadow"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -173,7 +173,7 @@ const Header: React.FC = () => {
             
             <motion.button 
               onClick={handleMobileMenuToggle} 
-              className="md:hidden text-white/80 hover:text-white p-1 rounded-md hover:bg-white/10"
+              className="md:hidden text-textLight/80 hover:text-textLight p-1 rounded-md hover:bg-white/10"
               whileTap={{ scale: 0.9 }}
               animate={{ rotate: isMobileMenuOpen ? 180 : 0 }}
               transition={{ duration: 0.3 }}
@@ -188,7 +188,7 @@ const Header: React.FC = () => {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div 
-            className="md:hidden absolute top-full left-0 right-0 bg-dark-300/95 backdrop-blur-md border-t border-white/10 shadow-lg"
+            className="md:hidden absolute top-full left-0 right-0 bg-dark-olive-green/95 backdrop-blur-md border-t border-textLight/10 shadow-lg"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
@@ -210,8 +210,8 @@ const Header: React.FC = () => {
                   to="/search" 
                   className={`py-3 px-4 rounded-md ${
                     isActive('/search') 
-                      ? 'text-white bg-white/10' 
-                      : 'text-white/70 hover:text-white hover:bg-white/5'
+                      ? 'text-textLight bg-white/10' 
+                      : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
@@ -228,8 +228,8 @@ const Header: React.FC = () => {
                   to="/history" 
                   className={`py-3 px-4 rounded-md flex items-center gap-2 ${
                     isActive('/history') 
-                      ? 'text-white bg-white/10' 
-                      : 'text-white/70 hover:text-white hover:bg-white/5'
+                      ? 'text-textLight bg-white/10' 
+                      : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
@@ -248,8 +248,8 @@ const Header: React.FC = () => {
                     to="/user-management" 
                     className={`py-3 px-4 rounded-md ${
                       isActive('/user-management') 
-                        ? 'text-white bg-white/10' 
-                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                        ? 'text-textLight bg-white/10' 
+                        : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
                     }`}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
@@ -257,7 +257,7 @@ const Header: React.FC = () => {
                   </Link>
                 </motion.div>
               )}
-              <hr className="border-white/10 my-2" />
+              <hr className="border-textLight/10 my-2" />
               <motion.div 
                 className="flex justify-center pt-2"
                 initial={{ opacity: 0, y: 10 }}
@@ -266,7 +266,7 @@ const Header: React.FC = () => {
               >
                 <button 
                   onClick={handleLogout}
-                  className="w-full py-3 text-center flex items-center justify-center gap-2 text-white/80 hover:text-white rounded-md border border-white/10 hover:bg-white/10 transition-all"
+                  className="w-full py-3 text-center flex items-center justify-center gap-2 text-textLight/80 hover:text-textLight rounded-md border border-textLight/10 hover:bg-white/10 transition-all"
                 >
                   <LogOut size={18} />
                   Logout

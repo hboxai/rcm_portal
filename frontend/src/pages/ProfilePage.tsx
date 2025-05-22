@@ -49,16 +49,16 @@ const ProfilePage: React.FC = () => {
   if (!isAuthenticated || !currentClaim) return null;
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-300 to-dark-400">
+    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
       <Header />
       
       <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
-        {/* Replace motion.div with regular div */}
-        <div className="mb-8">
+        {/* Light header to match search page */}
+        <div className="mb-8 p-6 rounded-xl bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
           <div className="flex items-center gap-2 mb-2">
             <Link 
               to="/search" 
-              className="text-white/70 hover:text-white flex items-center gap-1"
+              className="text-white hover:text-white/80 flex items-center gap-1"
             >
               <ChevronLeft size={18} />
               <span>Back to Search</span>
@@ -66,11 +66,11 @@ const ProfilePage: React.FC = () => {
           </div>
           
           <h1 className="text-3xl font-bold text-white">
-            CPT ID: {currentClaim.cpt_id || 'N/A'}
+            Billing ID: {currentClaim.billing_id || currentClaim.claimId || 'N/A'}
           </h1>
-          <p className="text-white/60 mt-2">
-            Patient: {`${currentClaim.first_name} ${currentClaim.last_name}`} | 
-            DOS: {formatDate(currentClaim.service_end || currentClaim.dos)}
+          <p className="text-white/80 mt-2">
+            Patient: {currentClaim.patientName || `${currentClaim.first_name || ''} ${currentClaim.last_name || ''}`} | 
+            DOS: {formatDate(currentClaim.dos || currentClaim.service_end)}
           </p>
         </div>
         
@@ -78,19 +78,19 @@ const ProfilePage: React.FC = () => {
         
         {/* Show ClaimTabs instantly without animation */}
         {showDetails && (
-          <div className="border-t border-white/10 pt-6 mt-6">
+          <div className="pt-6 mt-6">
             <ClaimTabs claim={currentClaim} />
           </div>
         )}
         
         {/* History Section */}
-        <HistorySection claimId={currentClaim.id} />
+        <HistorySection claimId={currentClaim.id || currentClaim.claimId} />
         
-        {/* Replace motion.div with regular div */}
+        {/* View Full Profile Button with orange color */}
         <div className="mt-8 flex justify-center">
           <Button 
             variant="secondary" 
-            className="text-white/80 hover:text-white px-4 py-2 rounded-md border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 shadow-sm"
+            className="text-olive-green bg-earth-yellow hover:bg-earth-yellow/80 px-4 py-2 rounded-md border border-earth-yellow/40 shadow-sm"
             icon={<FileText size={18} />}
             onClick={handleViewFullProfile}
           >

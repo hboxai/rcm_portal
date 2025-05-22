@@ -22,13 +22,13 @@ const LoginPage: React.FC = () => {
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.4, ease: "easeInOut" }}
-        className="hidden md:flex md:w-1/2 bg-gradient-to-br from-primary-900 to-secondary-900 p-12 relative overflow-hidden"
+        className="hidden md:flex md:w-1/2 bg-gradient-to-br from-olive-green to-earth-yellow p-12 relative overflow-hidden"
       >
         <div className="absolute inset-0 bg-[url('https://images.pexels.com/photos/669615/pexels-photo-669615.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2')] bg-cover bg-center opacity-20"></div>
         
         <div className="relative z-10 flex flex-col h-full justify-center">
           <motion.div 
-            className="bg-dark-300/30 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-xl"
+            className="bg-dark-olive-green/30 backdrop-blur-md p-8 rounded-2xl border border-cornsilk/10 shadow-xl"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: "easeInOut", delay: 0.2 }}
@@ -42,12 +42,12 @@ const LoginPage: React.FC = () => {
               <motion.img 
                 src={iconImage} 
                 alt="RCM Icon" 
-                className="w-12 h-12 rounded-full mr-4" 
+                className="w-12 h-12 rounded-full mr-4 bg-cornsilk/20" 
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 transition={{ duration: 0.3, ease: "easeInOut" }}
               />
               <motion.h1 
-                className="text-3xl font-bold text-white"
+                className="text-3xl font-bold text-textLight"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, ease: "easeInOut", delay: 0.4 }}
@@ -57,7 +57,7 @@ const LoginPage: React.FC = () => {
             </motion.div>
             
             <motion.h2 
-              className="text-2xl font-semibold text-white mb-4"
+              className="text-2xl font-semibold text-textLight mb-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3, ease: "easeInOut", delay: 0.5 }}
@@ -74,6 +74,15 @@ const LoginPage: React.FC = () => {
               Simplify your end-to-end billing operations with a centralized platform built for HBox. Post charges, submit claims, track visits, and manage patient billing records with precision.
             </motion.p>
             
+            <motion.p 
+              className="text-cornsilk/70 mb-6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, ease: "easeInOut", delay: 0.6 }}
+            >
+              Join us in revolutionizing the healthcare revenue cycle. Our tool offers unparalleled insights and control over your revenue operations.
+            </motion.p>
+            
             <div className="space-y-4">
               {['Streamlined Claims Processing', 'Efficient Patient Management', 'Revenue Cycle Optimization'].map((feature, index) => (
                 <motion.div 
@@ -84,15 +93,15 @@ const LoginPage: React.FC = () => {
                   className="flex items-center"
                 >
                   <motion.div 
-                    className="w-6 h-6 rounded-full bg-accent-500/20 flex items-center justify-center mr-3"
-                    whileHover={{ scale: 1.2, backgroundColor: "rgba(79, 209, 197, 0.3)" }}
+                    className="w-6 h-6 rounded-full bg-sienna/20 flex items-center justify-center mr-3"
+                    whileHover={{ scale: 1.2, backgroundColor: "rgba(188, 108, 37, 0.3)" }}
                     transition={{ duration: 0.2 }}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-accent-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-sienna" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </motion.div>
-                  <span className="text-white/90">{feature}</span>
+                  <span className="text-cornsilk/90">{feature}</span>
                 </motion.div>
               ))}
             </div>
@@ -100,7 +109,7 @@ const LoginPage: React.FC = () => {
         </div>
         
         <motion.div 
-          className="absolute bottom-6 left-6 right-6 text-white/50 text-sm"
+          className="absolute bottom-6 left-6 right-6 text-cornsilk/50 text-sm"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut", delay: 1.4 }}
@@ -110,7 +119,7 @@ const LoginPage: React.FC = () => {
       </motion.div>
       
       {/* Right side - login form */}
-      <div className="flex-1 flex items-center justify-center p-6 md:p-12">
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12 bg-background">
         <LoginForm />
       </div>
     </div>

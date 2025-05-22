@@ -5,6 +5,8 @@ import pool from './config/db';
 import initializeDatabase from './config/initDb';
 import claimRoutes from './routes/claims';
 import authRoutes from './routes/auth';
+import historyRoutes from './routes/history'; // Import the new history routes
+import userRoutes from './routes/users'; // Import the new user routes
 import { authMiddleware } from './middleware/auth';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -70,6 +72,8 @@ app.use('/api/auth', authRoutes);
 
 // Protected routes (auth required)
 app.use('/api/claims', authMiddleware, claimRoutes);
+app.use('/api/history', authMiddleware, historyRoutes); // Add the history routes to the app
+app.use('/api/users', authMiddleware, userRoutes); // Add the user routes to the app
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

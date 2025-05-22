@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
-import { FileText, AlertCircle, CheckCircle, XCircle, Save, Loader2 } from 'lucide-react';
+import { FileText, AlertCircle, CheckCircle, XCircle, Save, Loader2, User, DollarSign, Calendar } from 'lucide-react';
 import GlassCard from '../ui/GlassCard';
 import GlassInput from '../ui/GlassInput';
 import Button from '../ui/Button';
@@ -10,7 +10,7 @@ interface ClaimTabsProps {
   claim: VisitClaim;
 }
 
-type TabType = 'claim' | 'primary' | 'secondary';
+type TabType = 'claim' | 'primary' | 'secondary' | 'patient';
 
 interface ClaimDetailsForm {
   oaClaimId: string;
@@ -38,9 +38,16 @@ interface SecondaryInsuranceForm {
   secRecDt: string;
   secChkAmt: string;
   secCmnt: string;
+  secDenialCode: string;
+}
+
+interface PatientDataForm {
   patAmt: string;
   patRecDt: string;
-  secDenialCode: string;
+  patientName: string;
+  patientDob: string;
+  patientPhone: string;
+  patientEmail: string;
 }
 
 type FeedbackStatus = 'success' | 'error' | null;
@@ -49,8 +56,6 @@ interface FeedbackMessage {
   status: FeedbackStatus;
   message: string;
 }
-
-// Removed unused formatDisplayValue function
 
 // Format value for input field (avoid "N/A" in actual inputs)
 const formatInputValue = (value: any): string => {
@@ -92,6 +97,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
   const initializedRef = useRef(false);
   const previousClaimRef = useRef(claim);
   
+  // Track form changes to determine if they're dirty
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  
   // State for claim details form
   const [claimDetailsForm, setClaimDetailsForm] = useState<ClaimDetailsForm>({
     oaClaimId: formatInputValue(claim.oa_claim_id),
@@ -121,9 +129,17 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
     secRecDt: formatInputValue(claim.sec_recv_dt),
     secChkAmt: claim.sec_chk_amt != null ? claim.sec_chk_amt.toString() : '',
     secCmnt: formatInputValue(claim.sec_cmt),
+    secDenialCode: formatInputValue(claim.sec_denial_code),
+  });
+  
+  // State for patient data form
+  const [patientForm, setPatientForm] = useState<PatientDataForm>({
     patAmt: claim.pat_amt != null ? claim.pat_amt.toString() : '',
     patRecDt: formatInputValue(claim.pat_recv_dt),
-    secDenialCode: formatInputValue(claim.sec_denial_code),
+    patientName: formatInputValue(claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`),
+    patientDob: formatInputValue(claim.dateOfBirth || claim.date_of_birth),
+    patientPhone: formatInputValue(claim.patient_phone),
+    patientEmail: formatInputValue(claim.patient_email),
   });
 
   // Initialize forms only once when component mounts or when claim ID changes
@@ -157,13 +173,21 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
         secRecDt: formatInputValue(claim.sec_recv_dt),
         secChkAmt: claim.sec_chk_amt != null ? claim.sec_chk_amt.toString() : '',
         secCmnt: formatInputValue(claim.sec_cmt),
+        secDenialCode: formatInputValue(claim.sec_denial_code),
+      });
+      
+      setPatientForm({
         patAmt: claim.pat_amt != null ? claim.pat_amt.toString() : '',
         patRecDt: formatInputValue(claim.pat_recv_dt),
-        secDenialCode: formatInputValue(claim.sec_denial_code),
+        patientName: formatInputValue(claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`),
+        patientDob: formatInputValue(claim.dateOfBirth || claim.date_of_birth),
+        patientPhone: formatInputValue(claim.patient_phone),
+        patientEmail: formatInputValue(claim.patient_email),
       });
       
       initializedRef.current = true;
       previousClaimRef.current = claim;
+      setIsFormDirty(false);
     }
   }, [claim]);
   
@@ -188,68 +212,13 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
     );
   };
 
-  // Format date for input fields to ensure proper format
-  const formatDateForInput = (dateString: string | null | undefined): string => {
-    if (!dateString) return '';
-    
-    try {
-      const date = new Date(dateString);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
-      }
-    } catch (e) {
-      console.error('Error formatting date for input:', e);
-    }
-    
-    return dateString.toString();
-  };
-
-  // Improved handle switch tab with proper validation
-  const handleSwitchTab = (tab: TabType) => {
-    // Only validate when trying to leave claim tab
-    if (tab !== 'claim' && !isClaimDetailsComplete()) {
-      setShowTooltip(true);
-      setTimeout(() => setShowTooltip(false), 3000);
-      return;
-    }
-    
-    // Save the current tab data before switching
-    if (activeTab === 'claim') {
-      // Force save claim details
-      handleSaveClaimDetails();
-    } else if (activeTab === 'primary') {
-      // Force save primary form
-      handleSavePrimary();
-    } else if (activeTab === 'secondary') {
-      // Force save secondary form
-      handleSaveSecondary();
-    }
-    
-    // After saving the current tab, switch to the new tab
-    setActiveTab(tab);
-  };
-
   const handleTabClick = (tab: TabType) => {
     // Only allow switching if:
     // 1. Going to claim tab (always allowed)
     // 2. Going to other tabs and claim details are complete
     if (tab === 'claim' || isClaimDetailsComplete()) {
-      // Save the current tab data before switching
-      if (activeTab === 'claim') {
-        handleSaveClaimDetails().then(() => {
-          setActiveTab(tab);
-        });
-      } else if (activeTab === 'primary') {
-        handleSavePrimary().then(() => {
-          setActiveTab(tab);
-        });
-      } else if (activeTab === 'secondary') {
-        handleSaveSecondary().then(() => {
-          setActiveTab(tab);
-        });
-      } else {
-        setActiveTab(tab);
-      }
+      // Simple tab switch without auto-saving
+      setActiveTab(tab);
     } else {
       // Show tooltip for incomplete claim details
       setShowTooltip(true);
@@ -263,46 +232,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       ...prev,
       [name]: value,
     }));
-    
-    // Add debouncing to avoid too many updates
-    clearTimeout(detailsDebounceRef.current);
-    detailsDebounceRef.current = setTimeout(() => {
-      // Create the update object with only the fields being updated
-      const fieldMapping: Record<string, string> = {
-        oaClaimId: 'oa_claim_id',
-        oaVisitId: 'oa_visit_id',
-        chargeDt: 'charge_dt',
-        chargeAmount: 'charge_amt'
-      };
-      
-      // Only update the changed field
-      const updateData: Record<string, any> = { id: claim.id };
-      const apiFieldName = fieldMapping[name];
-      
-      if (apiFieldName) {
-        // Handle numeric values appropriately
-        if (name === 'chargeAmount') {
-          updateData[apiFieldName] = value ? parseFloat(value) : undefined;
-        } else {
-          updateData[apiFieldName] = value.trim() || undefined;
-        }
-        
-        // Show a subtle loading indicator
-        setFieldLoading(name);
-        
-        updateClaim(updateData)
-          .then(() => {
-            showFieldSuccess(name);
-          })
-          .catch((err) => {
-            console.error(`Error updating ${name}:`, err);
-            showFieldError(name);
-          })
-          .finally(() => {
-            setTimeout(() => clearFieldState(name), 2000);
-          });
-      }
-    }, 800); // 800ms debounce time
+    setIsFormDirty(true);
   };
 
   const handlePrimaryChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -311,50 +241,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       ...prev,
       [name]: value,
     }));
-    
-    // Add debouncing to avoid too many updates
-    clearTimeout(primaryDebounceRef.current);
-    primaryDebounceRef.current = setTimeout(() => {
-      // Map form field names to API field names
-      const fieldMapping: Record<string, string> = {
-        primIns: 'prim_ins',
-        primAmt: 'prim_amt',
-        primPostDt: 'prim_post_dt',
-        primChkDetails: 'prim_chk_det',
-        primRecDt: 'prim_recv_dt',
-        primChkAmt: 'prim_chk_amt',
-        primCmnt: 'prim_cmt',
-        primDenialCode: 'claim_status_type'
-      };
-      
-      // Only update the changed field
-      const updateData: Record<string, any> = { id: claim.id };
-      const apiFieldName = fieldMapping[name];
-      
-      if (apiFieldName) {
-        // Handle numeric values appropriately
-        if (name === 'primAmt' || name === 'primChkAmt') {
-          updateData[apiFieldName] = value && value.trim() !== '' ? parseFloat(value) : undefined;
-        } else {
-          updateData[apiFieldName] = value.trim() || undefined;
-        }
-        
-        // Show a subtle loading indicator
-        setFieldLoading(name);
-        
-        updateClaim(updateData)
-          .then(() => {
-            showFieldSuccess(name);
-          })
-          .catch((err) => {
-            console.error(`Error updating ${name}:`, err);
-            showFieldError(name);
-          })
-          .finally(() => {
-            setTimeout(() => clearFieldState(name), 2000);
-          });
-      }
-    }, 800); // 800ms debounce time
+    setIsFormDirty(true);
   };
 
   const handleSecondaryChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -363,52 +250,16 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       ...prev,
       [name]: value,
     }));
-    
-    // Add debouncing to avoid too many updates
-    clearTimeout(secondaryDebounceRef.current);
-    secondaryDebounceRef.current = setTimeout(() => {
-      // Map form field names to API field names
-      const fieldMapping: Record<string, string> = {
-        secIns: 'sec_ins',
-        secAmt: 'sec_amt',
-        secPostDt: 'sec_post_dt',
-        secChkDetails: 'sec_chk_det',
-        secRecDt: 'sec_recv_dt',
-        secChkAmt: 'sec_chk_amt',
-        secCmnt: 'sec_cmt',
-        secDenialCode: 'sec_denial_code',
-        patAmt: 'pat_amt',
-        patRecDt: 'pat_recv_dt'
-      };
-      
-      // Only update the changed field
-      const updateData: Record<string, any> = { id: claim.id };
-      const apiFieldName = fieldMapping[name];
-      
-      if (apiFieldName) {
-        // Handle numeric values appropriately
-        if (name === 'secAmt' || name === 'secChkAmt' || name === 'patAmt') {
-          updateData[apiFieldName] = value && value.trim() !== '' ? parseFloat(value) : undefined;
-        } else {
-          updateData[apiFieldName] = value.trim() || undefined;
-        }
-        
-        // Show a subtle loading indicator
-        setFieldLoading(name);
-        
-        updateClaim(updateData)
-          .then(() => {
-            showFieldSuccess(name);
-          })
-          .catch((err) => {
-            console.error(`Error updating ${name}:`, err);
-            showFieldError(name);
-          })
-          .finally(() => {
-            setTimeout(() => clearFieldState(name), 2000);
-          });
-      }
-    }, 800); // 800ms debounce time
+    setIsFormDirty(true);
+  };
+  
+  const handlePatientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setPatientForm(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+    setIsFormDirty(true);
   };
 
   const handleSaveClaimDetails = async () => {
@@ -454,6 +305,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
           status: 'success',
           message: 'Claim details saved successfully!'
         });
+        setIsFormDirty(false);
       } else {
         // No changes were made
         setFeedback({
@@ -524,6 +376,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
           status: 'success',
           message: 'Primary insurance details saved successfully!'
         });
+        setIsFormDirty(false);
       } else {
         // No changes were made
         setFeedback({
@@ -586,16 +439,6 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
         updateData.sec_denial_code = secondaryForm.secDenialCode.trim() || undefined;
       }
       
-      const formPatAmt = secondaryForm.patAmt ? parseFloat(secondaryForm.patAmt) : null;
-      const claimPatAmt = claim.pat_amt !== undefined && claim.pat_amt !== null ? claim.pat_amt : null;
-      if (formPatAmt !== claimPatAmt) {
-        updateData.pat_amt = formPatAmt;
-      }
-      
-      if (formatInputValue(claim.pat_recv_dt) !== secondaryForm.patRecDt.trim()) {
-        updateData.pat_recv_dt = secondaryForm.patRecDt.trim() || undefined;
-      }
-      
       // Only send update if there are actual changes
       if (Object.keys(updateData).length > 1) { // > 1 because id is always included
         await updateClaim(updateData);
@@ -604,6 +447,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
           status: 'success',
           message: 'Secondary insurance details saved successfully!'
         });
+        setIsFormDirty(false);
       } else {
         // No changes were made
         setFeedback({
@@ -621,34 +465,91 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       setLocalIsLoading(false);
     }
   };
-
-  // References for debounce timers
-  const detailsDebounceRef = useRef<NodeJS.Timeout>();
-  const primaryDebounceRef = useRef<NodeJS.Timeout>();
-  const secondaryDebounceRef = useRef<NodeJS.Timeout>();
   
+  const handleSavePatient = async () => {
+    try {
+      setLocalIsLoading(true);
+      
+      // Create the update object with only fields that have actually changed
+      const updateData: Record<string, any> = { id: claim.id };
+      
+      // Compare with current claim data and only include changed fields
+      const formPatAmt = patientForm.patAmt ? parseFloat(patientForm.patAmt) : null;
+      const claimPatAmt = claim.pat_amt !== undefined && claim.pat_amt !== null ? claim.pat_amt : null;
+      if (formPatAmt !== claimPatAmt) {
+        updateData.pat_amt = formPatAmt;
+      }
+      
+      if (formatInputValue(claim.pat_recv_dt) !== patientForm.patRecDt.trim()) {
+        updateData.pat_recv_dt = patientForm.patRecDt.trim() || undefined;
+      }
+      
+      const currentPatientName = claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`;
+      if (formatInputValue(currentPatientName) !== patientForm.patientName.trim()) {
+        updateData.patient_name = patientForm.patientName.trim() || undefined;
+      }
+      
+      const currentDob = claim.dateOfBirth || claim.date_of_birth;
+      if (formatInputValue(currentDob) !== patientForm.patientDob.trim()) {
+        updateData.dateOfBirth = patientForm.patientDob.trim() || undefined;
+      }
+      
+      if (formatInputValue(claim.patient_phone) !== patientForm.patientPhone.trim()) {
+        updateData.patient_phone = patientForm.patientPhone.trim() || undefined;
+      }
+      
+      if (formatInputValue(claim.patient_email) !== patientForm.patientEmail.trim()) {
+        updateData.patient_email = patientForm.patientEmail.trim() || undefined;
+      }
+      
+      // Only send update if there are actual changes
+      if (Object.keys(updateData).length > 1) { // > 1 because id is always included
+        await updateClaim(updateData);
+        
+        setFeedback({
+          status: 'success',
+          message: 'Patient data saved successfully!'
+        });
+        setIsFormDirty(false);
+      } else {
+        // No changes were made
+        setFeedback({
+          status: 'success',
+          message: 'No changes to save in Patient Data.'
+        });
+      }
+    } catch (err) {
+      console.error('Error saving patient data:', err);
+      setFeedback({
+        status: 'error',
+        message: 'An error occurred while saving patient data.'
+      });
+    } finally {
+      setLocalIsLoading(false);
+    }
+  };
+
   // Field status tracking for real-time feedback
   type FieldStatus = 'loading' | 'success' | 'error' | null;
   const [fieldStatuses, setFieldStatuses] = useState<Record<string, FieldStatus>>({});
-  
-  // Helper functions to update field statuses
-  const setFieldLoading = (fieldName: string) => {
-    setFieldStatuses(prev => ({ ...prev, [fieldName]: 'loading' }));
-  };
-  
-  const showFieldSuccess = (fieldName: string) => {
-    setFieldStatuses(prev => ({ ...prev, [fieldName]: 'success' }));
-  };
-  
-  const showFieldError = (fieldName: string) => {
-    setFieldStatuses(prev => ({ ...prev, [fieldName]: 'error' }));
-  };
-  
-  const clearFieldState = (fieldName: string) => {
-    setFieldStatuses(prev => ({ ...prev, [fieldName]: null }));
-  };
 
   const claimDetailsComplete = isClaimDetailsComplete();
+  
+  // Get current save handler based on active tab
+  const getCurrentSaveHandler = () => {
+    switch (activeTab) {
+      case 'claim':
+        return handleSaveClaimDetails;
+      case 'primary':
+        return handleSavePrimary;
+      case 'secondary':
+        return handleSaveSecondary;
+      case 'patient':
+        return handleSavePatient;
+      default:
+        return handleSaveClaimDetails;
+    }
+  };
 
   // Render without motion animations to improve performance
   return (
@@ -669,14 +570,14 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
         </div>
       )}
       
-      <GlassCard className="mb-6">
+      <GlassCard className="mb-6 bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
         <div className="flex justify-between items-center mb-4">
           <div className="flex border-b border-white/10 flex-1">
             <button
               onClick={() => handleTabClick('claim')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'claim'
-                  ? 'text-accent-400 border-b-2 border-accent-400'
+                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
                   : 'text-white/70 hover:text-white'
               }`}
             >
@@ -686,7 +587,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               onClick={() => handleTabClick('primary')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'primary'
-                  ? 'text-accent-400 border-b-2 border-accent-400'
+                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
                   : 'text-white/70 hover:text-white'
               } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!claimDetailsComplete}
@@ -705,27 +606,32 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               onClick={() => handleTabClick('secondary')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'secondary'
-                  ? 'text-accent-400 border-b-2 border-accent-400'
+                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
                   : 'text-white/70 hover:text-white'
               } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!claimDetailsComplete}
             >
               Secondary Insurance
             </button>
+            <button
+              onClick={() => handleTabClick('patient')}
+              className={`px-4 py-3 font-medium transition-colors relative ${
+                activeTab === 'patient'
+                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
+                  : 'text-white/70 hover:text-white'
+              } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={!claimDetailsComplete}
+            >
+              Patient Data
+            </button>
           </div>
           
-          {/* Save button in tab header */}
+          {/* Save button in tab header with orange color */}
           <Button
-            onClick={
-              activeTab === 'claim' 
-                ? handleSaveClaimDetails 
-                : activeTab === 'primary' 
-                  ? handleSavePrimary 
-                  : handleSaveSecondary
-            }
+            onClick={getCurrentSaveHandler()}
             icon={<Save size={16} />}
-            disabled={localIsLoading || (activeTab !== 'claim' && !claimDetailsComplete)}
-            className="ml-4"
+            disabled={localIsLoading || (activeTab !== 'claim' && !claimDetailsComplete) || !isFormDirty}
+            className="ml-4 bg-earth-yellow hover:bg-earth-yellow/80 text-olive-green border-earth-yellow/40"
           >
             {localIsLoading ? 'Saving...' : 'Save'}
           </Button>
@@ -734,10 +640,10 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
 
       {/* Conditional rendering for tab content */}
       {activeTab === 'claim' && (
-        <GlassCard>
+        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="text-accent-400" size={20} />
+              <FileText className="text-earth-yellow" size={20} />
               Claim Details
             </h2>
           </div>
@@ -752,27 +658,10 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                   name="oaClaimId"
                   value={claimDetailsForm.oaClaimId}
                   onChange={handleClaimDetailsChange}
-                  className={`glass-input w-full
-                    ${fieldStatuses.oaClaimId === 'loading' ? 'border-warning-500/50' : ''}
-                    ${fieldStatuses.oaClaimId === 'success' ? 'border-success-500/50' : ''}
-                    ${fieldStatuses.oaClaimId === 'error' ? 'border-error-500/50' : ''}
-                  `}
+                  className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
                   type="text"
                   required
                 />
-                {fieldStatuses.oaClaimId && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    {fieldStatuses.oaClaimId === 'loading' && (
-                      <Loader2 size={16} className="animate-spin text-warning-400" />
-                    )}
-                    {fieldStatuses.oaClaimId === 'success' && (
-                      <CheckCircle size={16} className="text-success-400" />
-                    )}
-                    {fieldStatuses.oaClaimId === 'error' && (
-                      <AlertCircle size={16} className="text-error-400" />
-                    )}
-                  </div>
-                )}
               </div>
             </div>
             
@@ -785,27 +674,10 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                   name="oaVisitId"
                   value={claimDetailsForm.oaVisitId}
                   onChange={handleClaimDetailsChange}
-                  className={`glass-input w-full
-                    ${fieldStatuses.oaVisitId === 'loading' ? 'border-warning-500/50' : ''}
-                    ${fieldStatuses.oaVisitId === 'success' ? 'border-success-500/50' : ''}
-                    ${fieldStatuses.oaVisitId === 'error' ? 'border-error-500/50' : ''}
-                  `}
+                  className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
                   type="text"
                   required
                 />
-                {fieldStatuses.oaVisitId && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    {fieldStatuses.oaVisitId === 'loading' && (
-                      <Loader2 size={16} className="animate-spin text-warning-400" />
-                    )}
-                    {fieldStatuses.oaVisitId === 'success' && (
-                      <CheckCircle size={16} className="text-success-400" />
-                    )}
-                    {fieldStatuses.oaVisitId === 'error' && (
-                      <AlertCircle size={16} className="text-error-400" />
-                    )}
-                  </div>
-                )}
               </div>
             </div>
             
@@ -820,26 +692,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                     type="date"
                     value={formatDateForInput(claimDetailsForm.chargeDt)}
                     onChange={handleClaimDetailsChange}
-                    className={`glass-input w-full
-                      ${fieldStatuses.chargeDt === 'loading' ? 'border-warning-500/50' : ''}
-                      ${fieldStatuses.chargeDt === 'success' ? 'border-success-500/50' : ''}
-                      ${fieldStatuses.chargeDt === 'error' ? 'border-error-500/50' : ''}
-                    `}
+                    className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
                     required
                   />
-                  {fieldStatuses.chargeDt && (
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                      {fieldStatuses.chargeDt === 'loading' && (
-                        <Loader2 size={16} className="animate-spin text-warning-400" />
-                      )}
-                      {fieldStatuses.chargeDt === 'success' && (
-                        <CheckCircle size={16} className="text-success-400" />
-                      )}
-                      {fieldStatuses.chargeDt === 'error' && (
-                        <AlertCircle size={16} className="text-error-400" />
-                      )}
-                    </div>
-                  )}
                 </div>
                 <span className="text-xs text-white/50 mt-1">
                   {claim.charge_dt ? `DB value: ${new Date(claim.charge_dt).toLocaleDateString()}` : 'No date in database'}
@@ -858,26 +713,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                   step="0.01"
                   value={claimDetailsForm.chargeAmount}
                   onChange={handleClaimDetailsChange}
-                  className={`glass-input w-full
-                    ${fieldStatuses.chargeAmount === 'loading' ? 'border-warning-500/50' : ''}
-                    ${fieldStatuses.chargeAmount === 'success' ? 'border-success-500/50' : ''}
-                    ${fieldStatuses.chargeAmount === 'error' ? 'border-error-500/50' : ''}
-                  `}
+                  className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
                   required
                 />
-                {fieldStatuses.chargeAmount && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    {fieldStatuses.chargeAmount === 'loading' && (
-                      <Loader2 size={16} className="animate-spin text-warning-400" />
-                    )}
-                    {fieldStatuses.chargeAmount === 'success' && (
-                      <CheckCircle size={16} className="text-success-400" />
-                    )}
-                    {fieldStatuses.chargeAmount === 'error' && (
-                      <AlertCircle size={16} className="text-error-400" />
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -886,10 +724,10 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
 
       {/* Primary Insurance Form */}
       {activeTab === 'primary' && claimDetailsComplete && (
-        <GlassCard>
+        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="text-accent-400" size={20} />
+              <FileText className="text-earth-yellow" size={20} />
               Primary Insurance
             </h2>
           </div>
@@ -901,6 +739,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primIns}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primIns}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Primary Amount"
@@ -910,6 +751,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primAmt}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primAmt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Primary Post Date"
@@ -918,6 +762,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(primaryForm.primPostDt)}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primPostDt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Primary Check Details"
@@ -925,6 +772,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primChkDetails}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primChkDetails}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Primary Received Date"
@@ -933,6 +783,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(primaryForm.primRecDt)}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primRecDt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Primary Check Amount"
@@ -942,6 +795,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primChkAmt}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primChkAmt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <div className="md:col-span-2">
               <label className="block text-white/80 mb-2 font-medium">
@@ -951,7 +807,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                 name="primCmnt"
                 value={primaryForm.primCmnt}
                 onChange={handlePrimaryChange}
-                className="glass-input w-full min-h-[120px]"
+                className="glass-input w-full min-h-[120px] bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
               ></textarea>
             </div>
             <GlassInput
@@ -959,6 +815,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="primDenialCode"
               value={primaryForm.primDenialCode}
               onChange={handlePrimaryChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
           </div>
         </GlassCard>
@@ -966,10 +825,10 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
 
       {/* Secondary Insurance Form */}
       {activeTab === 'secondary' && claimDetailsComplete && (
-        <GlassCard>
+        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="text-accent-400" size={20} />
+              <FileText className="text-earth-yellow" size={20} />
               Secondary Insurance
             </h2>
           </div>
@@ -981,6 +840,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secIns}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secIns}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Secondary Amount"
@@ -990,6 +852,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secAmt}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secAmt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Secondary Post Date"
@@ -998,6 +863,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(secondaryForm.secPostDt)}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secPostDt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Secondary Check Details"
@@ -1005,6 +873,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secChkDetails}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secChkDetails}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Secondary Received Date"
@@ -1013,6 +884,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(secondaryForm.secRecDt)}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secRecDt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <GlassInput
               label="Secondary Check Amount"
@@ -1022,6 +896,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secChkAmt}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secChkAmt}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
             />
             <div className="md:col-span-2">
               <label className="block text-white/80 mb-2 font-medium">
@@ -1031,40 +908,104 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                 name="secCmnt"
                 value={secondaryForm.secCmnt}
                 onChange={handleSecondaryChange}
-                className="glass-input w-full min-h-[120px]"
+                className="glass-input w-full min-h-[120px] bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
               ></textarea>
             </div>
-            <GlassInput
-              label="Patient Amount"
-              name="patAmt"
-              type="number"
-              step="0.01"
-              value={secondaryForm.patAmt}
-              onChange={handleSecondaryChange}
-              status={fieldStatuses.patAmt}
-            />
-            <GlassInput
-              label="Patient Received Date"
-              name="patRecDt"
-              type="date"
-              value={formatDateForInput(secondaryForm.patRecDt)}
-              onChange={handleSecondaryChange}
-              status={fieldStatuses.patRecDt}
-            />
             <GlassInput
               label="Secondary Denial Code"
               name="secDenialCode"
               value={secondaryForm.secDenialCode}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secDenialCode}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+            />
+          </div>
+        </GlassCard>
+      )}
+      
+      {/* Patient Data Form - New Tab */}
+      {activeTab === 'patient' && claimDetailsComplete && (
+        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <User className="text-earth-yellow" size={20} />
+              Patient Data
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <GlassInput
+              label="Patient Name"
+              name="patientName"
+              value={patientForm.patientName}
+              onChange={handlePatientChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              icon={<User size={16} className="text-earth-yellow" />}
+            />
+            <GlassInput
+              label="Date of Birth"
+              name="patientDob"
+              type="date"
+              value={formatDateForInput(patientForm.patientDob)}
+              onChange={handlePatientChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              icon={<Calendar size={16} className="text-earth-yellow" />}
+            />
+            <GlassInput
+              label="Patient Phone"
+              name="patientPhone"
+              value={patientForm.patientPhone}
+              onChange={handlePatientChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+            />
+            <GlassInput
+              label="Patient Email"
+              name="patientEmail"
+              type="email"
+              value={patientForm.patientEmail}
+              onChange={handlePatientChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+            />
+            <GlassInput
+              label="Patient Amount"
+              name="patAmt"
+              type="number"
+              step="0.01"
+              value={patientForm.patAmt}
+              onChange={handlePatientChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              icon={<DollarSign size={16} className="text-earth-yellow" />}
+            />
+            <GlassInput
+              label="Patient Received Date"
+              name="patRecDt"
+              type="date"
+              value={formatDateForInput(patientForm.patRecDt)}
+              onChange={handlePatientChange}
+              className="bg-dark-olive-green/50 text-white"
+              labelClassName="text-white/80"
+              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              icon={<Calendar size={16} className="text-earth-yellow" />}
             />
           </div>
         </GlassCard>
       )}
 
       {/* Placeholder for incomplete claim details */}
-      {(activeTab === 'primary' || activeTab === 'secondary') && !claimDetailsComplete && (
-        <GlassCard className="bg-dark-400/50">
+      {(activeTab === 'primary' || activeTab === 'secondary' || activeTab === 'patient') && !claimDetailsComplete && (
+        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <AlertCircle size={48} className="text-warning-400 mb-4" />
             <h3 className="text-xl font-medium text-white mb-2">Complete Claim Details First</h3>
@@ -1073,7 +1014,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
             </p>
             <Button
               variant="secondary"
-              className="mt-6"
+              className="mt-6 bg-earth-yellow hover:bg-earth-yellow/80 text-olive-green"
               onClick={() => setActiveTab('claim')}
             >
               Go to Claim Details

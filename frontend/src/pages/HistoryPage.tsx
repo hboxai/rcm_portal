@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   Calendar, 
@@ -32,7 +31,7 @@ const historyPageCache: Record<string, {
 const HISTORY_PAGE_CACHE_EXPIRY = 2 * 60 * 1000;
 
 const HistoryPage: React.FC = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth(); // Added user here
   const [history, setHistory] = useState<ChangeLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +53,7 @@ const HistoryPage: React.FC = () => {
   const [filters, setFilters] = useState<HistoryFilters>({
     user_name: undefined,
     username: undefined,
-    cpt_id: undefined,
+    cpt_id: undefined, // Changed from billing_id to cpt_id
     start_date: undefined,
     end_date: undefined
   });
@@ -74,7 +73,6 @@ const HistoryPage: React.FC = () => {
     const now = Date.now();
     const cacheKey = getCacheKey();
     
-    // Check if we have fresh cached data and not forcing refresh
     if (!forceRefresh && 
         historyPageCache[cacheKey] && 
         now - historyPageCache[cacheKey].timestamp < HISTORY_PAGE_CACHE_EXPIRY) {
@@ -88,7 +86,6 @@ const HistoryPage: React.FC = () => {
       return;
     }
     
-    // Don't fetch if we've fetched recently (within last 2 seconds) unless forced
     if (!forceRefresh && now - lastFetchTime < 2000) {
       console.log('Skipping history page fetch - throttled');
       return;
@@ -97,10 +94,18 @@ const HistoryPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setLastFetchTime(now);
+
+    let currentFilters = { ...filters };
+    if (!isAdmin && user?.username) {
+      currentFilters.user_name = user.username;
+    }
+    // If admin is filtering by a specific user, that will be in filters.user_name
+    // If not admin, their own username is now set in currentFilters.user_name
+    // If admin and not filtering by user_name, then user_name remains undefined, and all logs are fetched.
     
     try {
       const response = await fetchAllHistory({
-        ...filters,
+        ...currentFilters, // Use modified filters
         page: pagination.page,
         limit: pagination.limit
       });
@@ -198,16 +203,6 @@ const HistoryPage: React.FC = () => {
       .join(' ');
   };
 
-  // Helper function to format date/time
-  const formatDateTime = (dateTime: string): string => {
-    try {
-      const date = new Date(dateTime);
-      return date.toLocaleString();
-    } catch (err) {
-      return dateTime;
-    }
-  };
-  
   // Helper function to format date/time in IST
   const formatDateTimeIST = (dateTime: string): string => {
     try {
@@ -258,21 +253,18 @@ const HistoryPage: React.FC = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-300 to-dark-400">
+    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
       <Header />
       
       <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
           className="mb-8"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Link 
                 to="/" 
-                className="text-white/70 hover:text-white flex items-center gap-1 transition-colors"
+                className="text-black hover:text-gray-700 flex items-center gap-1" // Changed text-white to text-black and hover:text-gray-300 to hover:text-gray-700
               >
                 <ChevronLeft size={18} />
                 <span>Back to Dashboard</span>
@@ -283,33 +275,31 @@ const HistoryPage: React.FC = () => {
               variant="secondary"
               onClick={toggleFilters}
               icon={showFilters ? <FilterX size={16} /> : <Filter size={16} />}
+              className="text-black" // Added text-black
             >
               {showFilters ? 'Hide Filters' : 'Show Filters'}
             </Button>
           </div>
           
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-black flex items-center gap-3"> {/* Changed text-white to text-black */}
             <History className="text-accent-400" size={28} />
             Change History
           </h1>
-          <p className="text-white/60 mt-2">
+          <p className="text-black mt-2"> {/* Changed text-white to text-black */}
             {isAdmin 
               ? 'View all changes made to claims by all users'
               : 'View changes you have made to claims'}
           </p>
-        </motion.div>
+        </div>
         
         {/* Filters Section */}
         {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+          <div
             className="mb-6"
           >
-            <GlassCard>
+            <GlassCard className="bg-olive-green/80 text-white">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold flex items-center gap-2">
+                <h2 className="text-xl font-semibold flex items-center gap-2 text-white">
                   <Filter size={18} className="text-accent-400" />
                   Filter History
                 </h2>
@@ -333,18 +323,22 @@ const HistoryPage: React.FC = () => {
                       onChange={handleFilterChange}
                       placeholder="Filter by user name"
                       icon={<User size={16} />}
+                      labelClassName="text-white/80" // Added
+                      inputClassName="text-white" // Added
                     />
                   </>
                 )}
                 
                 <GlassInput
-                  label="CPT ID"
+                  label="Billing ID"
                   name="cpt_id"
-                  type="number"
-                  value={filters.cpt_id?.toString() || ''}
+                  type="text"
+                  value={filters.cpt_id || ''}
                   onChange={handleFilterChange}
-                  placeholder="Filter by CPT ID"
+                  placeholder="Filter by Billing ID"
                   icon={<FileSearch size={16} />}
+                  labelClassName="text-white/80"
+                  inputClassName="text-white"
                 />
                 
                 <GlassInput
@@ -355,6 +349,8 @@ const HistoryPage: React.FC = () => {
                   onChange={handleFilterChange}
                   placeholder="Filter by start date"
                   icon={<Calendar size={16} />}
+                  labelClassName="text-white/80" // Added
+                  inputClassName="text-white" // Added
                 />
                 
                 <GlassInput
@@ -365,6 +361,8 @@ const HistoryPage: React.FC = () => {
                   onChange={handleFilterChange}
                   placeholder="Filter by end date"
                   icon={<Calendar size={16} />}
+                  labelClassName="text-white/80" // Added
+                  inputClassName="text-white" // Added
                 />
               </div>
               
@@ -379,16 +377,13 @@ const HistoryPage: React.FC = () => {
                 </Button>
               </div>
             </GlassCard>
-          </motion.div>
+          </div>
         )}
         
         {/* History Content */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
+        <div
         >
-          <GlassCard>
+          <GlassCard className="bg-olive-green/80 text-white">
             {isLoading ? (
               <div className="flex justify-center items-center py-20">
                 <div className="w-12 h-12 border-2 border-accent-500 border-t-transparent rounded-full animate-spin"></div>
@@ -412,34 +407,87 @@ const HistoryPage: React.FC = () => {
               
                 <div className="space-y-4">
                   {history.map((log) => (
-                    <div key={log.id} className="bg-white/5 rounded-md p-4">
-                      <div className="flex flex-wrap items-center justify-between mb-2">
+                    <div key={log.id} className="bg-dark-olive-green/50 rounded-md p-4 text-white hover:bg-dark-olive-green/70 transition-colors border border-white/5">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2">
-                          <User size={16} className="text-accent-400" />
-                          <span className="font-medium text-white/90">{log.username}</span>
+                          <div className="bg-accent-500/20 p-2 rounded-full">
+                            <User size={16} className="text-accent-400" />
+                          </div>
+                          <span className="font-medium text-white">{log.username}</span>
                         </div>
                         
-                        <Link
-                          to={`/profile/${log.claim_id}`}
-                          className="text-accent-400 hover:text-accent-300 transition-colors"
-                        >
-                          CPT ID: {log.cpt_id || 'N/A'}
-                        </Link>
-                        
                         <div className="flex items-center gap-2">
-                          <Clock size={16} className="text-white/70" />
-                          <span className="text-white/70">{formatDateTimeIST(log.timestamp)}</span>
+                          <Link
+                            to={`/profile/${log.cpt_id}`}
+                            className="text-accent-400 hover:text-accent-300 transition-colors flex items-center gap-1 bg-white/10 px-3 py-1 rounded-full"
+                          >
+                            <FileSearch size={14} />
+                            <span>View Claim</span>
+                          </Link>
+                          
+                          <div className="bg-white/10 px-3 py-1 rounded-full text-white/90 flex items-center gap-1">
+                            <span className="text-white/70">Billing ID:</span>
+                            <span>{log.cpt_id ? log.cpt_id : 'Pending Assignment'}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-white/80 bg-white/5 px-3 py-1 rounded-full">
+                          <Clock size={14} />
+                          <span>{formatDateTimeIST(log.timestamp)}</span>
                         </div>
                       </div>
                       
-                      <div className="mt-2">
-                        <span className="text-white/60">Modified:</span>{' '}
-                        <span className="font-medium">{formatFieldName(log.field_name)}</span>
-                      </div>
+                      <div className="flex flex-col p-3 bg-white/5 rounded-md mt-2 border-l-2 border-accent-400">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-white/60">Modified:</span>
+                          <span className="font-medium text-white bg-white/10 px-2 py-0.5 rounded">
+                            {formatFieldName(log.field_name)}
+                          </span>
+                        </div>
 
-                      {/* Change description */}
-                      <div className="mt-2 text-white/70">
-                        {getChangeDescription(log)}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                          <div className="flex flex-col">
+                            <span className="text-xs text-white/60">Previous value:</span>
+                            <div 
+                              className="text-white font-medium bg-white/5 p-2 rounded mt-1 break-words relative group cursor-help"
+                              title={log.old_value || 'None'}
+                            >
+                              <span className="line-clamp-3">{log.old_value || 'None'}</span>
+                              
+                              {/* Hover tooltip for longer text */}
+                              {log.old_value && log.old_value.length > 100 && (
+                                <div className="absolute left-0 top-full mt-2 z-10 bg-dark-olive-green p-4 rounded-md shadow-lg 
+                                  max-w-md w-max max-h-60 overflow-auto invisible group-hover:visible opacity-0 group-hover:opacity-100 
+                                  transition-opacity duration-200 border border-white/20">
+                                  {log.old_value}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col">
+                            <span className="text-xs text-white/60">New value:</span>
+                            <div 
+                              className="text-white font-medium bg-accent-500/10 p-2 rounded mt-1 break-words relative group cursor-help"
+                              title={log.new_value || 'None'}
+                            >
+                              <span className="line-clamp-3">{log.new_value || 'None'}</span>
+                              
+                              {/* Hover tooltip for longer text */}
+                              {log.new_value && log.new_value.length > 100 && (
+                                <div className="absolute left-0 top-full mt-2 z-10 bg-dark-olive-green p-4 rounded-md shadow-lg 
+                                  max-w-md w-max max-h-60 overflow-auto invisible group-hover:visible opacity-0 group-hover:opacity-100 
+                                  transition-opacity duration-200 border border-white/20">
+                                  {log.new_value}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 text-xs text-white/50 italic">
+                        Log ID: {log.id}
                       </div>
                     </div>
                   ))}
@@ -516,7 +564,7 @@ const HistoryPage: React.FC = () => {
               </>
             )}
           </GlassCard>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -5,19 +5,30 @@ import SearchResults from '../components/search/SearchResults';
 import { useClaims } from '../contexts/ClaimContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { SearchFilters } from '../types/claim';
 
 const SearchPage: React.FC = () => {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { searchResults, isLoading, searchClaims, claims } = useClaims();
-  const [hasSearched, setHasSearched] = useState(false);
-  const navigate = useNavigate();
+  const {
+    searchResults,
+    isLoading,
+    searchClaims,
+    error, // Changed from searchError to error to match context
+    currentPage,
+    totalPages,
+    claimsPerPage,
+    totalClaimCount,
+    hasSearched,
+    setHasSearched
+  } = useClaims();
   
-  // Add console log to debug navigation
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const [currentFilters, setCurrentFilters] = useState<SearchFilters>({});
+
   useEffect(() => {
     console.log('SearchPage: Component mounted');
     console.log('SearchPage: Auth state -', { isAuthenticated, authLoading });
     
-    // Only redirect if not authenticated and not currently checking authentication
     if (!isAuthenticated && !authLoading) {
       console.log('SearchPage: Not authenticated, redirecting to login');
       navigate('/login');
@@ -26,46 +37,59 @@ const SearchPage: React.FC = () => {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  // Track when a search happens
-  useEffect(() => {
-    if (isLoading) {
-      setHasSearched(true);
-    }
-  }, [isLoading]);
+  const handleSearch = async (filters: SearchFilters) => {
+    setHasSearched(true);
+    setCurrentFilters(filters);
+    await searchClaims({ ...filters, page: 1, limit: claimsPerPage });
+  };
 
-  // Show loading indicator during authentication check
+  const handlePageChange = (newPage: number) => {
+    searchClaims({ ...currentFilters, page: newPage, limit: claimsPerPage });
+  };
+
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-dark-300 to-dark-400 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-olive-green to-earth-yellow flex items-center justify-center">
         <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-transparent border-t-accent-400 border-r-accent-400 rounded-full animate-spin"></div>
-          <p className="mt-4 text-white/80">Verifying your session...</p>
+          <div className="w-12 h-12 border-4 border-transparent border-t-sienna border-r-sienna rounded-full animate-spin"></div>
+          <p className="mt-4 text-textDark/80">Verifying your session...</p>
         </div>
       </div>
     );
   }
 
-  // Don't render anything if not authenticated
   if (!isAuthenticated) return null;
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-300 to-dark-400">
+    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
       <Header />
-      
-      <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
+      <div className="p-4 md:p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">Search Claims</h1>
-          <p className="text-white/60 mt-2">
-            Find billing claims using multiple search parameters
-          </p>
+          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
+            Claim Search
+          </h1>
+          
+          <SearchForm onSearch={handleSearch} isLoading={isLoading} />
         </div>
-        
-        <SearchForm />
-        <SearchResults 
-          results={searchResults} 
-          isLoading={isLoading}
-          hasSearched={hasSearched}
-        />
+
+        {/* Display error message if there is an error from the context */}
+        {error && (
+          <div className="mb-4 p-4 bg-error-500/20 text-error-300 rounded-md text-center">
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="mt-8">
+          <SearchResults
+            results={searchResults}
+            isLoading={isLoading}
+            hasSearched={hasSearched}
+            totalCount={totalClaimCount}
+            currentPage={currentPage}
+            claimsPerPage={claimsPerPage}
+            onPageChange={handlePageChange}
+          />
+        </div>
       </div>
     </div>
   );

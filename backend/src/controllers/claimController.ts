@@ -20,22 +20,31 @@ export const getClaims = async (req: Request, res: Response) => {
   try {
     requestCounter++;
     const requestId = requestCounter;
-    
-    // Only log every 5th request to reduce console spam
+
     const shouldLog = requestId % 5 === 0;
     if (shouldLog) {
       console.log(`[Request #${requestId}] GET /api/claims received with query params:`, req.query);
     }
 
     // Extract query parameters
-    const patientId = req.query.patient_id ? Number(req.query.patient_id) : undefined;
-    const cptId = req.query.cpt_id ? Number(req.query.cpt_id) : undefined;
-    const serviceEnd = req.query.service_end as string | undefined;
+    const patientId = req.query.patient_id ? String(req.query.patient_id) : undefined;
+    const billingId = req.query.billingId ? String(req.query.billingId) : undefined;
+    const dos = req.query.dos ? String(req.query.dos) : undefined;
+    const firstName = req.query.first_name as string | undefined;
+    const lastName = req.query.last_name as string | undefined;
+    const payerName = req.query.prim_ins as string | undefined;
+    const dateOfBirth = req.query.date_of_birth as string | undefined;
+    const cptCode = req.query.cpt_code as string | undefined;
+
+    // Pagination parameters
+    const page = parseInt(req.query.page as string || '1');
+    const limit = parseInt(req.query.limit as string || '10'); // Default limit to 10 if not provided
+    const offset = (page - 1) * limit;
 
     // Build query components
-    let sqlQuery = `
+    let selectQuery = `
       SELECT
-        id, patient_id, patient_emr_no, cpt_id, cpt_code, 
+        id, patient_id, patient_emr_no, cpt_id AS billing_id, cpt_code, 
         first_name, last_name, date_of_birth, service_start, service_end,
         icd_code, provider_name, units, oa_claim_id, oa_visit_id,
         charge_dt, charge_amt, allowed_amt, allowed_add_amt, allowed_exp_amt,
@@ -45,63 +54,117 @@ export const getClaims = async (req: Request, res: Response) => {
         sec_amt, sec_post_dt, sec_chk_det, sec_recv_dt, sec_chk_amt, sec_cmt,
         pat_amt, pat_recv_dt
       FROM upl_billing_reimburse`;
+    
+    const countQuery = `SELECT COUNT(*) FROM upl_billing_reimburse`;
+
     const queryParams: any[] = [];
     const conditions: string[] = [];
+    let paramIndex = 1;
 
     // Add filters if provided
     if (patientId) {
-      queryParams.push(patientId);
-      conditions.push(`patient_id = $${queryParams.length}`);
+      conditions.push(`patient_id::text LIKE $${paramIndex++}`);
+      queryParams.push(`%${patientId}%`);
     }
 
-    if (cptId) {
-      queryParams.push(cptId);
-      conditions.push(`cpt_id = $${queryParams.length}`);
+    if (billingId) {
+      // Search in multiple possible ID fields to be flexible
+      conditions.push(`(
+        oa_visit_id::text LIKE $${paramIndex} OR 
+        cpt_id::text LIKE $${paramIndex} OR 
+        oa_claim_id::text LIKE $${paramIndex}
+      )`);
+      queryParams.push(`%${billingId}%`);
+      paramIndex++;
     }
 
-    if (serviceEnd) {
-      queryParams.push(serviceEnd);
-      conditions.push(`service_end = $${queryParams.length}`);
+    if (dos) {
+      // Support multiple date formats and partial date matching
+      conditions.push(`(
+        service_start::text LIKE $${paramIndex} OR 
+        service_end::text LIKE $${paramIndex} OR
+        charge_dt::text LIKE $${paramIndex}
+      )`);
+      queryParams.push(`%${dos}%`);
+      paramIndex++;
     }
 
-    // Construct WHERE clause if there are conditions
+    if (firstName) {
+      conditions.push(`LOWER(first_name) LIKE LOWER($${paramIndex++})`);
+      queryParams.push(`%${firstName}%`);
+    }
+
+    if (lastName) {
+      conditions.push(`LOWER(last_name) LIKE LOWER($${paramIndex++})`);
+      queryParams.push(`%${lastName}%`);
+    }
+
+    if (payerName) {
+      conditions.push(`LOWER(prim_ins) LIKE LOWER($${paramIndex++})`);
+      queryParams.push(`%${payerName}%`);
+    }
+
+    if (dateOfBirth) {
+      // Support multiple date formats and partial matching
+      conditions.push(`date_of_birth::text LIKE $${paramIndex++}`);
+      queryParams.push(`%${dateOfBirth}%`);
+    }
+
+    if (cptCode) {
+      conditions.push(`LOWER(cpt_code) LIKE LOWER($${paramIndex++})`);
+      queryParams.push(`%${cptCode}%`);
+    }
+
+    let whereClause = '';
     if (conditions.length > 0) {
-      sqlQuery += ' WHERE ' + conditions.join(' AND ');
+      whereClause = ' WHERE ' + conditions.join(' AND ');
     }
+
+    const fullCountQuery = countQuery + whereClause;
+    let fullSelectQuery = selectQuery + whereClause;
 
     // Sort by most recent service date with nulls last
-    sqlQuery += ' ORDER BY service_end DESC NULLS LAST';
+    fullSelectQuery += ' ORDER BY service_end DESC NULLS LAST';
 
-    // Add LIMIT for pagination and performance
-    sqlQuery += ' LIMIT 10';
+    // Add LIMIT and OFFSET for pagination
+    fullSelectQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    const selectQueryParams = [...queryParams, limit, offset];
 
     // Create a cache key based on the query and params
-    const cacheKey = JSON.stringify({ sql: sqlQuery, params: queryParams });
+    const cacheKey = JSON.stringify({ sql: fullSelectQuery, params: selectQueryParams, countSql: fullCountQuery, countParams: queryParams });
     const now = Date.now();
     
-    // Check if we have this query in cache and it's still valid (less than 30 seconds old)
     if (queryCache[cacheKey] && now - queryCache[cacheKey].timestamp < queryCache[cacheKey].ttl) {
       if (shouldLog) console.log(`[Request #${requestId}] Using cached result for claims query`);
       return res.status(200).json(queryCache[cacheKey].data);
     }
 
     if (shouldLog) {
-      console.log(`[Request #${requestId}] Executing SQL query:`, sqlQuery.replace(/\s+/g, ' '));
+      console.log(`[Request #${requestId}] Executing SQL query:`, fullSelectQuery.replace(/\s+/g, ' '));
+      console.log(`[Request #${requestId}] With parameters:`, selectQueryParams);
+      console.log(`[Request #${requestId}] Executing count query:`, fullCountQuery.replace(/\s+/g, ' '));
       console.log(`[Request #${requestId}] With parameters:`, queryParams);
     }
 
-    // Execute query using our optimized query function
     try {
-      const { rows } = await query(sqlQuery, queryParams);
+      // Execute count query
+      const countResult = await query(fullCountQuery, queryParams);
+      const totalCount = parseInt(countResult.rows[0].count);
+
+      // Execute select query for paginated data
+      const { rows } = await query(fullSelectQuery, selectQueryParams);
       
-      if (shouldLog) console.log(`[Request #${requestId}] Query returned ${rows.length} claims`);
+      if (shouldLog) console.log(`[Request #${requestId}] Query returned ${rows.length} claims out of ${totalCount} total`);
       
       const result = {
         success: true,
+        totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
         data: rows
       };
       
-      // Cache the result with a TTL of 30 seconds
       queryCache[cacheKey] = {
         data: result,
         timestamp: now,
@@ -159,7 +222,16 @@ export const getClaimById = async (req: Request, res: Response) => {
     
     // Query to get full claim details by ID
     const sqlQuery = `
-      SELECT *
+      SELECT
+        id, patient_id, patient_emr_no, cpt_id AS billing_id, cpt_code, 
+        first_name, last_name, date_of_birth, service_start, service_end,
+        icd_code, provider_name, units, oa_claim_id, oa_visit_id,
+        charge_dt, charge_amt, allowed_amt, allowed_add_amt, allowed_exp_amt,
+        total_amt, charges_adj_amt, write_off_amt, bal_amt, reimb_pct,
+        claim_status, claim_status_type, prim_ins, prim_amt, prim_post_dt,
+        prim_chk_det, prim_recv_dt, prim_chk_amt, prim_cmt, sec_ins,
+        sec_amt, sec_post_dt, sec_chk_det, sec_recv_dt, sec_chk_amt, sec_cmt,
+        pat_amt, pat_recv_dt
       FROM upl_billing_reimburse
       WHERE id = $1`;
     
@@ -220,7 +292,18 @@ export const updateClaim = async (req: Request, res: Response) => {
     }
 
     // Get the current claim to check if it exists and to compare old values
-    const checkQuery = `SELECT * FROM upl_billing_reimburse WHERE id = $1`;
+    const checkQuery = `
+      SELECT 
+        id, patient_id, patient_emr_no, cpt_id AS billing_id, cpt_code, 
+        first_name, last_name, date_of_birth, service_start, service_end,
+        icd_code, provider_name, units, oa_claim_id, oa_visit_id,
+        charge_dt, charge_amt, allowed_amt, allowed_add_amt, allowed_exp_amt,
+        total_amt, charges_adj_amt, write_off_amt, bal_amt, reimb_pct,
+        claim_status, claim_status_type, prim_ins, prim_amt, prim_post_dt,
+        prim_chk_det, prim_recv_dt, prim_chk_amt, prim_cmt, sec_ins,
+        sec_amt, sec_post_dt, sec_chk_det, sec_recv_dt, sec_chk_amt, sec_cmt,
+        pat_amt, pat_recv_dt 
+      FROM upl_billing_reimburse WHERE id = $1`;
     const checkResult = await query(checkQuery, [id]);
     
     if (checkResult.rows.length === 0) {
@@ -296,7 +379,8 @@ export const updateClaim = async (req: Request, res: Response) => {
     let paramIndex = 1;
     
     for (const [key, value] of Object.entries(updates)) {
-      setClauses.push(`${key} = $${paramIndex}`);
+      const dbColumn = key === 'billing_id' ? 'cpt_id' : key;
+      setClauses.push(`${dbColumn} = $${paramIndex}`);
       queryParams.push(value);
       paramIndex++;
     }
@@ -368,7 +452,7 @@ export const updateClaim = async (req: Request, res: Response) => {
               id,
               userId,
               username,
-              oldClaim.cpt_id || null,
+              oldClaim.billing_id || null, // Renamed from cpt_id
               change.field_name,
               change.old_value,
               change.new_value,
@@ -439,7 +523,7 @@ export const getClaimHistory = async (req: Request, res: Response) => {
     
     try {
       // Check if the claim exists
-      const claimCheckQuery = 'SELECT id, cpt_id, first_name, last_name FROM upl_billing_reimburse WHERE id = $1';
+      const claimCheckQuery = 'SELECT id, cpt_id AS billing_id, first_name, last_name FROM upl_billing_reimburse WHERE id = $1'; // Changed billing_id to cpt_id AS billing_id
       
       // Use our optimized query function
       const claimCheck = await query(claimCheckQuery, [id]);
@@ -458,7 +542,7 @@ export const getClaimHistory = async (req: Request, res: Response) => {
       try {
         // Get change history for the claim
         const historyQuery = `
-          SELECT *
+          SELECT id, claim_id, user_id, username, cpt_id AS billing_id, timestamp, field_name, old_value, new_value, action_type
           FROM upl_change_logs
           WHERE claim_id = $1
           ORDER BY timestamp DESC`;
@@ -493,7 +577,7 @@ export const getClaimHistory = async (req: Request, res: Response) => {
               claim_id: id,
               user_id: 1,
               username: 'System',
-              cpt_id: claim.cpt_id,
+              billing_id: claim.billing_id,
               timestamp: new Date().toISOString(),
               field_name: 'claim_status',
               old_value: 'Pending',
@@ -549,18 +633,68 @@ export const getClaimHistory = async (req: Request, res: Response) => {
 export const getAllChangeHistory = async (req: Request, res: Response) => {
   try {
     requestCounter++;
-    const requestId = requestCounter;
-    
-    const userId = req.query.user_id ? parseInt(req.query.user_id as string) : undefined;
-    const cptId = req.query.cpt_id ? parseInt(req.query.cpt_id as string) : undefined;
-    const startDate = req.query.start_date as string | undefined;
-    const endDate = req.query.end_date as string | undefined;
+    // const requestId = requestCounter; // Commented out as requestId is not used
+
+    // User information from authMiddleware
+    const loggedInUser = req.user as { id: number; role: string; email: string }; // Adjust type as per your JWT payload
+
+    let userIdFromQuery = req.query.user_id ? parseInt(req.query.user_id as string) : undefined;
+    const cptId = req.query.billing_id ? parseInt(req.query.billing_id as string) : undefined;
+    const startDate = req.query.start_date ? req.query.start_date as string : undefined;
+    const endDate = req.query.end_date ? req.query.end_date as string : undefined;
     const page = parseInt(req.query.page as string || '1');
     const limit = parseInt(req.query.limit as string || '20');
     const offset = (page - 1) * limit;
+
+    // Build query conditions
+    let conditions: string[] = [];
+    const queryParams: any[] = [];
+    let paramIndex = 1;
+
+    // Role-based filtering for user_id
+    if (loggedInUser.role === 'Admin') {
+      if (userIdFromQuery) {
+        conditions.push(`cl.user_id = $${paramIndex++}`);
+        queryParams.push(userIdFromQuery);
+      }
+      // Admin can see all logs if no specific user_id is queried
+    } else {
+      // Non-admin users can only see their own logs
+      conditions.push(`cl.user_id = $${paramIndex++}`);
+      queryParams.push(loggedInUser.id);
+      // Ignore any user_id passed in query by non-admin
+      userIdFromQuery = loggedInUser.id; // For cache key consistency
+    }
+
+    if (cptId) {
+      // Assuming cl.cpt_id is the correct column in upl_change_logs
+      // If it's claim_id that links to upl_billing_reimburse which has cpt_id, adjust accordingly
+      // For now, let's assume there's a direct cpt_id or billing_id in upl_change_logs if this filter is intended for it.
+      // The existing query joins with upl_billing_reimburse on claim_id, so filtering on ubr.cpt_id might be intended.
+      // The original code had `billing_id` for the query param and `cptId` for the variable.
+      // It then pushed `billing_id = $${paramIndex++}`. Let's assume `cl.cpt_id` is the column to filter by in `upl_change_logs` for this parameter.
+      // If `billing_id` refers to `cpt_id` in `upl_billing_reimburse` table, the join handles it.
+      // The query already selects ubr.cpt_code. If the filter is on cpt_code:
+      // conditions.push(`ubr.cpt_code = $${paramIndex++}`);
+      // queryParams.push(cptId); // if cptId is actually a code string
+      // If cptId is a numerical ID for the CPT code/billing code:
+      conditions.push(`cl.cpt_id = $${paramIndex++}`); // Assuming upl_change_logs has cpt_id
+      queryParams.push(cptId);
+    }
+
+    if (startDate) {
+      conditions.push(`cl.timestamp >= $${paramIndex++}`);
+      queryParams.push(startDate);
+    }
+
+    if (endDate) {
+      conditions.push(`cl.timestamp <= $${paramIndex++}`);
+      queryParams.push(endDate);
+    }
     
-    // Create a cache key for this specific query
-    const cacheKey = `all-history-${userId || 'all'}-${cptId || 'all'}-${startDate || 'none'}-${endDate || 'none'}-${page}-${limit}`;
+    // Create a cache key that reflects the actual user ID being filtered
+    const effectiveUserIdForCache = loggedInUser.role === 'Admin' ? (userIdFromQuery || 'all') : loggedInUser.id;
+    const cacheKey = `all-history-${effectiveUserIdForCache}-${cptId || 'all'}-${startDate || 'none'}-${endDate || 'none'}-${page}-${limit}`;
     const now = Date.now();
     
     // Check if we have cached data for this query (cache for 60 seconds)
@@ -569,41 +703,15 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
     }
 
     try {
-      // Build query conditions
-      let conditions: string[] = [];
-      const queryParams: any[] = [];
-      let paramIndex = 1;
-
-      if (userId) {
-        conditions.push(`user_id = $${paramIndex++}`);
-        queryParams.push(userId);
-      }
-
-      if (cptId) {
-        conditions.push(`cpt_id = $${paramIndex++}`);
-        queryParams.push(cptId);
-      }
-
-      if (startDate) {
-        conditions.push(`timestamp >= $${paramIndex++}`);
-        queryParams.push(startDate);
-      }
-
-      if (endDate) {
-        conditions.push(`timestamp <= $${paramIndex++}`);
-        queryParams.push(endDate);
-      }
-
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       // Count total records for pagination
-      const countQuery = `SELECT COUNT(*) FROM upl_change_logs ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) FROM upl_change_logs cl ${whereClause}`;
       
       // Use our optimized query function
       const countResult = await query(countQuery, queryParams);
       const totalCount = parseInt(countResult.rows[0].count);
 
-      // Get paginated history
       const historyQuery = `
         SELECT 
           cl.*,
@@ -646,7 +754,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         console.log(`upl_change_logs table doesn't exist yet, returning mock history data`);
         
         // Get some claims to generate mock history using our optimized query
-        const claimsQuery = `SELECT id, cpt_id, first_name, last_name FROM upl_billing_reimburse LIMIT 5`;
+        const claimsQuery = `SELECT id, cpt_id AS billing_id, first_name, last_name FROM upl_billing_reimburse LIMIT 5`;
         const claimsResult = await query(claimsQuery, []);
         const claims = claimsResult.rows;
         
@@ -659,9 +767,9 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
             {
               id: index * 2 + 1,
               claim_id: claim.id,
-              user_id: userId || 1,
+              user_id: userIdFromQuery || 1,
               username: 'System',
-              cpt_id: claim.cpt_id,
+              billing_id: claim.billing_id,
               timestamp: date.toISOString(),
               field_name: 'claim_status',
               old_value: 'Pending',
@@ -674,9 +782,9 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
             {
               id: index * 2 + 2,
               claim_id: claim.id,
-              user_id: userId || 1,
+              user_id: userIdFromQuery || 1,
               username: 'System',
-              cpt_id: claim.cpt_id,
+              billing_id: claim.billing_id,
               timestamp: new Date(date.setHours(date.getHours() - 2)).toISOString(),
               field_name: 'prim_ins',
               old_value: null,
@@ -692,12 +800,15 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         // Apply any filters that were requested
         let filteredHistory = [...mockHistory];
         
-        if (userId) {
-          filteredHistory = filteredHistory.filter(h => h.user_id === userId);
+        // Apply role-based filtering for mock data as well
+        if (loggedInUser.role !== 'Admin') {
+          filteredHistory = filteredHistory.filter(h => h.user_id === loggedInUser.id);
+        } else if (userIdFromQuery) { // Admin querying a specific user
+          filteredHistory = filteredHistory.filter(h => h.user_id === userIdFromQuery);
         }
         
         if (cptId) {
-          filteredHistory = filteredHistory.filter(h => h.cpt_id === cptId);
+          filteredHistory = filteredHistory.filter(h => h.billing_id === cptId);
         }
         
         // Apply pagination

@@ -6,11 +6,11 @@ import './index.css';
 
 // Loading fallback component
 const LoadingFallback = () => (
-  <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-dark-600 to-dark-800">
-    <div className="p-4 rounded-lg bg-dark-500 bg-opacity-80 backdrop-blur-sm shadow-lg">
+  <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-olive-green to-earth-yellow">
+    <div className="p-4 rounded-lg bg-dark-olive-green/80 backdrop-blur-sm shadow-lg">
       <div className="flex flex-col items-center">
-        <div className="w-12 h-12 border-4 border-transparent border-t-accent-400 border-r-accent-400 rounded-full animate-spin"></div>
-        <p className="mt-4 text-white/80">Loading...</p>
+        <div className="w-12 h-12 border-4 border-transparent border-t-sienna border-r-sienna rounded-full animate-spin"></div>
+        <p className="mt-4 text-textLight/80">Loading...</p>
       </div>
     </div>
   </div>

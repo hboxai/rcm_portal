@@ -18,10 +18,16 @@ interface ClaimContextType {
   currentClaim: VisitClaim | null;
   isLoading: boolean;
   error: string | null;
-  searchClaims: (filters: SearchFilters) => void;
+  searchClaims: (filters: SearchFilters, page?: number, limit?: number) => void;
   getClaim: (id: string) => Promise<VisitClaim | null>;
   updateClaim: (updatedClaimData: Partial<VisitClaim>) => Promise<VisitClaim | null>;
   addNote: (claimId: string, note: string) => void;
+  totalClaimCount: number;
+  currentPage: number;
+  claimsPerPage: number;
+  totalPages: number;
+  hasSearched: boolean;
+  setHasSearched: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const ClaimContext = createContext<ClaimContextType | undefined>(undefined);
@@ -54,70 +60,80 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
   // Log the raw data for debugging
   console.log('Raw API claim data:', apiClaim);
   
+  // Map all fields from the SQL query to the VisitClaim interface
   return {
-    // New database fields
+    // DB Fields - Directly mapped from SQL query
     id: apiClaim.id,
     patient_id: apiClaim.patient_id || '',
-    patient_emr_no: apiClaim.patient_emr_no || null,
-    cpt_id: apiClaim.cpt_id?.toString() || null,
-    cpt_code: apiClaim.cpt_code || null,
+    patient_emr_no: apiClaim.patient_emr_no || '',
+    billing_id: apiClaim.billing_id || apiClaim.cpt_id || null,
+    cpt_id: apiClaim.cpt_id || apiClaim.billing_id || null,
+    cpt_code: apiClaim.cpt_code || '',
     first_name: apiClaim.first_name || '',
     last_name: apiClaim.last_name || '',
     date_of_birth: apiClaim.date_of_birth || null,
     service_start: apiClaim.service_start || null,
     service_end: apiClaim.service_end || apiClaim.dos || null,
-    claim_status: apiClaim.claim_status || 'Pending',
-    claim_status_type: apiClaim.claim_status_type || null,
-    icd_code: apiClaim.icd_code || null,
-    provider_name: apiClaim.provider_name || null,
+    icd_code: apiClaim.icd_code || '',
+    provider_name: apiClaim.provider_name || '',
     units: apiClaim.units || null,
     
     // Claim & Billing Information
-    oa_claim_id: apiClaim.oa_claim_id || null,
-    oa_visit_id: apiClaim.oa_visit_id || null,
+    oa_claim_id: apiClaim.oa_claim_id || '',
+    oa_visit_id: apiClaim.oa_visit_id || '',
     charge_dt: apiClaim.charge_dt || null,
-    charge_amt: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : null,
-    allowed_amt: apiClaim.allowed_amt !== undefined && apiClaim.allowed_amt !== null ? apiClaim.allowed_amt : null,
-    allowed_add_amt: apiClaim.allowed_add_amt !== undefined && apiClaim.allowed_add_amt !== null ? apiClaim.allowed_add_amt : null,
-    allowed_exp_amt: apiClaim.allowed_exp_amt !== undefined && apiClaim.allowed_exp_amt !== null ? apiClaim.allowed_exp_amt : null,
-    total_amt: apiClaim.total_amt !== undefined && apiClaim.total_amt !== null ? apiClaim.total_amt : null,
-    charges_adj_amt: apiClaim.charges_adj_amt !== undefined && apiClaim.charges_adj_amt !== null ? apiClaim.charges_adj_amt : null,
-    write_off_amt: apiClaim.write_off_amt !== undefined && apiClaim.write_off_amt !== null ? apiClaim.write_off_amt : null,
-    bal_amt: apiClaim.bal_amt !== undefined && apiClaim.bal_amt !== null ? apiClaim.bal_amt : null,
-    reimb_pct: apiClaim.reimb_pct !== undefined && apiClaim.reimb_pct !== null ? apiClaim.reimb_pct : null,
+    charge_amt: apiClaim.charge_amt !== undefined ? apiClaim.charge_amt : null,
+    allowed_amt: apiClaim.allowed_amt !== undefined ? apiClaim.allowed_amt : null,
+    allowed_add_amt: apiClaim.allowed_add_amt !== undefined ? apiClaim.allowed_add_amt : null,
+    allowed_exp_amt: apiClaim.allowed_exp_amt !== undefined ? apiClaim.allowed_exp_amt : null,
+    total_amt: apiClaim.total_amt !== undefined ? apiClaim.total_amt : null,
+    charges_adj_amt: apiClaim.charges_adj_amt !== undefined ? apiClaim.charges_adj_amt : null,
+    write_off_amt: apiClaim.write_off_amt !== undefined ? apiClaim.write_off_amt : null,
+    bal_amt: apiClaim.bal_amt !== undefined ? apiClaim.bal_amt : null,
+    reimb_pct: apiClaim.reimb_pct !== undefined ? apiClaim.reimb_pct : null,
+    claim_status: apiClaim.claim_status || 'Pending',
+    claim_status_type: apiClaim.claim_status_type || '',
     
     // Primary Insurance
-    prim_ins: apiClaim.prim_ins || null,
-    prim_amt: apiClaim.prim_amt !== undefined && apiClaim.prim_amt !== null ? apiClaim.prim_amt : null,
+    prim_ins: apiClaim.prim_ins || '',
+    prim_amt: apiClaim.prim_amt !== undefined ? apiClaim.prim_amt : null,
     prim_post_dt: apiClaim.prim_post_dt || null,
-    prim_chk_det: apiClaim.prim_chk_det || null,
+    prim_chk_det: apiClaim.prim_chk_det || '',
     prim_recv_dt: apiClaim.prim_recv_dt || null,
-    prim_chk_amt: apiClaim.prim_chk_amt !== undefined && apiClaim.prim_chk_amt !== null ? apiClaim.prim_chk_amt : null,
-    prim_cmt: apiClaim.prim_cmt || null,
+    prim_chk_amt: apiClaim.prim_chk_amt !== undefined ? apiClaim.prim_chk_amt : null,
+    prim_cmt: apiClaim.prim_cmt || '',
     
     // Secondary Insurance
-    sec_ins: apiClaim.sec_ins || null,
-    sec_amt: apiClaim.sec_amt !== undefined && apiClaim.sec_amt !== null ? apiClaim.sec_amt : null,
+    sec_ins: apiClaim.sec_ins || '',
+    sec_amt: apiClaim.sec_amt !== undefined ? apiClaim.sec_amt : null,
     sec_post_dt: apiClaim.sec_post_dt || null,
-    sec_chk_det: apiClaim.sec_chk_det || null,
+    sec_chk_det: apiClaim.sec_chk_det || '',
     sec_recv_dt: apiClaim.sec_recv_dt || null,
-    sec_chk_amt: apiClaim.sec_chk_amt !== undefined && apiClaim.sec_chk_amt !== null ? apiClaim.sec_chk_amt : null,
-    sec_cmt: apiClaim.sec_cmt || null,
-    sec_denial_code: apiClaim.sec_denial_code || null,
+    sec_chk_amt: apiClaim.sec_chk_amt !== undefined ? apiClaim.sec_chk_amt : null,
+    sec_cmt: apiClaim.sec_cmt || '',
+    sec_denial_code: apiClaim.sec_denial_code || '',
     
     // Patient Payment
-    pat_amt: apiClaim.pat_amt !== undefined && apiClaim.pat_amt !== null ? apiClaim.pat_amt : null,
+    pat_amt: apiClaim.pat_amt !== undefined ? apiClaim.pat_amt : null,
     pat_recv_dt: apiClaim.pat_recv_dt || null,
     
-    // Legacy fields for backward compatibility
+    // Frontend fields (mapped for compatibility with UI components)
     visitId: apiClaim.oa_visit_id || `V${apiClaim.id}`, 
     patientId: apiClaim.patient_id?.toString() || '',
     patientName: `${apiClaim.first_name || ''} ${apiClaim.last_name || ''}`.trim() || 'Unknown Patient',
     dob: apiClaim.date_of_birth || '',
-    dos: apiClaim.service_end || apiClaim.dos || '',
+    dateOfBirth: apiClaim.date_of_birth || '',
+    dos: apiClaim.service_end || apiClaim.service_start || '',
     checkNumber: apiClaim.prim_chk_det || apiClaim.sec_chk_det || '',
     amount: apiClaim.charge_amt || 0,
     status: apiClaim.claim_status || 'Pending',
+    billedAmount: apiClaim.charge_amt || 0,
+    paidAmount: apiClaim.prim_amt || apiClaim.total_amt || 0,
+    claimId: apiClaim.oa_claim_id || `C${apiClaim.id}`,
+    memberId: apiClaim.patient_id?.toString() || apiClaim.patient_emr_no?.toString() || '',
+    payer: apiClaim.prim_ins || '',
+    cptCodes: apiClaim.cpt_code ? [apiClaim.cpt_code] : [],
+    icdCodes: apiClaim.icd_code ? [apiClaim.icd_code] : [],
     createdAt: apiClaim.charge_dt || new Date().toISOString(),
     updatedAt: apiClaim.prim_post_dt || apiClaim.sec_post_dt || new Date().toISOString(),
     notes: [] // API data doesn't include notes field
@@ -133,6 +149,11 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState<boolean>(false);
+  const [totalClaimCount, setTotalClaimCount] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [claimsPerPage, setClaimsPerPage] = useState<number>(10);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [hasSearched, setHasSearched] = useState<boolean>(false);
 
   // Optimized claims initial load with proper connection handling
   useEffect(() => {
@@ -141,151 +162,146 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     
     const controller = new AbortController(); // For cancelling the fetch if component unmounts
     
-    const loadInitialClaims = async () => {
+    const loadInitialClaims = async (page = 1, limit = 10) => {
       try {
         setIsLoading(true);
         setError(null);
         
-        console.log('Attempting to load initial claims data');
-        const response = await fetchClaims();
+        console.log(`Attempting to load initial claims data (page: ${page}, limit: ${limit})`);
+        // Pass empty object for filters, and page/limit as separate arguments
+        const response = await fetchClaims({}, page, limit); 
         
         if (response.success && Array.isArray(response.data)) {
           const mappedClaims = response.data.map(mapApiClaimToVisitClaim);
           console.log('Successfully mapped claims data:', mappedClaims);
           setClaims(mappedClaims);
-          setSearchResults(mappedClaims);
-          console.log('Successfully loaded claims:', mappedClaims.length);
+          setSearchResults(mappedClaims); // Initialize search results with the first page
+          setTotalClaimCount(response.totalCount || 0);
+          setCurrentPage(response.page || 1);
+          setClaimsPerPage(response.limit || 10);
+          setTotalPages(response.totalPages || 0);
+          console.log('Successfully loaded claims:', mappedClaims.length, 'Total:', response.totalCount);
         } else {
           console.error('Failed to fetch claims:', response.error || 'Unknown error', response);
           setError(response.message || 'Failed to fetch claims');
-          // Use empty arrays instead of setting to null or undefined
           setClaims([]);
           setSearchResults([]);
+          setTotalClaimCount(0);
+          setTotalPages(0);
         }
-        // Mark initial load as complete regardless of success/failure
         setInitialLoadDone(true);
       } catch (err: any) {
         const errorMessage = 'Error connecting to the claims API';
         setError(errorMessage);
         console.error(errorMessage, err);
-        // Use empty arrays instead of setting to null or undefined
         setClaims([]);
         setSearchResults([]);
-        // Mark initial load as complete even on error
+        setTotalClaimCount(0);
+        setTotalPages(0);
         setInitialLoadDone(true);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadInitialClaims();
+    loadInitialClaims(currentPage, claimsPerPage);
     
     // Cleanup function to abort any ongoing fetch when component unmounts
     return () => {
       controller.abort();
     };
-  }, [initialLoadDone]); // Only depends on initialLoadDone flag
+  }, [initialLoadDone, currentPage, claimsPerPage]); 
 
   // Debounce search function to prevent rapid consecutive API calls
-  const searchClaims = useCallback(async (filters: SearchFilters) => {
-    // If we're already in a loading state, don't trigger another search
-    if (isLoading) return;
-    
+  const searchClaims = useCallback(async (filtersArg: SearchFilters, pageArg?: number, limitArg?: number) => {
+    if (!user) {
+      setError("User not authenticated");
+      return;
+    }
     setIsLoading(true);
     setError(null);
-    
-    try {
-      console.log('Searching claims with filters:', filters);
+    setHasSearched(true); // Set hasSearched to true when a search is performed
 
-      // Create a filtered version without empty strings
-      const cleanedFilters = Object.entries(filters).reduce((acc, [key, value]) => {
-        if (value !== '' && value !== undefined && value !== null) {
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as Record<string, any>);
+    // Determine the page and limit to use.
+    // Prioritize explicit pageArg/limitArg if provided.
+    // Otherwise, use page/limit from filtersArg.
+    // Fallback to defaults if not found anywhere.
+    const pageToUse = pageArg !== undefined ? pageArg : (filtersArg.page !== undefined ? filtersArg.page : 1);
+    const limitToUse = limitArg !== undefined ? limitArg : (filtersArg.limit !== undefined ? filtersArg.limit : claimsPerPage);
+
+    // Prepare filters for the API call, excluding page/limit as they are passed as separate params to fetchClaims.
+    const { page, limit, ...apiFilters } = filtersArg;
+
+    try {
+      console.log(`Searching claims with filters:`, apiFilters, `page: ${pageToUse}, limit: ${limitToUse}`);
+      // Pass apiFilters (without page/limit from the object) and pageToUse/limitToUse separately
+      const response = await fetchClaims(apiFilters, pageToUse, limitToUse);
       
-      console.log('Cleaned filters for API call:', cleanedFilters);
-      
-      // Use the cleaned filters for the API call
-      const response = await fetchClaims(cleanedFilters);
-      
-      if (response.success && Array.isArray(response.data)) {
-        const mappedClaims = response.data.map(mapApiClaimToVisitClaim);
-        setSearchResults(mappedClaims);
-        console.log('Successfully searched claims:', mappedClaims.length);
+      console.log('Search response from API:', response);
+
+      // MODIFIED: Check for response.data instead of response.claims
+      if (response && response.success && Array.isArray(response.data)) {
+        const mappedResults = response.data.map(mapApiClaimToVisitClaim);
+        setSearchResults(mappedResults);
+        setTotalClaimCount(response.totalCount || 0);
+        // Use pageToUse for setCurrentPage if API doesn't return currentPage
+        setCurrentPage(response.page || pageToUse);
+        // Use limitToUse for totalPages calculation
+        setTotalPages(response.totalPages || Math.ceil((response.totalCount || 0) / limitToUse));
+        console.log('Mapped search results:', mappedResults);
+        console.log('Total claims found:', response.totalCount);
       } else {
-        console.error('Failed to search claims:', response.error || 'Unknown error');
-        setError(response.message || 'Failed to search claims');
+        console.warn('Search response is not in the expected format or data array is missing:', response); // MODIFIED: Updated log message
         setSearchResults([]);
+        setTotalClaimCount(0);
+        setTotalPages(0);
+        // MODIFIED: Check for explicit success: false or if response.data is not an array when success is true
+        if (!response || (response && !response.success) || (response && response.success && !Array.isArray(response.data))) { 
+             setError(response?.message || 'Failed to fetch claims data. The data format was not as expected.');
+        }
       }
     } catch (err: any) {
-      const errorMessage = 'Error searching claims';
-      setError(errorMessage);
-      console.error(errorMessage, err);
+      console.error("Error searching claims:", err);
+      setError(err.message || 'Failed to search claims');
       setSearchResults([]);
+      setTotalClaimCount(0);
+      setTotalPages(0);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading]);
+  }, [user, claimsPerPage]); // Dependencies remain user and claimsPerPage, setters are stable
 
   // Use local cache for claim fetching when possible
   const getClaim = useCallback(async (id: string): Promise<VisitClaim | null> => {
-    // If we're already in a loading state, avoid duplicate fetching
-    if (isLoading) return currentClaim;
-    
     setIsLoading(true);
     setError(null);
-    
     try {
-      // Try to find claim in existing claims first (try both as string and number)
-      const numericId = parseInt(id, 10);
-      
-      // Check in the search results first, which may have more recent data
-      let claim = searchResults.find(c => c.id === numericId || c.id.toString() === id);
-      
-      // Then check in all claims
-      if (!claim) {
-        claim = claims.find(c => c.id === numericId || c.id.toString() === id);
+      // Attempt to find the claim in existing searchResults or claims state first
+      const existingClaim = searchResults.find(claim => claim.id?.toString() === id) || claims.find(claim => claim.id?.toString() === id);
+      if (existingClaim) {
+        setCurrentClaim(existingClaim);
+        setIsLoading(false);
+        return existingClaim;
       }
-      
+
       // If not found, fetch from API
-      if (!claim) {
-        console.log(`Claim with ID ${id} not found locally, fetching from API`);
-        const response = await fetchClaimById(id);
-        
-        if (response.success && response.data) {
-          claim = mapApiClaimToVisitClaim(response.data);
-          console.log('Successfully fetched claim:', claim.id);
-          
-          // Add to claims array to ensure it's available for future lookups
-          setClaims(prevClaims => {
-            // Make sure we don't add duplicates
-            if (!prevClaims.some(c => c.id === claim?.id)) {
-              return [...prevClaims, claim as VisitClaim];
-            }
-            return prevClaims;
-          });
-        } else {
-          console.error('Failed to fetch claim:', response.error || 'Unknown error');
-          setError(response.message || `Failed to fetch claim with ID: ${id}`);
-        }
+      const data = await fetchClaimById(id);
+      if (data) {
+        const mappedClaim = mapApiClaimToVisitClaim(data);
+        setCurrentClaim(mappedClaim);
+        return mappedClaim;
       } else {
-        console.log(`Found claim with ID ${id} in local state`);
+        setError(`Claim with ID ${id} not found.`);
+        return null;
       }
-      
-      setCurrentClaim(claim || null);
-      return claim || null;
     } catch (err: any) {
-      const errorMessage = `Failed to fetch claim with ID: ${id}`;
-      setError(errorMessage);
-      console.error(errorMessage, err);
-      setCurrentClaim(null);
+      console.error(`Error fetching claim ${id}:`, err);
+      setError(err.message || 'Failed to fetch claim');
       return null;
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, claims, currentClaim, searchResults]);
+  }, [claims, searchResults]);
 
   // Helper function to ensure dates are properly formatted before sending to API
   const formatDateFields = useCallback((data: any) => {
@@ -445,7 +461,13 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     searchClaims,
     getClaim,
     updateClaim,
-    addNote
+    addNote,
+    totalClaimCount, // Added for pagination
+    currentPage, // Added for pagination
+    claimsPerPage, // Added for pagination
+    totalPages, // Added for pagination
+    hasSearched, // Provide hasSearched
+    setHasSearched, // Provide setHasSearched
   }), [
     claims, 
     kpiData, 
@@ -456,7 +478,13 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     searchClaims, 
     getClaim, 
     updateClaim, 
-    addNote
+    addNote,
+    totalClaimCount, // Added for pagination
+    currentPage, // Added for pagination
+    claimsPerPage, // Added for pagination
+    totalPages, // Added for pagination
+    hasSearched, // Include in dependencies
+    setHasSearched, // Include in dependencies
   ]);
 
   return (
@@ -466,7 +494,7 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-export const useClaims = (): ClaimContextType => {
+export const useClaims = () => {
   const context = useContext(ClaimContext);
   if (context === undefined) {
     throw new Error('useClaims must be used within a ClaimProvider');

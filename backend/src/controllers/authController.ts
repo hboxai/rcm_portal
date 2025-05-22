@@ -16,6 +16,14 @@ interface User {
   role: string;
 }
 
+interface UserFromDb {
+  id: number;
+  email: string;
+  password?: string; // Password hash from DB
+  username: string;
+  type: string; // e.g., 'BA', 'BU'
+}
+
 /**
  * Login user and generate JWT token
  */
@@ -30,58 +38,45 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // In a real implementation, fetch the user from the database
-    // const userQuery = await pool.query(
-    //   'SELECT * FROM users WHERE email = $1',
-    //   [email.toLowerCase()]
-    // );
-    
-    // const user = userQuery.rows[0];
-    
-    // if (!user || !(await bcrypt.compare(password, user.password))) {
-    //   return res.status(401).json({
-    //     status: 'error',
-    //     message: 'Invalid email or password'
-    //   });
-    // }
+    // Fetch user from the api_hboxuser table
+    const userQuery = await pool.query(
+      'SELECT id, email, password, username, type FROM api_hboxuser WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
 
-    // Temporary mock implementation (replace with real database lookup)
-    // This is for demonstration purposes only
-    const mockUsers = [
-      {
-        id: 1,
-        email: 'HBilling_RCM@hbox.ai',
-        // This would be a bcrypt hash in a real implementation
-        password: 'Admin@2025',
-        name: 'Admin User',
-        role: 'Admin'
-      },
-      {
-        id: 2,
-        email: 'syed.a@hbox.ai',
-        password: 'User@2025',
-        name: 'Regular User',
-        role: 'User'
-      }
-    ];
-
-    const user = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (!user) {
+    if (userQuery.rows.length === 0) {
       return res.status(401).json({
         status: 'error',
         message: 'Invalid email or password'
       });
     }
 
-    // For demo purposes, we're checking the password with simple comparison
-    // In a real implementation, verify the password with bcrypt
-    if (user.password !== password) {
+    const userFromDb: UserFromDb = userQuery.rows[0];
+
+    if (!userFromDb.password) {
+      // User exists but has no password set in DB
       return res.status(401).json({
         status: 'error',
         message: 'Invalid email or password'
       });
     }
+
+    // Compare provided password with the stored hash
+    const passwordIsValid = await bcrypt.compare(password, userFromDb.password);
+
+    if (!passwordIsValid) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Determine role from type
+    let role = 'User'; // Default role
+    if (userFromDb.type === 'BA') {
+      role = 'Admin';
+    }
+    // Add other type-to-role mappings if necessary
 
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || '';
@@ -95,9 +90,9 @@ export const login = async (req: Request, res: Response) => {
 
     const token = jwt.sign(
       { 
-        id: user.id, 
-        email: user.email,
-        role: user.role
+        id: userFromDb.id, 
+        email: userFromDb.email,
+        role: role // Use determined role
       },
       jwtSecret as Secret,
       {
@@ -110,10 +105,10 @@ export const login = async (req: Request, res: Response) => {
       status: 'success',
       data: {
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role
+          id: userFromDb.id,
+          name: userFromDb.username, // Use username from DB
+          email: userFromDb.email,
+          role: role // Use determined role
         },
         token
       }

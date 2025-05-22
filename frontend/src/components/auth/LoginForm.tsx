@@ -18,7 +18,7 @@ const MailIcon = () => (
     strokeWidth="2"
     strokeLinecap="round" 
     strokeLinejoin="round" 
-    className="text-white/80"
+    className="text-black" // Changed from text-white to text-black
   >
     <rect width="20" height="16" x="2" y="4" rx="2"></rect>
     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
@@ -36,7 +36,7 @@ const LockIcon = () => (
     strokeWidth="2" 
     strokeLinecap="round" 
     strokeLinejoin="round"
-    className="text-white/80"
+    className="text-black" // Changed from text-white to text-black
   >
     <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -51,7 +51,7 @@ const ClearMailIcon = () => (
     height="18" 
     viewBox="0 0 24 24" 
     fill="none" 
-    stroke="white" 
+    stroke="#000000" // Changed from #FFFFFF to black
     strokeWidth="2"
     strokeLinecap="round" 
     strokeLinejoin="round"
@@ -68,7 +68,7 @@ const ClearLockIcon = () => (
     height="18" 
     viewBox="0 0 24 24" 
     fill="none" 
-    stroke="white" 
+    stroke="#000000" // Changed from #FFFFFF to black
     strokeWidth="2" 
     strokeLinecap="round" 
     strokeLinejoin="round"
@@ -218,7 +218,7 @@ const LoginForm: React.FC = () => {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut", delay: 0.2 }}
-          className="text-3xl font-bold text-white mb-2"
+          className="text-3xl font-bold text-primary-700 mb-2"
         >
           Welcome to RCM
         </motion.h1>
@@ -226,7 +226,7 @@ const LoginForm: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, ease: "easeInOut", delay: 0.3 }}
-          className="text-white/60"
+          className="text-dark-300/70" // e.g., text-gray-700 with opacity
         >
           Sign in to access HBox's internal billing portal.
         </motion.p>
@@ -269,7 +269,7 @@ const LoginForm: React.FC = () => {
           <motion.p 
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-green-500 text-sm font-medium mt-2"
+            className="text-success-500 text-sm font-medium mt-2"
             data-testid="login-success"
           >
             Login successful! Redirecting...
@@ -279,7 +279,7 @@ const LoginForm: React.FC = () => {
           <motion.p 
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-red-500 text-sm font-medium mt-2"
+            className="text-error-500 text-sm font-medium mt-2"
             data-testid="login-error"
           >
             {errors.form}
@@ -289,8 +289,9 @@ const LoginForm: React.FC = () => {
         <div className="pt-6">
           <Button 
             type="submit" 
-            className="w-full py-3.5 text-base font-medium tracking-wide bg-gradient-to-r from-accent-500/90 to-primary-600/90 hover:from-accent-500 hover:to-primary-600 backdrop-blur-lg border border-accent-400/30 shadow-lg shadow-accent-500/20" 
+            className="w-full py-3.5 text-base font-medium tracking-wide" // Removed specific bg/border, rely on Button's default or btn-primary
             isLoading={isLoggingIn}
+            variant="primary" // Explicitly use the primary button style defined in index.css
           >
             {isLoggingIn ? "Signing In..." : "Sign In"}
           </Button>

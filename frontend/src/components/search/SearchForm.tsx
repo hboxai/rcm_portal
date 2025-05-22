@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { SearchFilters } from '../../types/claim';
-import { useClaims } from '../../contexts/ClaimContext';
 
 // Updated icons to match login page style with white color and glow
 const PatientIdIcon = () => (
@@ -10,12 +9,11 @@ const PatientIdIcon = () => (
     height="18"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="white"
+    stroke="currentColor"
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-white/80"
-    style={{ filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.5))" }}
+    className="text-textLight/80"
   >
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
     <circle cx="9" cy="7" r="4"></circle>
@@ -30,12 +28,11 @@ const CptIdIcon = () => (
     height="18"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="white"
+    stroke="currentColor"
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-white/80"
-    style={{ filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.5))" }}
+    className="text-textLight/80"
   >
     <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
     <rect x="9" y="3" width="6" height="4" rx="2"></rect>
@@ -53,12 +50,11 @@ const CalendarIcon = () => (
     height="18"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="white"
+    stroke="currentColor"
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-white/80"
-    style={{ filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.5))" }}
+    className="text-textLight/80"
   >
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
     <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -74,31 +70,35 @@ const SearchIcon = () => (
     height="18"
     viewBox="0 0 24 24"
     fill="none"
-    stroke="white"
+    stroke="currentColor"
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-white/80"
-    style={{ filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.5))" }}
+    className="text-textLight/80"
   >
     <circle cx="11" cy="11" r="8"></circle>
     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
 
-// Sample CPT IDs for autocomplete
-const sampleCptIds = ['170916', 'CPT6249', 'P00234', '11030'];
+// Sample Billing IDs for autocomplete
+const sampleBillingIds = ['170916', 'CPT6249', 'P00234', '11030'];
 
 interface SearchFormProps {
-  onShowAllClick?: () => void;
+  onSearch: (filters: SearchFilters) => void;
+  isLoading: boolean;
 }
 
-const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
-  const { searchClaims, isLoading } = useClaims();
+const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading }) => {
   const [filters, setFilters] = useState<SearchFilters>({
     patientId: '',
-    cptId: '',
+    billingId: '',
     dos: '',
+    firstName: '',
+    lastName: '',
+    payerName: '',
+    dateOfBirth: '',
+    cptCode: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,24 +110,66 @@ const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Search form submitted with filters:', filters);
-    searchClaims(filters);
+    onSearch(filters);
   };
 
   const handleClear = () => {
     console.log('Clearing search form');
     setFilters({
       patientId: '',
-      cptId: '',
+      billingId: '',
       dos: '',
+      firstName: '',
+      lastName: '',
+      payerName: '',
+      dateOfBirth: '',
+      cptCode: '',
     });
   };
 
+  // Common input class to maintain consistent styling
+  const inputClass = "w-full pl-12 border border-slate-600/40 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-earth-yellow/50 bg-olive-green/20 text-white placeholder-gray-300/70";
+  
+  // Modified input class for inputs without icons
+  const inputNoIconClass = "w-full pl-4 pr-4 border border-slate-600/40 rounded-lg py-2.5 outline-none focus:ring-2 focus:ring-earth-yellow/50 bg-olive-green/20 text-white placeholder-gray-300/70";
+
   return (
     <div className="mb-8">
-      <form onSubmit={handleSubmit} className="glass-card-dark p-6 rounded-xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <form onSubmit={handleSubmit} className="glass-card-dark p-6 rounded-xl bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> 
+          {/* Row 1: First Name, Last Name, Patient ID, Billing ID */}
           <div>
-            <label className="block text-white/80 mb-2 font-medium">
+            <label className="block text-white mb-2 font-medium">
+              First Name
+            </label>
+            <div className="relative">
+              <input
+                name="firstName"
+                placeholder="Enter First Name"
+                value={filters.firstName}
+                onChange={handleChange}
+                className={inputNoIconClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-white mb-2 font-medium">
+              Last Name
+            </label>
+            <div className="relative">
+              <input
+                name="lastName"
+                placeholder="Enter Last Name"
+                value={filters.lastName}
+                onChange={handleChange}
+                className={inputNoIconClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-white mb-2 font-medium">
               Patient ID
             </label>
             <div className="relative">
@@ -135,7 +177,6 @@ const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
                 className="absolute left-3 top-1/2 z-10" 
                 style={{
                   transform: 'translateY(-50%)',
-                  filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.4))'
                 }}
               >
                 <PatientIdIcon />
@@ -145,53 +186,73 @@ const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
                 placeholder="Enter patient ID"
                 value={filters.patientId}
                 onChange={handleChange}
-                className="glass-input w-full pl-12 bg-transparent border border-white/10 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500/50 backdrop-blur-sm transition-colors"
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-                  color: '#ffffff'
-                }}
+                className={inputClass}
               />
             </div>
           </div>
           
           <div>
-            <label className="block text-white/80 mb-2 font-medium">
-              CPT ID
+            <label className="block text-white mb-2 font-medium">
+              Billing ID 
             </label>
             <div className="relative">
               <div 
                 className="absolute left-3 top-1/2 z-10" 
                 style={{
                   transform: 'translateY(-50%)',
-                  filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.4))'
                 }}
               >
                 <CptIdIcon />
               </div>
               <input
-                name="cptId"
-                placeholder="Enter CPT ID"
-                value={filters.cptId}
+                name="billingId" 
+                placeholder="Enter Billing ID"
+                value={filters.billingId} 
                 onChange={handleChange}
-                list="cptIdOptions"
-                className="glass-input w-full pl-12 bg-transparent border border-white/10 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500/50 backdrop-blur-sm transition-colors"
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-                  color: '#ffffff'
-                }}
+                list="billingIdOptions" 
+                className={inputClass}
               />
-              <datalist id="cptIdOptions">
-                {sampleCptIds.map((id) => (
-                  <option key={id} value={id} className="bg-dark-300 text-white" />
+              <datalist id="billingIdOptions"> 
+                {sampleBillingIds.map((id) => (
+                  <option key={id} value={id} />
                 ))}
               </datalist>
             </div>
           </div>
+
+          {/* Row 2: Payer Name, CPT Code, Date of Service (DOS), Date of Birth (DOB) */}
+          <div>
+            <label className="block text-white mb-2 font-medium">
+              Payer Name
+            </label>
+            <div className="relative">
+              <input
+                name="payerName"
+                placeholder="Enter Payer Name"
+                value={filters.payerName}
+                onChange={handleChange}
+                className={inputNoIconClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-white mb-2 font-medium">
+              CPT Code
+            </label>
+            <div className="relative">
+              <input
+                name="cptCode"
+                placeholder="Enter CPT Code"
+                value={filters.cptCode}
+                onChange={handleChange}
+                className={inputNoIconClass}
+              />
+            </div>
+          </div>
           
           <div>
-            <label className="block text-white/80 mb-2 font-medium">
+            <label className="block text-white mb-2 font-medium">
               Date of Service (DOS)
             </label>
             <div className="relative">
@@ -199,7 +260,6 @@ const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
                 className="absolute left-3 top-1/2 z-10" 
                 style={{
                   transform: 'translateY(-50%)',
-                  filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.4))'
                 }}
               >
                 <CalendarIcon />
@@ -210,12 +270,31 @@ const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
                 placeholder="Select a date"
                 value={filters.dos}
                 onChange={handleChange}
-                className="glass-input w-full pl-12 bg-transparent border border-white/10 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary-500/50 backdrop-blur-sm transition-colors"
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-white mb-2 font-medium">
+              Date of Birth (DOB)
+            </label>
+            <div className="relative">
+               <div 
+                className="absolute left-3 top-1/2 z-10" 
                 style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-                  color: '#ffffff'
+                  transform: 'translateY(-50%)',
                 }}
+              >
+                <CalendarIcon /> 
+              </div>
+              <input
+                type="date"
+                name="dateOfBirth"
+                placeholder="Select Date of Birth"
+                value={filters.dateOfBirth}
+                onChange={handleChange}
+                className={inputClass}
               />
             </div>
           </div>
@@ -225,33 +304,25 @@ const SearchForm: React.FC<SearchFormProps> = ({ onShowAllClick }) => {
           <button 
             type="button" 
             onClick={handleClear}
-            className="flex items-center justify-center gap-2 px-5 py-2 rounded-lg text-white bg-transparent border border-white/10 hover:bg-white/5 backdrop-blur-md transition-colors"
-            style={{
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
-            }}
+            className="px-6 py-2.5 rounded-lg border border-slate-600/40 text-white bg-slate-700/30 hover:bg-slate-600/50 transition-colors"
           >
             Clear
           </button>
           
           <button 
             type="submit"
-            className="flex items-center justify-center gap-2 px-5 py-2 rounded-lg text-white bg-transparent border border-white/10 hover:bg-white/5 backdrop-blur-md transition-colors"
-            style={{
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-              textShadow: '0 1px 2px rgba(0, 0, 0, 0.2)'
-            }}
+            className="px-6 py-2.5 rounded-lg bg-earth-yellow text-olive-green font-medium flex items-center gap-2 hover:bg-earth-yellow/80 transition-colors"
             disabled={isLoading}
           >
             {isLoading ? (
-              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             ) : (
               <SearchIcon />
             )}
-            Search
+            <span>Search</span>
           </button>
         </div>
       </form>

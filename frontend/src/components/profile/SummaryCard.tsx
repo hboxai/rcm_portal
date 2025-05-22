@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { CheckCircle, Edit2, Lock, ChevronUp, Calendar, User, Clock, Tag, Eye, FileText } from 'lucide-react';
+import { CheckCircle, Edit2, Lock, ChevronUp, Calendar, User, Clock, Tag, Eye, FileText, DollarSign, Clipboard, Activity } from 'lucide-react';
 import GlassCard from '../ui/GlassCard';
 import Button from '../ui/Button';
 import ClaimField, { formatters } from '../ui/ClaimField';
@@ -166,17 +166,17 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
   return (
     <div className="mb-6">
       <GlassCard 
-        className={`overflow-hidden ${
+        className={`overflow-hidden bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white ${
           isExpanded 
-            ? 'border-accent-400 shadow-lg bg-white/5' 
+            ? 'border-earth-yellow/50 shadow-lg' 
             : ''
         }`}
       >
         {/* Card Header */}
-        <div className={`flex justify-between items-center mb-4 pb-3 ${isExpanded ? 'border-b border-white/10' : ''}`}>
+        <div className={`flex justify-between items-center mb-6 pb-3 ${isExpanded ? 'border-b border-white/10' : ''}`}>
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-accent-400/20 flex items-center justify-center">
-              <FileText className="text-accent-400" size={20} />
+            <div className="p-2 rounded-full bg-earth-yellow/20 flex items-center justify-center">
+              <FileText className="text-earth-yellow" size={20} />
             </div>
             <h2 className="text-xl font-semibold text-white">
               Claim Summary
@@ -184,62 +184,109 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           </div>
         </div>
         
-        {/* Card Body */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-1 p-1.5 rounded-full bg-accent-500/10 flex items-center justify-center">
-              <Tag className="text-accent-200" size={16} />
-            </div>
-            <div className="flex-1">
+        {/* Card Body - Improved Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* Patient Information */}
+          <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
+            <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
+              <User className="text-earth-yellow" size={16} />
+              Patient Information
+            </h3>
+            <div className="space-y-4">
               <ClaimField 
-                label="CPT Code" 
-                value={claim.cpt_code}
-                className="font-mono"
+                label="Patient Name" 
+                value={claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium"
               />
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <div className="mt-1 p-1.5 rounded-full bg-accent-500/10 flex items-center justify-center">
-              <User className="text-accent-200" size={16} />
-            </div>
-            <div className="flex-1">
               <ClaimField 
                 label="Patient ID" 
                 value={claim.patient_id}
-                className="font-mono"
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium font-mono"
+              />
+              <ClaimField 
+                label="Date of Birth" 
+                value={claim.dateOfBirth || claim.date_of_birth} 
+                formatter={formatters.date}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium"
               />
             </div>
           </div>
           
-          <div className="flex items-start gap-3">
-            <div className="mt-1 p-1.5 rounded-full bg-accent-500/10 flex items-center justify-center">
-              <Calendar className="text-accent-200" size={16} />
-            </div>
-            <div className="flex-1">
+          {/* Claim Details */}
+          <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
+            <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
+              <Clipboard className="text-earth-yellow" size={16} />
+              Claim Details
+            </h3>
+            <div className="space-y-4">
               <ClaimField 
-                label="Date of Service (DOS)" 
-                value={claim.service_end} 
+                label="Billing ID" 
+                value={claim.billing_id || claim.claimId}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium font-mono"
+              />
+              <ClaimField 
+                label="CPT Code" 
+                value={claim.cpt_code || (claim.cptCodes && claim.cptCodes.length > 0 ? claim.cptCodes.join(', ') : 'N/A')}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium font-mono"
+              />
+              <ClaimField 
+                label="Date of Service" 
+                value={claim.service_end || claim.dos} 
                 formatter={formatters.date}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium"
+              />
+            </div>
+          </div>
+          
+          {/* Financial Information */}
+          <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
+            <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
+              <DollarSign className="text-earth-yellow" size={16} />
+              Financial Information
+            </h3>
+            <div className="space-y-4">
+              <ClaimField 
+                label="Payer Name" 
+                value={claim.payer_name || claim.payerName || 'N/A'}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium"
+              />
+              <ClaimField 
+                label="Amount" 
+                value={claim.amount || claim.totalCharge || 'N/A'} 
+                formatter={formatters.currency}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium"
+              />
+              <ClaimField 
+                label="Amount Paid" 
+                value={claim.amount_paid || claim.paidAmount || 'N/A'} 
+                formatter={formatters.currency}
+                labelClassName="text-white/70 text-xs"
+                valueClassName="text-white font-medium"
               />
             </div>
           </div>
         </div>
         
         {/* Status Section */}
-        <div className={`md:col-span-2 mt-3 pt-3 ${isExpanded ? '' : 'border-t border-white/10'}`}>
+        <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5 mb-4">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-full bg-accent-500/10 flex items-center justify-center">
-                <Tag className="text-accent-200" size={16} />
-              </div>
-              <label className="block text-white font-medium">Claim Status</label>
+              <Activity className="text-earth-yellow" size={16} />
+              <h3 className="text-md font-medium text-white">Claim Status</h3>
             </div>
             
             {!isEditable && selectedStatus && (
               <button 
                 onClick={toggleEditMode} 
-                className="flex items-center gap-1 text-accent-400 hover:text-accent-300 text-sm bg-white/5 px-3 py-1.5 rounded-full"
+                className="flex items-center gap-1 text-earth-yellow hover:text-earth-yellow/80 text-sm bg-white/5 px-3 py-1.5 rounded-full"
               >
                 <Edit2 size={14} />
                 <span>Edit Status</span>
@@ -250,14 +297,13 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           {isEditable ? (
             <div className="flex gap-3">
               <select
-                className="glass-input flex-grow bg-dark-500 text-white px-4 py-2.5 rounded-lg border border-white/20 focus:border-accent-400 outline-none"
+                className="glass-input flex-grow bg-dark-olive-green/50 text-white px-4 py-2.5 rounded-lg border border-white/20 focus:border-earth-yellow outline-none"
                 value={selectedStatus || ''}
                 onChange={handleStatusChange}
-                style={{ background: 'rgba(30, 30, 46, 0.8)' }}
               >
-                <option value="" className="bg-dark-500 text-white">Select a status</option>
+                <option value="" className="bg-dark-olive-green text-white">Select a status</option>
                 {claimStatusOptions.map(status => (
-                  <option key={status} value={status} className="bg-dark-500 text-white">
+                  <option key={status} value={status} className="bg-dark-olive-green text-white">
                     {status}
                   </option>
                 ))}
@@ -266,7 +312,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                 variant="primary" 
                 onClick={handleSaveStatus}
                 disabled={!selectedStatus}
-                className="px-6"
+                className="px-6 bg-earth-yellow hover:bg-earth-yellow/80 text-olive-green"
                 data-save-status
               >
                 Save
@@ -312,7 +358,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           <Button
             variant="secondary"
             onClick={handleViewDetailsClick}
-            className="px-6 py-2"
+            className="px-6 py-2 bg-earth-yellow/20 hover:bg-earth-yellow/30 text-white border border-earth-yellow/30"
             icon={isExpanded ? <ChevronUp size={16} /> : <Eye size={16} />}
           >
             {isExpanded ? "Hide Details" : "View Details"}

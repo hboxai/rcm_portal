@@ -6,6 +6,7 @@ interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<boolean>;
   logout: () => void;
   isAdmin: boolean;
+  token: string | null; // Add token to the context type
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,14 +18,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isLoading: true, // Start with loading while we check for stored token
   });
 
+  // Add state for the token itself to be passed in context
+  const [token, setToken] = useState<string | null>(authService.getToken());
+
   // Check for existing token on mount
   useEffect(() => {
     const checkAuth = async () => {
-      const token = authService.getToken();
+      const currentToken = authService.getToken();
+      setToken(currentToken); // Set token state
       
-      if (token) {
+      if (currentToken) {
         try {
-          const result = await authService.verifyToken(token);
+          const result = await authService.verifyToken(currentToken);
           if (result.valid && result.user) {
             setAuthState({
               user: result.user as User,
@@ -34,6 +39,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } else {
             // Token invalid, clear it
             authService.logout();
+            setToken(null); // Clear token state
             setAuthState({
               user: null,
               isAuthenticated: false,
@@ -63,7 +69,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthState(prev => ({ ...prev, isLoading: true }));
     
     try {
-      const { user, token } = await authService.login(credentials);
+      const { user, token: newToken } = await authService.login(credentials); // Get token from login response
+      setToken(newToken); // Set token state
       
       setAuthState({
         user,
@@ -81,6 +88,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     authService.logout();
+    setToken(null); // Clear token state
     
     setAuthState({
       user: null,
@@ -96,6 +104,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         logout,
         isAdmin,
+        token, // Provide token in the context value
       }}
     >
       {children}

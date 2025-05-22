@@ -6,23 +6,24 @@ import {
   getClaimHistory,
   getAllChangeHistory 
 } from '../controllers/claimController';
+import { authMiddleware } from '../middleware/auth'; // Added import
 
 const router = express.Router();
 
 // GET all claims with optional filtering
-router.get('/', getClaims);
+router.get('/', getClaims); // Consider adding authMiddleware here if all claims data needs protection
 
 // GET claim by ID
-router.get('/:id', getClaimById);
+router.get('/:id', authMiddleware, getClaimById); // Added authMiddleware for individual claim access
 
 // PUT update claim
-router.put('/:id', updateClaim);
+router.put('/:id', authMiddleware, updateClaim); // Added authMiddleware, user info is used in updateClaim
 
 // GET claim history by ID
-router.get('/:id/history', getClaimHistory);
+router.get('/:id/history', authMiddleware, getClaimHistory); // Added authMiddleware
 
 // GET all change history (with optional filters)
-router.get('/history/all', getAllChangeHistory);
+router.get('/history/all', authMiddleware, getAllChangeHistory); // Added authMiddleware
 
 // POST new claim
 router.post('/', (req, res) => {

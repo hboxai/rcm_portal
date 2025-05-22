@@ -5,18 +5,20 @@
 
 @layer base {
   body {
-    @apply bg-gradient-to-br from-dark-300 to-dark-400 text-white min-h-screen;
-    background-attachment: fixed;
-    background-size: cover;
+    /* Using the new palette */
+    @apply bg-background text-textDark min-h-screen;
+    /* Consider a subtle gradient if desired, e.g., from-cornsilk to-earth-yellow/10 */
+    /* background-attachment: fixed; */
+    /* background-size: cover; */
   }
 
   /* Custom styling for date input calendar */
   input[type="date"] {
-    color-scheme: dark;
+    color-scheme: light; /* Keep as light for better compatibility */
   }
 
   /* Ensure date pickers are always visible and not clipped */
-  .z-[9999] {
+  .z-highest {
     z-index: 9999;
   }
 
@@ -31,23 +33,23 @@
     overflow: visible !important;
   }
 
-  /* Enhanced styling for autofill - fix white background on saved fields */
+  /* Enhanced styling for autofill - using new palette */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
   input:-webkit-autofill:active {
     -webkit-background-clip: text !important;
-    -webkit-text-fill-color: #ffffff !important;
+    -webkit-text-fill-color: theme('colors.textDark') !important;
     transition: background-color 5000s ease-in-out 0s !important;
-    box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.8) inset !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    caret-color: white !important;
+    box-shadow: 0 0 0px 1000px theme('colors.background') inset !important;
+    border-color: theme('colors.olive-green') !important; /* Using olive-green for border */
+    caret-color: theme('colors.textDark') !important;
   }
 
-  /* Override browser dropdown styling for autocomplete */
+  /* Override browser dropdown styling for autocomplete - new palette */
   option {
-    background-color: rgb(15, 23, 42) !important;
-    color: white !important;
+    background-color: theme('colors.background') !important;
+    color: theme('colors.textDark') !important;
   }
 
   /* Datalist dropdown styling */
@@ -55,10 +57,10 @@
     background-color: transparent;
   }
 
-  /* Fix for browser chrome autofill styling */
+  /* Fix for browser chrome autofill styling - new palette */
   @-webkit-keyframes autofill {
     to {
-      color: white;
+      color: theme('colors.textDark');
       background: transparent;
     }
   }
@@ -68,24 +70,24 @@
     -webkit-animation-fill-mode: both;
   }
 
-  /* Fix for dropdown menus */
+  /* Fix for dropdown menus - new palette */
   datalist {
-    background-color: rgb(15, 23, 42) !important;
-    color: white !important;
+    background-color: theme('colors.background') !important;
+    color: theme('colors.textDark') !important;
   }
 
-  /* Dark mode styling for date pickers */
+  /* Light mode styling for date pickers - new palette */
   input[type="date"]::-webkit-calendar-picker-indicator {
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
+    stroke: theme('colors.textDark'); /* Ensure icon color matches textDark */
     background-position: center;
     background-size: contain;
-    opacity: 0.8;
+    opacity: 0.7;
     cursor: pointer;
-    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
   }
 
   input[type="date"]::-webkit-datetime-edit {
-    color: white;
+    color: theme('colors.textDark');
   }
 
   input[type="date"]::-webkit-inner-spin-button {
@@ -95,34 +97,39 @@
 
 @layer components {
   .glass-card {
-    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-lg;
+    /* Using new palette: cornsilk background, olive-green border, subtle shadow */
+    @apply bg-background/70 backdrop-blur-md border border-olive-green/40 shadow-lg text-textDark;
   }
   
-  .glass-card-dark {
-    @apply bg-dark-300/50 backdrop-blur-md border border-white/10 shadow-lg;
+  .glass-card-dark { 
+    /* For elements that need to be darker or stand out on the cornsilk background */
+    /* Using dark-olive-green background, sienna border, and light text */
+    @apply bg-dark-olive-green/90 backdrop-blur-md border border-sienna/50 shadow-xl text-textLight;
   }
   
   .glass-input {
-    @apply bg-white/5 border border-white/10 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-primary-500/50 backdrop-blur-sm transition-all duration-300;
+    /* Using new palette: cornsilk/20 background, olive-green border, dark-olive-green text */
+    @apply bg-background/20 border border-olive-green/60 rounded-lg px-4 py-2 text-textDark outline-none focus:ring-2 focus:ring-earth-yellow/50 transition-all duration-300 placeholder-olive-green/70;
   }
   
   .btn-primary {
-    @apply px-6 py-2 rounded-lg bg-gradient-to-r from-primary-600 to-secondary-600 
-    hover:from-primary-500 hover:to-secondary-500 
-    text-white font-medium shadow-md shadow-primary-700/20 
+    /* Using olive-green as primary, textLight for contrast */
+    @apply px-6 py-2 rounded-lg bg-primary hover:bg-opacity-80
+    text-textLight font-medium shadow-md shadow-primary/30 
     transition-all duration-300 ease-in-out;
   }
   
   .btn-secondary {
-    @apply px-6 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10 
-    hover:bg-white/20 text-white font-medium shadow-md 
+    /* Using earth-yellow as secondary, textDark for contrast */
+    @apply px-6 py-2 rounded-lg bg-secondary hover:bg-opacity-80
+    text-textDark font-medium shadow-md shadow-secondary/30 
     transition-all duration-300 ease-in-out;
   }
   
   .btn-accent {
-    @apply px-6 py-2 rounded-lg bg-gradient-to-r from-accent-600 to-accent-700 
-    hover:from-accent-500 hover:to-accent-600 
-    text-white font-medium shadow-md shadow-accent-700/20 
+    /* Using sienna as accent, textLight for contrast */
+    @apply px-6 py-2 rounded-lg bg-accent hover:bg-opacity-80
+    text-textLight font-medium shadow-md shadow-accent/30 
     transition-all duration-300 ease-in-out;
   }
   

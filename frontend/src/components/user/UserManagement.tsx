@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useCallback, useMemo, memo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserPlus, Edit2, Trash2, Search, Check, X, AlertCircle, ShieldAlert
 } from 'lucide-react';
 import Button from '../ui/Button';
 import GlassInput from '../ui/GlassInput';
-import { User } from '../../types/auth';
+import GlassCard from '../ui/GlassCard';
+import { User } from '../../types/user';
+import { getUsers, deleteUser } from '../../services/userService';
 import { useAuth } from '../../contexts/AuthContext';
+import { createUser, updateUser } from '../../services/userService';
 
 // Custom search icon that matches the website style like in the login form
 const SearchIcon = () => (
@@ -16,11 +19,11 @@ const SearchIcon = () => (
     height="18" 
     viewBox="0 0 24 24" 
     fill="none" 
-    stroke="currentColor" 
+    stroke="black" 
     strokeWidth="2"
     strokeLinecap="round" 
     strokeLinejoin="round" 
-    className="text-white/80"
+    className="text-black"
   >
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.3-4.3"></path>
@@ -45,49 +48,19 @@ const ClearSearchIcon = () => (
   </svg>
 );
 
-// Mock list of users for demonstration
-const mockUsers: User[] = [
-  { 
-    id: '1', 
-    name: 'Admin User', 
-    email: 'HBilling_RCM@HBOX.AI', 
-    role: 'Admin',
-    avatar: 'https://i.pravatar.cc/150?img=1'
-  },
-  { 
-    id: '2', 
-    name: 'Syed A', 
-    email: 'syed.a@hbox.ai', 
-    role: 'User',
-    avatar: 'https://i.pravatar.cc/150?img=2'
-  },
-  { 
-    id: '3', 
-    name: 'John Davis', 
-    email: 'john.d@hbox.ai', 
-    role: 'User',
-    avatar: 'https://i.pravatar.cc/150?img=3'
-  },
-  { 
-    id: '4', 
-    name: 'Maria Rodriguez', 
-    email: 'maria.r@hbox.ai', 
-    role: 'Admin',
-    avatar: 'https://i.pravatar.cc/150?img=4'
-  }
-];
-
 interface UserFormData {
   id?: string;
-  name: string;
+  username: string;
   email: string;
-  password: string;
+  password?: string;
   role: string;
 }
 
 const UserManagement: React.FC = () => {
-  const { user: currentLoggedInUser } = useAuth();
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const { user: currentLoggedInUser, token } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,10 +69,34 @@ const UserManagement: React.FC = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showPermissionError, setShowPermissionError] = useState(false);
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!token) {
+        setError('Authentication token not found. Please log in.');
+        setIsLoading(false);
+        return;
+      }
+      try {
+        setIsLoading(true);
+        const fetchedUsers = await getUsers(token);
+        setUsers(fetchedUsers);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch users:', err);
+        setError('Failed to load users. Please try again later.');
+        setUsers([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [token]);
+
   // Memoize filtered users to prevent unnecessary re-rendering
   const filteredUsers = useMemo(() => 
     users.filter(user => 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.role.toLowerCase().includes(searchQuery.toLowerCase())
     ), 
@@ -114,7 +111,7 @@ const UserManagement: React.FC = () => {
 
   const handleOpenCreateModal = useCallback(() => {
     setCurrentUser({
-      name: '',
+      username: '',
       email: '',
       password: '',
       role: 'User'
@@ -125,10 +122,10 @@ const UserManagement: React.FC = () => {
 
   const handleOpenEditModal = useCallback((user: User) => {
     setCurrentUser({
-      id: user.id,
-      name: user.name,
+      id: String(user.id),
+      username: user.username,
       email: user.email,
-      password: '',  // Password is empty when editing
+      password: '',
       role: user.role
     });
     setFormErrors({});
@@ -152,7 +149,6 @@ const UserManagement: React.FC = () => {
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
     // Use a timeout to allow the exit animation to complete
-    // before removing the user data
     setTimeout(() => {
       setCurrentUser(null);
     }, 300);
@@ -169,8 +165,8 @@ const UserManagement: React.FC = () => {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!currentUser?.name) {
-      errors.name = 'Name is required';
+    if (!currentUser?.username) {
+      errors.username = 'Username is required';
     }
 
     if (!currentUser?.email) {
@@ -188,40 +184,67 @@ const UserManagement: React.FC = () => {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSaveUser = useCallback(() => {
-    if (!validateForm() || !currentUser) return;
+  const handleSaveUser = useCallback(async () => {
+    if (!validateForm() || !currentUser || !token) return;
 
-    if (currentUser.id) {
-      // Update existing user
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === currentUser.id 
-            ? { ...user, name: currentUser.name, email: currentUser.email, role: currentUser.role }
-            : user
-        )
-      );
-    } else {
-      // Create new user
-      const newUser: User = {
-        id: Math.random().toString(36).substring(2, 9), // Generate random ID
-        name: currentUser.name,
-        email: currentUser.email,
-        role: currentUser.role,
-        avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 20) + 1}`
-      };
-      setUsers(prevUsers => [...prevUsers, newUser]);
+    try {
+      if (currentUser.id) {
+        // Update existing user in the database
+        const updatedUser = await updateUser(
+          currentUser.id, 
+          {
+            username: currentUser.username,
+            email: currentUser.email,
+            role: currentUser.role,
+            ...(currentUser.password ? { password: currentUser.password } : {})
+          },
+          token
+        );
+        
+        // Update local state with the updated user
+        setUsers(prevUsers =>
+          prevUsers.map(user =>
+            String(user.id) === currentUser.id ? updatedUser : user
+          )
+        );
+      } else {
+        // Create new user in the database
+        const newUser = await createUser(
+          {
+            username: currentUser.username,
+            email: currentUser.email,
+            password: currentUser.password || '',
+            role: currentUser.role
+          },
+          token
+        );
+        
+        // Add the new user to local state
+        setUsers(prevUsers => [...prevUsers, newUser]);
+      }
+      
+      // Close the modal and reset form
+      setIsModalOpen(false);
+      setTimeout(() => {
+        setCurrentUser(null);
+      }, 300);
+    } catch (error: any) {
+      // Handle errors, especially duplicate username/email errors
+      if (error.message.includes('already exists')) {
+        setFormErrors(prev => ({
+          ...prev,
+          username: error.message
+        }));
+      } else {
+        setError(error.message || 'Failed to save user');
+        setTimeout(() => setError(null), 5000);
+      }
     }
-    
-    setIsModalOpen(false);
-    // Delay clearing the form data until after animation completes
-    setTimeout(() => {
-      setCurrentUser(null);
-    }, 300);
-  }, [currentUser]);
+  }, [currentUser, token, validateForm]);
 
-  const handleDeleteUser = useCallback(() => {
-    if (!userToDelete) return;
-    
+  const handleDeleteUser = useCallback(async () => {
+    if (!userToDelete || !token) return;
+
     // Check if trying to delete yourself as admin
     if (currentLoggedInUser?.id === userToDelete.id && userToDelete.role === 'Admin') {
       if (!hasMultipleAdmins) {
@@ -233,13 +256,27 @@ const UserManagement: React.FC = () => {
       }
     }
     
-    setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDelete.id));
-    setIsDeleteModalOpen(false);
-    // Delay clearing the user data until after animation completes
-    setTimeout(() => {
-      setUserToDelete(null);
-    }, 300);
-  }, [currentLoggedInUser, hasMultipleAdmins, userToDelete]);
+    try {
+      // Delete the user from the database
+      const success = await deleteUser(userToDelete.id, token);
+      
+      if (success) {
+        // Remove the user from local state
+        setUsers(prevUsers => prevUsers.filter(user => user.id !== userToDelete.id));
+        setIsDeleteModalOpen(false);
+      } else {
+        setError('Failed to delete user. Please try again.');
+        setTimeout(() => setError(null), 5000);
+      }
+    } catch (error: any) {
+      setError(error.message || 'An error occurred while deleting the user');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setTimeout(() => {
+        setUserToDelete(null);
+      }, 300);
+    }
+  }, [currentLoggedInUser, hasMultipleAdmins, userToDelete, token]);
 
   const handleFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -257,8 +294,8 @@ const UserManagement: React.FC = () => {
     }
   }, [currentUser, formErrors]);
   
-  // Generate background color based on name for avatar
-  const getAvatarColor = useCallback((name: string) => {
+  // Generate background color based on username for avatar
+  const getAvatarColor = useCallback((username: string) => {
     const colors = [
       'bg-accent-500', 'bg-primary-500', 'bg-success-500', 
       'bg-warning-500', 'bg-error-500', 'bg-blue-500', 
@@ -267,8 +304,8 @@ const UserManagement: React.FC = () => {
     
     // Simple hash function to get consistent color for a name
     let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < username.length; i++) {
+      hash = username.charCodeAt(i) + ((hash << 5) - hash);
     }
     
     return colors[Math.abs(hash) % colors.length];
@@ -289,19 +326,22 @@ const UserManagement: React.FC = () => {
       <>
         {isOpen && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-dark-300 rounded-xl shadow-xl w-full max-w-md p-6 border border-white/10">
+            <div className="bg-olive-green/80 rounded-xl shadow-xl w-full max-w-md p-6 border border-white/10">
               <h2 className="text-2xl font-bold text-white mb-4">
                 {user.id ? 'Edit User' : 'Create New User'}
               </h2>
               <div className="space-y-4">
                 <div>
                   <GlassInput
-                    label="Name"
-                    name="name"
-                    placeholder="Enter full name"
-                    value={user.name}
+                    label="Username"
+                    name="username"
+                    placeholder="Enter full username"
+                    value={user.username}
                     onChange={onChange}
-                    error={errors.name}
+                    error={errors.username}
+                    labelClassName="text-white/80"
+                    inputClassName="text-white placeholder:text-white/60"
+                    className="border-white/30 focus:border-white"
                   />
                 </div>
                 <div>
@@ -313,6 +353,9 @@ const UserManagement: React.FC = () => {
                     value={user.email}
                     onChange={onChange}
                     error={errors.email}
+                    labelClassName="text-white/80"
+                    inputClassName="text-white placeholder:text-white/60"
+                    className="border-white/30 focus:border-white"
                   />
                 </div>
                 <div>
@@ -324,6 +367,9 @@ const UserManagement: React.FC = () => {
                     value={user.password}
                     onChange={onChange}
                     error={errors.password}
+                    labelClassName="text-white/80"
+                    inputClassName="text-white placeholder:text-white/60"
+                    className="border-white/30 focus:border-white"
                   />
                 </div>
                 <div>
@@ -332,11 +378,10 @@ const UserManagement: React.FC = () => {
                     name="role"
                     value={user.role}
                     onChange={onChange}
-                    className="glass-input w-full bg-dark-500 text-white"
-                    style={{ background: '#1a1a2e', color: 'white' }}
+                    className="glass-input w-full bg-dark-olive-green/50 text-white rounded-lg px-4 py-2.5 border border-white/30 outline-none focus:ring-2 focus:ring-earth-yellow/50 focus:border-white"
                   >
-                    <option value="User" className="bg-dark-500 text-white">User</option>
-                    <option value="Admin" className="bg-dark-500 text-white">Admin</option>
+                    <option value="User" className="bg-dark-olive-green text-white">User</option>
+                    <option value="Admin" className="bg-dark-olive-green text-white">Admin</option>
                   </select>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
@@ -383,7 +428,7 @@ const UserManagement: React.FC = () => {
                 damping: 30,
                 mass: 0.8
               }}
-              className="bg-dark-300 rounded-xl shadow-xl w-full max-w-md p-6 border border-white/10"
+              className="bg-olive-green/80 rounded-xl shadow-xl w-full max-w-md p-6 border border-white/10"
               style={{ 
                 willChange: 'transform, opacity',
                 transform: 'translateZ(0)'
@@ -395,7 +440,7 @@ const UserManagement: React.FC = () => {
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">Delete User</h2>
                 <p className="text-white/70 mb-6">
-                  Are you sure you want to delete the user <span className="font-semibold text-white">{user.name}</span>?
+                  Are you sure you want to delete the user <span className="font-semibold text-white">{user.username}</span>? 
                   This action cannot be undone.
                 </p>
                 <div className="flex justify-center gap-3">
@@ -433,14 +478,15 @@ const UserManagement: React.FC = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={<SearchIcon />}
             clearIcon={<ClearSearchIcon />}
-            className="w-full focus:ring-2 focus:ring-primary-500/60 shadow-[0_0_10px_2px_rgba(59,130,246,0.3)]"
+            inputClassName="text-white bg-transparent"
+            className="w-full focus:ring-2 focus:ring-earth-yellow/50"
           />
         </div>
         <Button
-          variant="primary"
+          variant="secondary"
           icon={<UserPlus size={18} />}
           onClick={handleOpenCreateModal}
-          className="w-full md:w-auto shadow-sm hover:shadow flex items-center gap-2 text-white/90 hover:text-white px-4 py-2 rounded-md border border-white/10 hover:border-white/20 bg-gradient-to-r from-accent-500/90 to-primary-600/90 hover:from-accent-500 hover:to-primary-600"
+          className="w-full md:w-auto shadow-sm hover:shadow flex items-center gap-2 text-black px-4 py-2 rounded-md"
         >
           Create New User
         </Button>
@@ -459,82 +505,90 @@ const UserManagement: React.FC = () => {
         </motion.div>
       )}
 
-      <div className="glass-card-dark rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-dark-300/50 text-white/80">
-              <tr>
-                <th className="px-6 py-4 text-left font-medium">Name</th>
-                <th className="px-6 py-4 text-left font-medium">Email</th>
-                <th className="px-6 py-4 text-left font-medium">Role</th>
-                <th className="px-6 py-4 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-6 py-4 text-white flex items-center gap-3">
-                      <div 
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${getAvatarColor(user.name)}`}
-                      >
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                      {user.name}
-                    </td>
-                    <td className="px-6 py-4 text-white/80">{user.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        user.role === 'Admin' 
-                          ? 'bg-accent-500/20 text-accent-300' 
-                          : 'bg-primary-500/20 text-primary-300'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button 
-                        onClick={() => handleOpenEditModal(user)}
-                        className="text-white/60 hover:text-white p-1 rounded-md hover:bg-white/10"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button 
-                        onClick={() => handleOpenDeleteModal(user)}
-                        className={`p-1 rounded-md ${
-                          currentLoggedInUser?.id === user.id && user.role === 'Admin' && !hasMultipleAdmins
-                            ? 'text-error-400/40 hover:text-error-400/40 cursor-not-allowed'
-                            : 'text-error-400 hover:text-error-500 hover:bg-error-500/10'
-                        }`}
-                        disabled={currentLoggedInUser?.id === user.id && user.role === 'Admin' && !hasMultipleAdmins}
-                      >
-                        <Trash2 size={18} />
-                      </button>
+      {isLoading && (
+        <div className="flex justify-center items-center h-64">
+          <div className="w-12 h-12 border-2 border-accent-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="ml-4 text-xl text-white/70">Loading users...</p>
+        </div>
+      )}
+
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 bg-error-900/50 text-error-200 px-4 py-3 rounded-lg flex items-center gap-2"
+        >
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </motion.div>
+      )}
+
+      {!isLoading && !error && (
+        <GlassCard className="bg-olive-green/80 text-white rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-dark-olive-green/50 text-white/80">
+                <tr>
+                  <th className="px-6 py-4 text-left font-medium">Username</th>
+                  <th className="px-6 py-4 text-left font-medium">Email</th>
+                  <th className="px-6 py-4 text-left font-medium">Role</th>
+                  <th className="px-6 py-4 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((user) => (
+                    <tr key={user.id} className="hover:bg-dark-olive-green/20 transition-colors">
+                      <td className="px-6 py-4 text-white flex items-center gap-3">
+                        <div 
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${getAvatarColor(user.username)}`}
+                        >
+                          {user.username.charAt(0).toUpperCase()}
+                        </div>
+                        {user.username}
+                      </td>
+                      <td className="px-6 py-4 text-white/80">{user.email}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          user.role === 'Admin' 
+                            ? 'bg-accent-500/20 text-accent-300' 
+                            : 'bg-primary-500/20 text-primary-300'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right space-x-2">
+                        <button 
+                          onClick={() => handleOpenEditModal(user)}
+                          className="text-white/60 hover:text-white p-1 rounded-md hover:bg-white/10"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleOpenDeleteModal(user)}
+                          className={`p-1 rounded-md ${
+                            currentLoggedInUser?.id === user.id && user.role === 'Admin' && !hasMultipleAdmins
+                              ? 'text-error-400/40 hover:text-error-400/40 cursor-not-allowed'
+                              : 'text-error-400 hover:text-error-500 hover:bg-error-500/10'
+                          }`}
+                          disabled={currentLoggedInUser?.id === user.id && user.role === 'Admin' && !hasMultipleAdmins}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-white/60">
+                      {users.length === 0 ? 'No users found.' : 'No users found matching your search criteria'}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-white/60">
-                    No users found matching your search criteria
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Initialize empty form state to preload the modal */}
-      {!currentUser && (
-        <div style={{ display: 'none' }}>
-          {setCurrentUser({
-            name: '',
-            email: '',
-            password: '',
-            role: 'User'
-          })}
-        </div>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </GlassCard>
       )}
 
       {/* User and Delete Modals with optimized rendering */}

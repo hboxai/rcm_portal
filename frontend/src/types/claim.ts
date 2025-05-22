@@ -17,108 +17,109 @@ export interface Insurance {
 }
 
 export interface VisitClaim {
-  id: number;
-  patient_id: number;
-  patient_emr_no?: string;
-  cpt_id: string;
-  cpt_code: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string;
-  service_start?: string;
-  service_end: string;
-  claim_status: string;
-  claim_status_type?: string;
-  icd_code?: string;
-  provider_name?: string;
-  units?: number;
-  
-  // Claim & Billing Information
-  oa_claim_id?: string;
-  oa_visit_id?: string;
-  charge_dt?: string;
-  charge_amt?: number;
-  allowed_amt?: number;
-  allowed_add_amt?: number;
-  allowed_exp_amt?: number;
-  total_amt?: number;
-  charges_adj_amt?: number;
-  write_off_amt?: number;
-  bal_amt?: number;
-  reimb_pct?: number;
-  
-  // Primary Insurance
-  prim_ins?: string;
-  prim_amt?: number;
-  prim_post_dt?: string;
-  prim_chk_det?: string;
-  prim_recv_dt?: string;
-  prim_chk_amt?: number;
-  prim_cmt?: string;
-  
-  // Secondary Insurance
-  sec_ins?: string;
-  sec_amt?: number;
-  sec_post_dt?: string;
-  sec_chk_det?: string;
-  sec_recv_dt?: string;
-  sec_chk_amt?: number;
-  sec_cmt?: string;
-  sec_denial_code?: string; // Added secondary denial code
-  
-  // Patient Payment
-  pat_amt?: number;
-  pat_recv_dt?: string;
-  
-  // Legacy fields - can be removed or kept for backward compatibility
-  visitId?: string;
-  patientId?: string;
-  patientName?: string;
-  dob?: string;
-  dos?: string;
-  checkNumber?: string;
-  amount?: number;
-  status?: 'Posted' | 'Pending' | 'Rejected';
+  id?: string;
+  claimId: string;
+  patientName: string;
+  memberId: string;
+  payer: string;
+  billedAmount: number;
+  paidAmount?: number;
+  status: string; // Changed from specific union to string
+  dos?: string; // Date of Service
+  dateOfBirth?: string; // Date of Birth
+  visitType?: string;
+  cptCodes?: string[];
+  icdCodes?: string[];
+  notes?: string[];
+  visitDetails?: VisitDetail[];
+  changeLog?: ChangeLogEntry[]; // Added this line
   createdAt?: string;
   updatedAt?: string;
-  notes?: string[];
+  billing_id?: number | null; // Changed from cpt_id and type to number
 }
 
+export interface VisitDetail {
+  id?: string;
+  date: string;
+  type: 'Appointment' | 'Lab Test' | 'Imaging' | 'Procedure' | 'Other';
+  summary: string;
+  clinician?: string;
+  facility?: string;
+  documents?: Array<{ name: string; url: string; type: string }>;
+}
+
+// Added ChangeLogEntry interface
+export interface ChangeLogEntry {
+  timestamp: string;
+  userId: string; // Or userName, depending on what you store
+  action: string; // e.g., "Created", "Updated Status to Paid", "Added Note"
+  details?: Record<string, any>; // For storing what changed, if needed
+}
+
+
 export interface KPIData {
-  totalCheckNumbers: number;
-  totalVisitIds: number;
-  postedVisitIds: number;
-  pendingPosting: number;
+  totalClaims: number;
+  pendingClaims: number;
+  paidClaims: number;
+  deniedClaims: number;
+  averageCollectionRate?: number; // Optional as it might not always be available
+  averageClaimProcessingTime?: number; // In days, optional
 }
 
 export interface SearchFilters {
+  patientName?: string;
+  claimId?: string;
+  status?: 'Pending' | 'Paid' | 'Denied' | 'Appealed' | '';
+  dateOfServiceStart?: string;
+  dateOfServiceEnd?: string;
+  payer?: string; // Existing payer field
+  page?: number;
+  limit?: number;
+  // Added fields from SearchForm state
   patientId?: string;
-  cptId?: string;
-  dos?: string;
+  billingId?: string; 
+  dos?: string; // This might conflict or be redundant with dateOfServiceStart/End
+  firstName?: string;
+  lastName?: string;
+  payerName?: string; // This might be different from payer
+  dateOfBirth?: string;
+  cptCode?: string;
 }
 
+export interface PaginatedClaimsResponse {
+  claims: VisitClaim[];
+  totalCount: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface ClaimNote {
+  id?: string;
+  claimId: string;
+  userId: string; // or username
+  note: string;
+  timestamp?: string;
+}
+
+// Define ChangeLog interface to match backend model upl_change_logs
 export interface ChangeLog {
   id: number;
-  claim_id: number;
-  user_id: number;
-  username: string;
-  cpt_id: number | null;
-  timestamp: string;
-  field_name: string;
-  old_value: string | null;
-  new_value: string | null;
-  action_type: 'created' | 'updated' | 'deleted';
-  // Additional fields from join
-  cpt_code?: string;
-  first_name?: string;
-  last_name?: string;
+  user_id?: number; // Optional, as HistoryPage uses username primarily
+  username: string; // Corresponds to username in upl_change_logs
+  cpt_id: number | null; // This is the billing ID from the backend
+  timestamp: string; // Corresponds to timestamp in upl_change_logs
+  field_name: string; // Corresponds to field_name in upl_change_logs
+  old_value: string | null; // Corresponds to old_value in upl_change_logs
+  new_value: string | null; // Corresponds to new_value in upl_change_logs
+  action_type?: 'created' | 'updated' | 'deleted'; // Optional, if needed from backend
 }
 
 export interface HistoryFilters {
   user_id?: number;
-  user_name?: string;
-  username?: string;
-  cpt_id?: number;
+  user_name?: string; // maps to 'username' query param for backend
+  username?: string; // kept for internal state if needed, but user_name is used for API
+  cpt_id?: string; // This is the billing ID from the backend
   start_date?: string;
   end_date?: string;
   page?: number;
@@ -127,9 +128,10 @@ export interface HistoryFilters {
 
 export interface PaginatedHistoryResponse {
   success: boolean;
+  data: ChangeLog[];
   totalCount: number;
   page: number;
   limit: number;
   totalPages: number;
-  data: ChangeLog[];
+  message?: string;
 }

@@ -172,16 +172,16 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
 
   return (
     <div className="mt-6">
-      <GlassCard>
+      <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <History className="text-accent-400" size={20} />
+            <History className="text-earth-yellow" size={20} />
             Change History
           </h2>
           <div className="flex items-center gap-2">
             <button 
               onClick={handleRefresh} 
-              className="p-2 hover:bg-white/10 rounded-full"
+              className="p-2 hover:bg-dark-olive-green/30 rounded-full"
               disabled={isLoading}
               title="Refresh history"
             >
@@ -189,7 +189,7 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
             </button>
             <button 
               onClick={toggleExpand} 
-              className="p-2 hover:bg-white/10 rounded-full"
+              className="p-2 hover:bg-dark-olive-green/30 rounded-full"
               title={isExpanded ? "Collapse" : "Expand"}
             >
               {isExpanded ? <ChevronUp size={18} className="text-white/70" /> : <ChevronDown size={18} className="text-white/70" />}
@@ -201,7 +201,7 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
           <div className="mt-4">
             {isLoading ? (
               <div className="flex justify-center items-center py-8">
-                <div className="w-8 h-8 border-2 border-accent-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-8 h-8 border-2 border-earth-yellow border-t-transparent rounded-full animate-spin"></div>
                 <p className="ml-3 text-white/70">Loading history...</p>
               </div>
             ) : error ? (
@@ -215,7 +215,7 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
                 <p>No changes have been recorded for this claim yet.</p>
                 <button 
                   onClick={handleRefresh}
-                  className="mt-4 text-accent-400 hover:text-accent-300 flex items-center gap-2 mx-auto"
+                  className="mt-4 text-earth-yellow hover:text-earth-yellow/80 flex items-center gap-2 mx-auto"
                 >
                   <RefreshCw size={14} />
                   <span>Refresh</span>
@@ -224,10 +224,10 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
             ) : (
               <div className="space-y-4">
                 {history.map((log) => (
-                  <div key={log.id} className="bg-white/5 rounded-md p-4">
+                  <div key={log.id} className="bg-dark-olive-green/30 border border-white/5 rounded-md p-4">
                     <div className="flex flex-wrap items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <User size={16} className="text-accent-400" />
+                        <User size={16} className="text-earth-yellow" />
                         <span className="font-medium text-white/90">{log.username}</span>
                       </div>
                       <div className="flex items-center gap-2">
