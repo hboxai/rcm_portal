@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronLeft, FileText } from 'lucide-react';
 import Header from '../components/layout/Header';
@@ -12,20 +12,17 @@ import { useAuth } from '../contexts/AuthContext';
 const ProfilePage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const { id } = useParams<{ id: string }>();
-  const { getClaim, currentClaim } = useClaims();
+  const { getClaim, currentClaim, isLoading } = useClaims();
   const navigate = useNavigate();
   const [showDetails, setShowDetails] = useState(false); // State to toggle expanded view
-  
+
+  // Always fetch claim on mount or when id changes
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-    
     if (id) {
       getClaim(id);
     }
-  }, [id, getClaim, isAuthenticated, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleViewFullProfile = () => {
     navigate(`/full-profile/${id}`);
@@ -46,8 +43,9 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated || !currentClaim) return null;
-  
+  if (!isAuthenticated || isLoading) return <div className="text-center text-white py-12">Loading claim details...</div>;
+  if (!currentClaim) return <div className="text-center text-red-400 py-12">Claim not found.</div>;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
       <Header />
@@ -69,8 +67,8 @@ const ProfilePage: React.FC = () => {
             Billing ID: {currentClaim.billing_id || currentClaim.claimId || 'N/A'}
           </h1>
           <p className="text-white/80 mt-2">
-            Patient: {currentClaim.patientName || `${currentClaim.first_name || ''} ${currentClaim.last_name || ''}`} | 
-            DOS: {formatDate(currentClaim.dos || currentClaim.service_end)}
+            Patient: {currentClaim.patientName || 'N/A'} | 
+            DOS: {formatDate(currentClaim.dos)}
           </p>
         </div>
         

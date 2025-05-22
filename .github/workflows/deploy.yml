@@ -1,0 +1,81 @@
+name: Deploy RCM Portal
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ vars.DEPLOY_BRANCH }}
+
+      - name: Set deployment path
+        id: set-path
+        run: |
+          TAG=$(echo "$GITHUB_REF" | sed 's/refs\/tags\///')
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          if [[ "$TAG" == *-stage ]]; then
+            echo "DEPLOY_DIR=/rcm-portal-stage" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_DIR=/rcm-portal" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Clean remote upload directory
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: rm -rf ~/rcm-portal-upload
+
+      - name: Upload project to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "."
+          target: "~/rcm-portal-upload"
+          rm: true
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            TAG=${{ env.TAG }}
+            if [[ "$TAG" == *-stage ]]; then
+              DEPLOY_DIR="$HOME/rcm-portal-stage"
+            else
+              DEPLOY_DIR="$HOME/rcm-portal"
+            fi
+            sudo mkdir -p $DEPLOY_DIR
+            cd ~
+            sudo rsync -avzq --exclude '.env' ~/rcm-portal-upload/ $DEPLOY_DIR/
+            cd $DEPLOY_DIR
+            echo "PWD: $(pwd)"
+            if [ -f docker-compose.yml ]; then
+              sudo docker-compose build --no-cache
+              sudo docker-compose --env-file $DEPLOY_DIR/.env config
+              sudo docker-compose --env-file $DEPLOY_DIR/.env up -d
+            else
+              echo "Error: docker-compose.yml not found in $DEPLOY_DIR"
+              ls -la $DEPLOY_DIR
+              exit 1
+            fi
+ 

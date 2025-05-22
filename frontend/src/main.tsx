@@ -2,6 +2,7 @@ import { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './hmr-debug.js';
 
 // Preload important resources
 const preloadResources = () => {
@@ -14,7 +15,7 @@ const preloadResources = () => {
   preloadLinks.forEach(linkProps => {
     const link = document.createElement('link');
     Object.entries(linkProps).forEach(([key, value]) => {
-      link.setAttribute(key, value);
+      link.setAttribute(key, String(value));
     });
     document.head.appendChild(link);
   });

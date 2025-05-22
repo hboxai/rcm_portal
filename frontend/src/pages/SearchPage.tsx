@@ -24,6 +24,7 @@ const SearchPage: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [currentFilters, setCurrentFilters] = useState<SearchFilters>({});
+  const [filters, setFilters] = useState<SearchFilters>({});
 
   useEffect(() => {
     console.log('SearchPage: Component mounted');
@@ -37,13 +38,15 @@ const SearchPage: React.FC = () => {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  const handleSearch = async (filters: SearchFilters) => {
+  const handleSearch = async (searchFilters: SearchFilters) => {
     setHasSearched(true);
-    setCurrentFilters(filters);
-    await searchClaims({ ...filters, page: 1, limit: claimsPerPage });
+    setCurrentFilters(searchFilters);
+    await searchClaims({ ...searchFilters, page: 1, limit: claimsPerPage });
   };
 
   const handlePageChange = (newPage: number) => {
+    // Always use the last search filters for pagination
+    setHasSearched(true); // Ensure hasSearched stays true
     searchClaims({ ...currentFilters, page: newPage, limit: claimsPerPage });
   };
 
@@ -69,7 +72,7 @@ const SearchPage: React.FC = () => {
             Claim Search
           </h1>
           
-          <SearchForm onSearch={handleSearch} isLoading={isLoading} />
+          <SearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} />
         </div>
 
         {/* Display error message if there is an error from the context */}

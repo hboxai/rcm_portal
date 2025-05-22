@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { query } from '../config/db';
-import { DbUser, ApiUser } from '../models/User';
+import { query } from '../config/db.js';
+import { DbUser, ApiUser } from '../models/User.js';
 
 export const getUsers = async (req: Request, res: Response) => {
   try {

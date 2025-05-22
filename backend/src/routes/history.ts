@@ -1,6 +1,6 @@
 import express from 'express';
-import { getAllChangeHistory } from '../controllers/claimController';
-import { authMiddleware } from '../middleware/auth'; // Added import
+import { getAllChangeHistory } from '../controllers/claimController.js';
+import { authMiddleware } from '../middleware/auth.js'; // Added import
 
 const router = express.Router();
 

@@ -36,6 +36,39 @@ export interface VisitClaim {
   createdAt?: string;
   updatedAt?: string;
   billing_id?: number | null; // Changed from cpt_id and type to number
+  // Insurance and payment fields for mapping
+  prim_ins?: string;
+  prim_amt?: number | null;
+  prim_post_dt?: string | null;
+  prim_chk_det?: string;
+  prim_recv_dt?: string | null;
+  prim_chk_amt?: number | null;
+  prim_cmt?: string;
+  sec_ins?: string;
+  sec_amt?: number | null;
+  sec_post_dt?: string | null;
+  sec_chk_det?: string;
+  sec_recv_dt?: string | null;
+  sec_chk_amt?: number | null;
+  sec_cmt?: string;
+  sec_denial_code?: string;
+  pat_amt?: number | null;
+  pat_recv_dt?: string | null;
+  claim_status?: string;
+  claim_status_type?: string;
+  // Backend-mapped fields for claim details
+  oa_claim_id?: string;
+  oa_visit_id?: string;
+  charge_dt?: string | null;
+  charge_amt?: number | null;
+  allowed_amt?: number | null;
+  allowed_add_amt?: number | null;
+  allowed_exp_amt?: number | null;
+  total_amt?: number | null;
+  charges_adj_amt?: number | null;
+  write_off_amt?: number | null;
+  bal_amt?: number | null;
+  reimb_pct?: number | null;
 }
 
 export interface VisitDetail {
@@ -87,11 +120,14 @@ export interface SearchFilters {
 }
 
 export interface PaginatedClaimsResponse {
-  claims: VisitClaim[];
+  success: boolean;
+  data: any[]; // Using 'any' to accommodate the raw data from backend before mapping
   totalCount: number;
   page: number;
   limit: number;
   totalPages: number;
+  message?: string;
+  error?: string;
 }
 
 export interface ClaimNote {

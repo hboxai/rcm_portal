@@ -38,12 +38,14 @@
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
   input:-webkit-autofill:active {
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: theme('colors.textDark') !important;
-    transition: background-color 5000s ease-in-out 0s !important;
-    box-shadow: 0 0 0px 1000px theme('colors.background') inset !important;
-    border-color: theme('colors.olive-green') !important; /* Using olive-green for border */
-    caret-color: theme('colors.textDark') !important;
+    /* Remove browser autofill override, keep your app's intended style */
+    -webkit-background-clip: padding-box !important;
+    -webkit-text-fill-color: inherit !important;
+    background-color: inherit !important;
+    box-shadow: none !important;
+    border-color: inherit !important;
+    caret-color: inherit !important;
+    transition: background-color 0s;
   }
 
   /* Override browser dropdown styling for autocomplete - new palette */

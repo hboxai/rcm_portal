@@ -1,8 +1,8 @@
 import { LoginCredentials, User } from '../types/auth';
 import * as jose from 'jose';
 
-// Base API URL should come from environment variables in a real application
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Use a direct string to avoid any environment variable issues
+const API_BASE_URL = '/api';
 
 // Mock JWT secret key from backend's .env file
 const MOCK_JWT_SECRET = 'rcm_secure_jwt_key_42550';

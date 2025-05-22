@@ -36,12 +36,10 @@ const ClaimContext = createContext<ClaimContextType | undefined>(undefined);
 const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
   // Ensure apiClaim is not null or undefined
   if (!apiClaim) {
-    console.error('Received null or undefined API claim data');
+    console.error('Received null or undefined API claim data for mapping.');
+    // Return a default error object, ensuring ID is a string
     return {
-      id: 0,
-      patient_id: '',
-      first_name: 'Unknown',
-      last_name: 'Patient',
+      id: `error-null-apiclaim-${Date.now()}`,
       claim_status: 'Error',
       patientId: '',
       patientName: 'Unknown Patient',
@@ -53,30 +51,70 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
       status: 'Error',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      notes: []
+      notes: [],
+      billing_id: null,
+      oa_claim_id: '',
+      oa_visit_id: '',
+      charge_dt: null,
+      charge_amt: null,
+      allowed_amt: null,
+      allowed_add_amt: null,
+      allowed_exp_amt: null,
+      total_amt: null,
+      charges_adj_amt: null,
+      write_off_amt: null,
+      bal_amt: null,
+      reimb_pct: null,
+      claim_status_type: '',
+      prim_ins: '',
+      prim_amt: null,
+      prim_post_dt: null,
+      prim_chk_det: '',
+      prim_recv_dt: null,
+      prim_chk_amt: null,
+      prim_cmt: '',
+      sec_ins: '',
+      sec_amt: null,
+      sec_post_dt: null,
+      sec_chk_det: '',
+      sec_recv_dt: null,
+      sec_chk_amt: null,
+      sec_cmt: '',
+      sec_denial_code: '',
+      pat_amt: null,
+      pat_recv_dt: null,
+      dateOfBirth: '',
+      billedAmount: 0,
+      paidAmount: 0,
+      claimId: '',
+      memberId: '',
+      payer: '',
+      cptCodes: [],
+      icdCodes: [],
     } as VisitClaim;
   }
   
   // Log the raw data for debugging
-  console.log('Raw API claim data:', apiClaim);
+  console.log('Raw API claim data for mapping:', apiClaim);
+  
+  let mappedId: string;
+  if (apiClaim.id !== undefined && apiClaim.id !== null) {
+    mappedId = String(apiClaim.id);
+  } else if (apiClaim.oa_claim_id) { 
+    mappedId = String(apiClaim.oa_claim_id);
+  } else if (apiClaim.billing_id !== undefined && apiClaim.billing_id !== null) {
+    mappedId = String(apiClaim.billing_id);
+  } else {
+    console.error("Critical: No valid primary ID (id, oa_claim_id, billing_id) found in API response for claim. This may lead to issues.", apiClaim);
+    mappedId = `temp-id-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  }
   
   // Map all fields from the SQL query to the VisitClaim interface
   return {
-    // DB Fields - Directly mapped from SQL query
-    id: apiClaim.id,
-    patient_id: apiClaim.patient_id || '',
-    patient_emr_no: apiClaim.patient_emr_no || '',
+    id: mappedId, // Ensure id is always a string and present
     billing_id: apiClaim.billing_id || apiClaim.cpt_id || null,
-    cpt_id: apiClaim.cpt_id || apiClaim.billing_id || null,
-    cpt_code: apiClaim.cpt_code || '',
-    first_name: apiClaim.first_name || '',
-    last_name: apiClaim.last_name || '',
-    date_of_birth: apiClaim.date_of_birth || null,
-    service_start: apiClaim.service_start || null,
-    service_end: apiClaim.service_end || apiClaim.dos || null,
-    icd_code: apiClaim.icd_code || '',
-    provider_name: apiClaim.provider_name || '',
-    units: apiClaim.units || null,
+    cpt_code: apiClaim.cpt_code || '', // Not in VisitClaim, cptCodes array is used
+    icd_code: apiClaim.icd_code || '', // Not in VisitClaim, icdCodes array is used
     
     // Claim & Billing Information
     oa_claim_id: apiClaim.oa_claim_id || '',
@@ -118,26 +156,25 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
     pat_recv_dt: apiClaim.pat_recv_dt || null,
     
     // Frontend fields (mapped for compatibility with UI components)
-    visitId: apiClaim.oa_visit_id || `V${apiClaim.id}`, 
-    patientId: apiClaim.patient_id?.toString() || '',
+    visitId: apiClaim.oa_visit_id || `V-${mappedId}`, 
     patientName: `${apiClaim.first_name || ''} ${apiClaim.last_name || ''}`.trim() || 'Unknown Patient',
-    dob: apiClaim.date_of_birth || '',
-    dateOfBirth: apiClaim.date_of_birth || '',
+    dob: apiClaim.date_of_birth || '', // Retained for potential direct use, though dateOfBirth is preferred
+    dateOfBirth: apiClaim.date_of_birth || '', 
     dos: apiClaim.service_end || apiClaim.service_start || '',
-    checkNumber: apiClaim.prim_chk_det || apiClaim.sec_chk_det || '',
-    amount: apiClaim.charge_amt || 0,
+    checkNumber: apiClaim.prim_chk_det || apiClaim.sec_chk_det || '', // Not in VisitClaim
+    amount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0, // Not in VisitClaim, use billedAmount
     status: apiClaim.claim_status || 'Pending',
-    billedAmount: apiClaim.charge_amt || 0,
-    paidAmount: apiClaim.prim_amt || apiClaim.total_amt || 0,
-    claimId: apiClaim.oa_claim_id || `C${apiClaim.id}`,
-    memberId: apiClaim.patient_id?.toString() || apiClaim.patient_emr_no?.toString() || '',
+    billedAmount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0,
+    paidAmount: (apiClaim.prim_amt !== undefined && apiClaim.prim_amt !== null ? apiClaim.prim_amt : (apiClaim.total_amt !== undefined && apiClaim.total_amt !== null ? apiClaim.total_amt : 0)),
+    claimId: apiClaim.oa_claim_id || `C-${mappedId}`,
+    memberId: apiClaim.patient_id ? String(apiClaim.patient_id) : (apiClaim.patient_emr_no ? String(apiClaim.patient_emr_no) : ''),
     payer: apiClaim.prim_ins || '',
-    cptCodes: apiClaim.cpt_code ? [apiClaim.cpt_code] : [],
-    icdCodes: apiClaim.icd_code ? [apiClaim.icd_code] : [],
+    cptCodes: apiClaim.cpt_code ? (Array.isArray(apiClaim.cpt_code) ? apiClaim.cpt_code.map(String) : [String(apiClaim.cpt_code)]) : [],
+    icdCodes: apiClaim.icd_code ? (Array.isArray(apiClaim.icd_code) ? apiClaim.icd_code.map(String) : [String(apiClaim.icd_code)]) : [],
     createdAt: apiClaim.charge_dt || new Date().toISOString(),
     updatedAt: apiClaim.prim_post_dt || apiClaim.sec_post_dt || new Date().toISOString(),
-    notes: [] // API data doesn't include notes field
-  };
+    notes: Array.isArray(apiClaim.notes) ? apiClaim.notes.map(String) : (apiClaim.notes ? [String(apiClaim.notes)] : [])
+  } as VisitClaim; // Added 'as VisitClaim' for stricter type checking if needed, but ensure all fields match
 };
 
 export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -332,37 +369,30 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setError(null);
     
     try {
-      // We need the current claim to merge with the updates
-      if (!currentClaim) {
-        throw new Error('No current claim selected to update');
+      if (!currentClaim || typeof currentClaim.id === 'undefined') { // Check if currentClaim or its id is undefined
+        throw new Error('No current claim selected or claim ID is missing');
       }
       
       console.log('Updating claim with data:', updatedClaimData);
       
-      // Format dates to YYYY-MM-DD
       const formattedData = formatDateFields(updatedClaimData);
       
-      // Add user information to identify who made the changes
-      // Ensure we pass the correct user info, especially for admin accounts
       const claimWithUserInfo = {
         ...formattedData,
         user_id: user?.id || 1,
-        username: user?.name || (user?.role === 'Admin' ? 'Admin' : 'System')
+        username: user?.name || 'Unknown User'
       };
       
       console.log('About to call updateClaimAPI with data:', claimWithUserInfo);
       
-      // Apply optimistic update first for better user experience
       const optimisticClaim = {
         ...currentClaim,
         ...formattedData,
-        updatedAt: new Date().toISOString() // Add timestamp of the update
+        updatedAt: new Date().toISOString()
       };
       
-      // Update the current claim immediately
       setCurrentClaim(optimisticClaim);
       
-      // Update in the local lists as well
       setClaims(prevClaims => 
         prevClaims.map(c => c.id === currentClaim.id ? optimisticClaim : c)
       );
@@ -371,67 +401,67 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         prevResults.map(c => c.id === currentClaim.id ? optimisticClaim : c)
       );
       
-      // Call the API to update the claim with 3 retries if it fails
       let retryCount = 0;
-      let response = null;
+      let response: { success: boolean; data?: any; message?: string; error?: any } | null = null; // Define response type explicitly
       
-      while (retryCount < 3 && !response) {
+      while (retryCount < 3) { // Removed !response from condition as it's handled inside
         try {
-          response = await updateClaimAPI(currentClaim.id.toString(), claimWithUserInfo, 3);
-          break;
+          // Ensure currentClaim.id is treated as a string for the API call
+          response = await updateClaimAPI(String(currentClaim.id), claimWithUserInfo, 3);
+          break; 
         } catch (err) {
           retryCount++;
           console.log(`API attempt ${retryCount} failed. Retrying...`);
-          
-          // Wait a bit between retries
           if (retryCount < 3) {
             await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            // If all retries fail, set response to an error structure
+            response = { success: false, message: 'All API update attempts failed.', error: err };
           }
         }
       }
       
-      if (!response) {
-        console.error('No response received from updateClaimAPI after multiple attempts');
-        // Still use the optimistic update data but show an error
+      if (!response) { // Should ideally not be hit if the loop logic is correct
+        console.error('No response received from updateClaimAPI after multiple attempts and loop completion.');
         setError('Changes saved locally but server sync failed. Please try again later.');
-        return optimisticClaim;
+        return optimisticClaim; // Return optimistic data
       }
       
       console.log('API response received:', response);
       
       if (response.success && response.data) {
         console.log('Claim updated successfully in database:', response.data);
-        
-        // Map the API response to our VisitClaim model
         const mappedClaim = mapApiClaimToVisitClaim(response.data);
-        
-        // Update the current claim with the server response
         setCurrentClaim(mappedClaim);
-        
-        // Update in the local lists as well with the server data
         setClaims(prevClaims => 
           prevClaims.map(c => c.id === currentClaim.id ? mappedClaim : c)
         );
-        
         setSearchResults(prevResults => 
           prevResults.map(c => c.id === currentClaim.id ? mappedClaim : c)
         );
-        
         setIsLoading(false);
         return mappedClaim;
       } else {
-        throw new Error(response.message || 'Failed to update claim');
+        // If API call was not successful or data is missing, revert to pre-optimistic state or handle error
+        console.error('Failed to update claim on server:', response.message || response.error);
+        // Potentially revert optimistic update here if needed, or keep it and show error
+        // For now, we keep the optimistic update and show an error.
+        setError(response.message || `Failed to update claim on server. Error: ${response.error || 'Unknown'}`);
+        setIsLoading(false); // Ensure loading is set to false
+        return optimisticClaim; // Return optimistic data as a fallback
       }
     } catch (error) {
       console.error('Error updating claim:', error);
       setError(`Failed to update claim: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsLoading(false);
-      return null;
+      // Attempt to return currentClaim if it exists, otherwise null
+      return currentClaim || null; 
     }
-  }, [currentClaim, user, setCurrentClaim, setClaims, setSearchResults, setIsLoading, setError]);
+  }, [currentClaim, user, formatDateFields, setCurrentClaim, setClaims, setSearchResults, setIsLoading, setError]);
 
   const addNote = useCallback((claimId: string, note: string) => {
-    if (currentClaim && currentClaim.id === parseInt(claimId, 10)) {
+    // Ensure currentClaim and its id are defined and match claimId before proceeding
+    if (currentClaim && typeof currentClaim.id !== 'undefined' && String(currentClaim.id) === claimId) {
       const updatedClaim = {
         ...currentClaim,
         notes: currentClaim.notes ? [...currentClaim.notes, note] : [note],
@@ -439,7 +469,6 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       };
       setCurrentClaim(updatedClaim);
       
-      // Also update in lists
       setClaims(prevClaims => 
         prevClaims.map(c => c.id === updatedClaim.id ? updatedClaim : c)
       );

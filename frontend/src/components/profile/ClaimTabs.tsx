@@ -44,10 +44,6 @@ interface SecondaryInsuranceForm {
 interface PatientDataForm {
   patAmt: string;
   patRecDt: string;
-  patientName: string;
-  patientDob: string;
-  patientPhone: string;
-  patientEmail: string;
 }
 
 type FeedbackStatus = 'success' | 'error' | null;
@@ -136,10 +132,6 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
   const [patientForm, setPatientForm] = useState<PatientDataForm>({
     patAmt: claim.pat_amt != null ? claim.pat_amt.toString() : '',
     patRecDt: formatInputValue(claim.pat_recv_dt),
-    patientName: formatInputValue(claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`),
-    patientDob: formatInputValue(claim.dateOfBirth || claim.date_of_birth),
-    patientPhone: formatInputValue(claim.patient_phone),
-    patientEmail: formatInputValue(claim.patient_email),
   });
 
   // Initialize forms only once when component mounts or when claim ID changes
@@ -179,10 +171,6 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       setPatientForm({
         patAmt: claim.pat_amt != null ? claim.pat_amt.toString() : '',
         patRecDt: formatInputValue(claim.pat_recv_dt),
-        patientName: formatInputValue(claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`),
-        patientDob: formatInputValue(claim.dateOfBirth || claim.date_of_birth),
-        patientPhone: formatInputValue(claim.patient_phone),
-        patientEmail: formatInputValue(claim.patient_email),
       });
       
       initializedRef.current = true;
@@ -482,24 +470,6 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       
       if (formatInputValue(claim.pat_recv_dt) !== patientForm.patRecDt.trim()) {
         updateData.pat_recv_dt = patientForm.patRecDt.trim() || undefined;
-      }
-      
-      const currentPatientName = claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`;
-      if (formatInputValue(currentPatientName) !== patientForm.patientName.trim()) {
-        updateData.patient_name = patientForm.patientName.trim() || undefined;
-      }
-      
-      const currentDob = claim.dateOfBirth || claim.date_of_birth;
-      if (formatInputValue(currentDob) !== patientForm.patientDob.trim()) {
-        updateData.dateOfBirth = patientForm.patientDob.trim() || undefined;
-      }
-      
-      if (formatInputValue(claim.patient_phone) !== patientForm.patientPhone.trim()) {
-        updateData.patient_phone = patientForm.patientPhone.trim() || undefined;
-      }
-      
-      if (formatInputValue(claim.patient_email) !== patientForm.patientEmail.trim()) {
-        updateData.patient_email = patientForm.patientEmail.trim() || undefined;
       }
       
       // Only send update if there are actual changes
@@ -937,46 +907,6 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <GlassInput
-              label="Patient Name"
-              name="patientName"
-              value={patientForm.patientName}
-              onChange={handlePatientChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-              icon={<User size={16} className="text-earth-yellow" />}
-            />
-            <GlassInput
-              label="Date of Birth"
-              name="patientDob"
-              type="date"
-              value={formatDateForInput(patientForm.patientDob)}
-              onChange={handlePatientChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-              icon={<Calendar size={16} className="text-earth-yellow" />}
-            />
-            <GlassInput
-              label="Patient Phone"
-              name="patientPhone"
-              value={patientForm.patientPhone}
-              onChange={handlePatientChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-            />
-            <GlassInput
-              label="Patient Email"
-              name="patientEmail"
-              type="email"
-              value={patientForm.patientEmail}
-              onChange={handlePatientChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-            />
-            <GlassInput
               label="Patient Amount"
               name="patAmt"
               type="number"
@@ -986,8 +916,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               className="bg-dark-olive-green/50 text-white"
               labelClassName="text-white/80"
               inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-              icon={<DollarSign size={16} className="text-earth-yellow" />}
-            />
+              icon={<DollarSign size={16} className="text-earth-yellow" />} />
             <GlassInput
               label="Patient Received Date"
               name="patRecDt"
@@ -997,8 +926,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               className="bg-dark-olive-green/50 text-white"
               labelClassName="text-white/80"
               inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-              icon={<Calendar size={16} className="text-earth-yellow" />}
-            />
+              icon={<Calendar size={16} className="text-earth-yellow" />} />
           </div>
         </GlassCard>
       )}

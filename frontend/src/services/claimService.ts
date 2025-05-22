@@ -1,7 +1,8 @@
 import axios from 'axios';
-import { SearchFilters, PaginatedClaimsResponse, VisitClaim } from '../types/claim';
+import { SearchFilters, PaginatedClaimsResponse, VisitClaim, HistoryFilters } from '../types/claim';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Use a direct string to avoid any environment variable issues
+const API_BASE_URL = '/api';
 
 // Helper to get the auth token from localStorage
 const getAuthToken = () => {
@@ -28,11 +29,9 @@ export const fetchClaims = async (
 
     // Use the explicit page and limit arguments for pagination
     if (pageInput) params.append('page', pageInput.toString());
-    if (limitInput) params.append('limit', limitInput.toString());
+    if (limitInput) params.append('limit', limitInput.toString());    console.log('Sending search parameters to backend:', Object.fromEntries(params));
 
-    console.log('Sending search parameters to backend:', Object.fromEntries(params));
-
-    const response = await axios.get(`${API_URL}/claims`, {
+    const response = await axios.get(`${API_BASE_URL}/claims`, {
       headers: { Authorization: getAuthToken() },
       params
     });
@@ -87,21 +86,26 @@ export const fetchClaims = async (
   }
 };
 
-export const fetchClaimById = async (id: string): Promise<{ success: boolean; data?: VisitClaim; message?: string; error?: string }> => {
+export const fetchClaimById = async (id: string): Promise<any> => {
   try {
-    const response = await axios.get(`${API_URL}/claims/${id}`, {
+    const response = await axios.get(`${API_BASE_URL}/claims/${id}`, {
       headers: { Authorization: getAuthToken() }
     });
-    return { success: true, data: response.data };
+    // If backend returns { success, data }, return only the data
+    if (response.data && response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    // Fallback: if backend returns the claim directly
+    return response.data;
   } catch (error: any) {
     console.error(`Error fetching claim by ID ${id}:`, error);
-    return { success: false, message: error.response?.data?.message || error.message || 'Failed to fetch claim', error: error.response?.data?.error || error.message };
+    return null;
   }
 };
 
 export const updateClaim = async (id: string, updatedData: Partial<VisitClaim>, retries = 0): Promise<{ success: boolean; data?: VisitClaim; message?: string; error?: any }> => {
   try {
-    const response = await axios.put(`${API_URL}/claims/${id}`, updatedData, {
+    const response = await axios.put(`${API_BASE_URL}/claims/${id}`, updatedData, {
       headers: { Authorization: getAuthToken() }
     });
     return { success: true, data: response.data.data }; // Assuming backend wraps updated claim in a 'data' object
@@ -113,17 +117,16 @@ export const updateClaim = async (id: string, updatedData: Partial<VisitClaim>, 
 
 // Add other service functions as needed, e.g., for fetching history, user management, etc.
 
-export const fetchAllHistory = async (filters: HistoryFilters): Promise<PaginatedHistoryResponse> => {
+export const fetchAllHistory = async (filters: HistoryFilters): Promise<PaginatedClaimsResponse> => {
   try {
     const params = new URLSearchParams();
     if (filters.user_name) params.append('username', filters.user_name); // Ensure this matches backend query param
     if (filters.cpt_id) params.append('cpt_id', filters.cpt_id.toString());
     if (filters.start_date) params.append('start_date', filters.start_date);
-    if (filters.end_date) params.append('end_date', filters.end_date);
-    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.end_date) params.append('end_date', filters.end_date);    if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
 
-    const response = await axios.get(`${API_URL}/history/all`, { // Assuming /history/all is the correct endpoint
+    const response = await axios.get(`${API_BASE_URL}/history/all`, { // Assuming /history/all is the correct endpoint
       headers: { Authorization: getAuthToken() },
       params
     });
@@ -167,7 +170,7 @@ export const fetchAllHistory = async (filters: HistoryFilters): Promise<Paginate
 
 export const fetchClaimHistory = async (claimId: string, page: number = 1, limit: number = 10) => {
   try {
-    const response = await axios.get(`${API_URL}/claims/${claimId}/history`, {
+    const response = await axios.get(`${API_BASE_URL}/claims/${claimId}/history`, {
       headers: { Authorization: getAuthToken() },
       params: { page, limit }
     });

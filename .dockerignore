@@ -3,9 +3,9 @@ npm-debug.log
 Dockerfile
 .dockerignore
 docker-compose.yml
-.env
+# .env # Allow .env file to be copied into the Docker image
 .git
 .gitignore
 README.md
-frontend/
+# frontend/ Ensure this is not ignored if frontend build happens in Docker
 dist/

@@ -38,23 +38,17 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
 
-  // Set initial status from claim with useEffect cleanup
   useEffect(() => {
-    setSelectedStatus(claim.claim_status || '');
-    
-    // If the claim has a status already and hasn't been edited in this session,
-    // set it as non-editable by default
-    if (claim.claim_status && !hasBeenEdited) {
+    setSelectedStatus(claim.status || '');
+    if (claim.status && !hasBeenEdited) {
       setIsEditable(false);
     }
-    
     return () => {
-      // Cleanup function to avoid memory leaks with any potential timeouts
       if (showConfirmation) {
         setShowConfirmation(false);
       }
     };
-  }, [claim.claim_status, hasBeenEdited, showConfirmation]);
+  }, [claim.status, hasBeenEdited, showConfirmation]);
 
   const handleStatusChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedStatus(e.target.value);
@@ -62,66 +56,44 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
 
   const handleSaveStatus = useCallback(() => {
     if (selectedStatus) {
-      // Show immediate visual feedback
       const saveButton = document.querySelector('button[data-save-status]');
       if (saveButton) {
         (saveButton as HTMLButtonElement).disabled = true;
         (saveButton as HTMLButtonElement).innerHTML = 'Saving...';
       }
-      
-      // Make sure we include all required fields for a status update
       updateClaim({
         id: claim.id,
-        claim_status: selectedStatus,
-        claim_status_type: claim.claim_status_type, // Ensure we preserve the existing status type
-        // Update the legacy status field for compatibility
-        status: (selectedStatus === 'Posted' || selectedStatus === 'Pending' || selectedStatus === 'Rejected') 
-          ? selectedStatus as 'Posted' | 'Pending' | 'Rejected' 
-          : 'Pending',
+        claim_status: selectedStatus, // <-- send claim_status, not status
         updatedAt: new Date().toISOString(),
       })
       .then((result) => {
-        console.log('Status update result:', result);
-        
-        // After saving, make the status non-editable
         setIsEditable(false);
         setHasBeenEdited(true);
         setShowConfirmation(true);
-        
-        // Hide confirmation message after 3 seconds
         setTimeout(() => {
           setShowConfirmation(false);
         }, 3000);
-        
-        // Re-enable button
         if (saveButton) {
           (saveButton as HTMLButtonElement).disabled = false;
           (saveButton as HTMLButtonElement).innerHTML = 'Save';
         }
       })
       .catch((error) => {
-        console.error('Error updating status:', error);
-        
-        // Show error with alert since we don't have a dedicated error UI here
         alert('Failed to save status. Please try again.');
-        
-        // Re-enable button
         if (saveButton) {
           (saveButton as HTMLButtonElement).disabled = false;
           (saveButton as HTMLButtonElement).innerHTML = 'Save';
         }
       });
     }
-  }, [selectedStatus, claim.id, claim.claim_status_type, updateClaim]);
-  
-  // Function to toggle edit mode (can only be done once)
+  }, [selectedStatus, claim.id, updateClaim]);
+
   const toggleEditMode = useCallback(() => {
     if (!isEditable) {
       setIsEditable(true);
     }
   }, [isEditable]);
 
-  // Determine status display style based on the selected status
   const getStatusDisplayStyle = useCallback((status: string) => {
     switch (status) {
       case 'Insurance Paid':
@@ -156,10 +128,8 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
     }
   }, []);
 
-  // Fast click handler for view details button
   const handleViewDetailsClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    // Call the toggle function immediately
     onToggleDetails();
   };
 
@@ -172,7 +142,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             : ''
         }`}
       >
-        {/* Card Header */}
         <div className={`flex justify-between items-center mb-6 pb-3 ${isExpanded ? 'border-b border-white/10' : ''}`}>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-full bg-earth-yellow/20 flex items-center justify-center">
@@ -184,9 +153,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           </div>
         </div>
         
-        {/* Card Body - Improved Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {/* Patient Information */}
           <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
             <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
               <User className="text-earth-yellow" size={16} />
@@ -195,27 +162,20 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             <div className="space-y-4">
               <ClaimField 
                 label="Patient Name" 
-                value={claim.patient_name || `${claim.first_name || ''} ${claim.last_name || ''}`}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium"
+                value={claim.patientName}
               />
               <ClaimField 
                 label="Patient ID" 
-                value={claim.patient_id}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium font-mono"
+                value={claim.memberId}
               />
               <ClaimField 
                 label="Date of Birth" 
-                value={claim.dateOfBirth || claim.date_of_birth} 
+                value={claim.dateOfBirth}
                 formatter={formatters.date}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium"
               />
             </div>
           </div>
           
-          {/* Claim Details */}
           <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
             <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
               <Clipboard className="text-earth-yellow" size={16} />
@@ -225,26 +185,19 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
               <ClaimField 
                 label="Billing ID" 
                 value={claim.billing_id || claim.claimId}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium font-mono"
               />
               <ClaimField 
                 label="CPT Code" 
-                value={claim.cpt_code || (claim.cptCodes && claim.cptCodes.length > 0 ? claim.cptCodes.join(', ') : 'N/A')}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium font-mono"
+                value={claim.cptCodes && claim.cptCodes.length > 0 ? claim.cptCodes.join(', ') : 'N/A'}
               />
               <ClaimField 
                 label="Date of Service" 
-                value={claim.service_end || claim.dos} 
+                value={claim.dos}
                 formatter={formatters.date}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium"
               />
             </div>
           </div>
           
-          {/* Financial Information */}
           <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
             <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
               <DollarSign className="text-earth-yellow" size={16} />
@@ -253,29 +206,22 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             <div className="space-y-4">
               <ClaimField 
                 label="Payer Name" 
-                value={claim.payer_name || claim.payerName || 'N/A'}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium"
+                value={claim.payer || 'N/A'}
               />
               <ClaimField 
                 label="Amount" 
-                value={claim.amount || claim.totalCharge || 'N/A'} 
+                value={claim.billedAmount}
                 formatter={formatters.currency}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium"
               />
               <ClaimField 
                 label="Amount Paid" 
-                value={claim.amount_paid || claim.paidAmount || 'N/A'} 
+                value={claim.paidAmount}
                 formatter={formatters.currency}
-                labelClassName="text-white/70 text-xs"
-                valueClassName="text-white font-medium"
               />
             </div>
           </div>
         </div>
         
-        {/* Status Section */}
         <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5 mb-4">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
@@ -344,7 +290,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             </div>
           )}
           
-          {/* Success confirmation message */}
           {showConfirmation && (
             <div className="mt-3 flex items-center gap-2 text-success-400 bg-success-400/10 border border-success-500/20 px-4 py-2.5 rounded-lg">
               <CheckCircle size={18} />
@@ -353,7 +298,6 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           )}
         </div>
         
-        {/* Footer with button */}
         <div className="mt-5 flex justify-center">
           <Button
             variant="secondary"
@@ -369,5 +313,4 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
   );
 };
 
-// Use memo to prevent unnecessary re-renders
 export default memo(SummaryCard);

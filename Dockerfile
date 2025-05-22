@@ -1,50 +1,55 @@
-# Base image
-FROM node:18-alpine AS builder
+# Multi-stage build for RCM Portal application
+FROM node:20-alpine AS base
 
-# Set working directory
-WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json (or yarn.lock)
-COPY backend/package.json backend/package-lock.json* ./
-
-# Install dependencies
-RUN npm install --production
-
-# Copy tsconfig.json
-COPY backend/tsconfig.json ./
-
-# Copy application source code
-COPY backend/src ./src
-
-# Build TypeScript
+# Build stage for backend
+FROM base AS backend-build
+WORKDIR /app/backend
+COPY backend/package*.json ./ 
+RUN npm install # Ensure this installs all deps including @types/multer
+COPY backend/ ./ 
 RUN npm run build
 
-# Prune dev dependencies
-RUN npm prune --production
+# Build stage for frontend
+FROM base AS frontend-build
+WORKDIR /app/frontend
+COPY frontend/package*.json ./ 
+RUN npm install
+COPY frontend/ ./ 
+# Update the API URL to point to the container's backend
+RUN sed -i 's|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=http://localhost:5000/api|' .env
+RUN npm run build
 
-# --- Production image ---
-FROM node:18-alpine
+# Production stage
+FROM base AS production
 
-# Set NODE_ENV to production
-ENV NODE_ENV=production
+# Install Python, build tools, and nginx
+USER root
+RUN apk add --no-cache python3 make g++ nginx
 
-# Set working directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Copy built application and node_modules from builder stage
-COPY --from=builder /usr/src/app/dist ./dist
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-COPY --from=builder /usr/src/app/package.json ./
+# Copy built backend
+COPY --from=backend-build /app/backend/dist ./backend/dist
+COPY --from=backend-build /app/backend/package*.json ./backend/
+WORKDIR /app/backend
+RUN npm install --omit=dev
 
-# Expose port (as specified in your backend/src/index.ts or default)
-# The prompt asks for 8083, but the app itself listens on process.env.PORT || 5000
-# We will map this in docker-compose.yml
-EXPOSE 5000
+# Copy built frontend
+WORKDIR /app
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
-# Add wait-for-it.sh script
-COPY wait-for-it.sh .
-RUN chmod +x ./wait-for-it.sh
+# Copy .env file from the build context root to /app/.env
+COPY .env .env
 
-# Command to run the application
-# The original start script is "node dist/index.js"
-CMD ["./wait-for-it.sh", "db:5432", "--", "node", "dist/index.js"]
+# Copy nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy start script
+COPY start.sh ./ 
+RUN chmod +x ./start.sh
+
+# Expose port 8082 for nginx
+EXPOSE 8082
+
+# Command to run both services and nginx
+CMD ["sh", "-c", "./start.sh && nginx -g 'daemon off;'"]

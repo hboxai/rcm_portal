@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import jwt, { Secret } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import pool from '../config/db';
+import pool from '../config/db.js';
 
 /**
  * User authentication controller

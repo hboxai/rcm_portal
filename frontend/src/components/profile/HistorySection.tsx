@@ -97,22 +97,6 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
     }
   }, [claimId]);
 
-  // Load data on mount and when claimId changes
-  useEffect(() => {
-    // Reset the loaded flag when claim ID changes
-    dataLoadedRef.current = false;
-    
-    // Only load if we haven't loaded data for this claim yet
-    if (!dataLoadedRef.current) {
-      loadHistory(false);
-    }
-    
-    // Cleanup function to set isMounted to false when component unmounts
-    return () => {
-      isMounted.current = false;
-    };
-  }, [claimId, loadHistory]);
-  
   // Set isMounted to true when the component mounts
   useEffect(() => {
     isMounted.current = true;
@@ -133,7 +117,12 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
   const formatDateTimeIST = (dateTime: string): string => {
     try {
       const date = new Date(dateTime);
-      // Convert to IST (UTC+5:30)
+
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return dateTime; // Return original string if invalid
+      }
+
       const options: Intl.DateTimeFormatOptions = {
         timeZone: 'Asia/Kolkata',
         day: '2-digit',
@@ -141,11 +130,12 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
+        second: '2-digit', // Added seconds for more detail
         hour12: true
       };
       return new Intl.DateTimeFormat('en-IN', options).format(date);
     } catch (err) {
-      return dateTime;
+      return dateTime; // Fallback to original string on error
     }
   };
   

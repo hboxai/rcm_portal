@@ -1,20 +1,30 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pool from './config/db';
-import initializeDatabase from './config/initDb';
-import claimRoutes from './routes/claims';
-import authRoutes from './routes/auth';
-import historyRoutes from './routes/history'; // Import the new history routes
-import userRoutes from './routes/users'; // Import the new user routes
-import { authMiddleware } from './middleware/auth';
+import pool from './config/db.js';
+import initializeDatabase from './config/initDb.js';
+import claimRoutes from './routes/claims.js';
+import authRoutes from './routes/auth.js';
+import historyRoutes from './routes/history.js'; // Import the new history routes
+import userRoutes from './routes/users.js'; // Import the new user routes
+import { authMiddleware } from './middleware/auth.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path'; // Added for static file serving
+import { fileURLToPath } from 'url'; // Added for __dirname
+
+// Added for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
-dotenv.config({ path: '../../.env' });
+dotenv.config();
 
 const app = express();
+
+// Trust proxy headers - important for rate limiting and correct IP identification when behind a proxy like Nginx
+app.set('trust proxy', 1); // Trusts the first hop (nginx)
+
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
@@ -29,11 +39,18 @@ app.use(
 
 // Standard middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', process.env.CORS_ORIGIN].filter(Boolean) as string[],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Origin', 'Accept'],
+  credentials: true
 }));
+
+// Add preflight handling
+app.options('*', cors());
 app.use(express.json());
+
+// Serve static files from the 'uploads' directory
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'))); // Adjusted path for ES modules
 
 // Basic route for testing
 app.get('/', (req, res) => {

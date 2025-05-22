@@ -78,7 +78,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({
           <AlertCircle className="h-10 w-10 mx-auto mb-4 text-white/40" />
           <h3 className="text-lg font-medium mb-1">No results found</h3>
           <p>Try adjusting your search parameters</p>
-          <p className="mt-3 text-xs text-white/50">Check that your backend server is running at http://localhost:5000</p>
+          <p className="mt-3 text-xs text-white/50">Check that your backend server is running and accessible via /api</p>
         </div>
       </div>
     );
@@ -149,7 +149,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({
               
               {/* View Details link */}
               <div className="text-right">
-                <Link to={`/profile/${claim.id}`} className="text-earth-yellow hover:text-earth-yellow/80 text-sm font-medium">
+                <Link to={`/profile/${claim.id || claim.claimId || claim.billing_id}`} className="text-earth-yellow hover:text-earth-yellow/80 text-sm font-medium">
                   View Details
                 </Link>
               </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { SearchFilters } from '../../types/claim';
 
 // Updated icons to match login page style with white color and glow
@@ -34,7 +34,7 @@ const CptIdIcon = () => (
     strokeLinejoin="round"
     className="text-textLight/80"
   >
-    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
+    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0-2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
     <rect x="9" y="3" width="6" height="4" rx="2"></rect>
     <path d="M9 14h.01"></path>
     <path d="M13 14h.01"></path>
@@ -84,23 +84,15 @@ const SearchIcon = () => (
 // Sample Billing IDs for autocomplete
 const sampleBillingIds = ['170916', 'CPT6249', 'P00234', '11030'];
 
+// Accept filters and setFilters as props to control the form externally
 interface SearchFormProps {
   onSearch: (filters: SearchFilters) => void;
   isLoading: boolean;
+  filters: SearchFilters;
+  setFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
 }
 
-const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading }) => {
-  const [filters, setFilters] = useState<SearchFilters>({
-    patientId: '',
-    billingId: '',
-    dos: '',
-    firstName: '',
-    lastName: '',
-    payerName: '',
-    dateOfBirth: '',
-    cptCode: '',
-  });
-
+const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, setFilters }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));

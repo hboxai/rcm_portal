@@ -1,9 +1,37 @@
 import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 
-// Load environment variables from .env file with absolute path
-dotenv.config({ path: join(__dirname, '../../.env') });
+// Get the directory name of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Try loading from different possible locations of .env file
+const possibleEnvPaths = [
+  join(process.cwd(), '.env'),                // Current working directory
+  join(process.cwd(), '../.env'),             // Parent of current working directory
+  join(__dirname, '../../.env'),              // Backend directory
+  join(__dirname, '../../../.env'),           // Root project directory
+];
+
+// Try each path until we find one that exists
+let envLoaded = false;
+for (const envPath of possibleEnvPaths) {
+  if (existsSync(envPath)) {
+    console.log(`Loading .env from: ${envPath}`);
+    dotenv.config({ path: envPath });
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.warn('No .env file found in any of the searched locations');
+  // Try loading with default path as last resort
+  dotenv.config();
+}
 
 // Check for required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
@@ -24,15 +52,14 @@ const DB_USER = process.env.DB_USER || '';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
 
 // Create a single database pool for the entire application
-const pool = new Pool({
-  host: DB_HOST,
+const pool = new Pool({  host: DB_HOST,
   port: DB_PORT,
   database: DB_NAME,
   user: DB_USER,
   password: DB_PASSWORD,
-  ssl: process.env.DB_SSL_ENABLED === 'false' ? false : { 
+  ssl: process.env.DB_SSL_ENABLED === 'true' ? { 
     rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' 
-  },
+  } : false,
   connectionTimeoutMillis: 15000,    // 15 second timeout
   idleTimeoutMillis: 30000,          // 30 second idle timeout (reduced from 5 min)
   max: 10,                           // Maximum 10 clients in the pool (increased from 3)

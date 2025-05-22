@@ -1,7 +1,14 @@
 import { Request, Response } from 'express';
-import pool, { query } from '../config/db';
-import Claim from '../models/Claim';
-import ChangeLog from '../models/ChangeLog';
+import pool, { query } from '../config/db.js';
+import Claim from '../models/Claim.js';
+import ChangeLog from '../models/ChangeLog.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url'; // Added for __dirname
+
+// Added for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Request counter to track API usage
 let requestCounter = 0;
@@ -40,6 +47,16 @@ export const getClaims = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string || '1');
     const limit = parseInt(req.query.limit as string || '10'); // Default limit to 10 if not provided
     const offset = (page - 1) * limit;
+
+    if (shouldLog) {
+      console.log(`[Request #${requestId}] Query params received:`, req.query);
+      if (cptCode) {
+        console.log(`[Request #${requestId}] CPT code filter received:`, cptCode);
+      }
+      if (billingId) {
+        console.log(`[Request #${requestId}] Billing ID filter received:`, billingId);
+      }
+    }
 
     // Build query components
     let selectQuery = `
@@ -111,7 +128,7 @@ export const getClaims = async (req: Request, res: Response) => {
     }
 
     if (cptCode) {
-      conditions.push(`LOWER(cpt_code) LIKE LOWER($${paramIndex++})`);
+      conditions.push(`cpt_code::text LIKE $${paramIndex++}`); // Remove LOWER(), cast to text
       queryParams.push(`%${cptCode}%`);
     }
 
@@ -330,11 +347,44 @@ export const updateClaim = async (req: Request, res: Response) => {
       'bal_amt', 'reimb_pct', 'claim_status', 'claim_status_type'
     ];
 
-    // Filter only allowed fields from request body
+    // Define numeric fields that need special handling
+    const numericFields = [
+      'charge_amt', 'allowed_amt', 'allowed_add_amt', 'allowed_exp_amt',
+      'prim_amt', 'prim_chk_amt', 'sec_amt', 'sec_chk_amt', 'pat_amt',
+      'total_amt', 'charges_adj_amt', 'write_off_amt', 'bal_amt', 'reimb_pct'
+    ];
+
+    // Filter only allowed fields from request body and handle type conversions
     const updates: Record<string, any> = {};
     for (const field of allowedFields) {
       if (field in updateData) {
-        updates[field] = updateData[field];
+        let value = updateData[field];
+        
+        // Special handling for numeric fields
+        if (numericFields.includes(field)) {
+          // Convert empty strings to null
+          if (value === '' || value === undefined) {
+            value = null;
+          } 
+          // Convert string numbers to actual numbers, or null if invalid
+          else if (value !== null) {
+            // Try to parse as number
+            const parsedNum = parseFloat(String(value).replace(/,/g, ''));
+            if (isNaN(parsedNum)) {
+              value = null;
+            } else {
+              value = parsedNum;
+            }
+          }
+        } else if (field === 'claim_status_type') {
+          // Special handling for claim_status_type - always store as null if empty
+          if (value === '' || value === undefined) {
+            value = null;
+          }
+          console.log(`claim_status_type value: "${value}", type: ${typeof value}`);
+        }
+        
+        updates[field] = value;
       }
     }
     
@@ -359,17 +409,46 @@ export const updateClaim = async (req: Request, res: Response) => {
     for (const [key, newValue] of Object.entries(updates)) {
       const oldValue = oldClaim[key as keyof Claim];
       
-      // Only record changes if the values are actually different
-      // Improve comparison to handle null/undefined/empty string cases
-      const oldValueStr = oldValue !== null && oldValue !== undefined ? String(oldValue).trim() : '';
-      const newValueStr = newValue !== null && newValue !== undefined ? String(newValue).trim() : '';
+      // Convert values for comparison to handle all edge cases
+      const oldValueStr = oldValue === null || oldValue === undefined 
+        ? '' 
+        : String(oldValue).trim();
       
-      if (oldValueStr !== newValueStr) {
-        changesForHistory.push({
-          field_name: key,
-          old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
-          new_value: newValue !== null && newValue !== undefined ? String(newValue) : null
-        });
+      const newValueStr = newValue === null || newValue === undefined 
+        ? '' 
+        : String(newValue).trim();
+      
+      // Check if values are different for tracking purposes
+      // For numeric fields, compare the actual values to prevent insignificant differences
+      if (numericFields.includes(key)) {
+        // For numeric fields, convert to numbers for comparison
+        const oldNum = oldValue === null || oldValue === undefined || oldValue === '' 
+          ? null 
+          : parseFloat(String(oldValue));
+        
+        const newNum = newValue === null || newValue === undefined || newValue === '' 
+          ? null 
+          : parseFloat(String(newValue));
+        
+        // Check if numbers are different
+        if ((oldNum === null && newNum !== null) || 
+            (oldNum !== null && newNum === null) ||
+            (oldNum !== null && newNum !== null && oldNum !== newNum)) {
+          changesForHistory.push({
+            field_name: key,
+            old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
+            new_value: newValue !== null && newValue !== undefined ? String(newValue) : null
+          });
+        }
+      } else {
+        // For non-numeric fields, compare the string values
+        if (oldValueStr !== newValueStr) {
+          changesForHistory.push({
+            field_name: key,
+            old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
+            new_value: newValue !== null && newValue !== undefined ? String(newValue) : null
+          });
+        }
       }
     }
     
@@ -426,13 +505,24 @@ export const updateClaim = async (req: Request, res: Response) => {
       // Ensure we properly extract user information with proper fallbacks
       // Make sure we prioritize user_id and username from the request body
       const userId = req.body.user_id !== undefined ? req.body.user_id : 1;
-      const username = req.body.username || (userId !== 1 ? 'Admin' : 'System');
-      
+      let username = req.body.username;
+      // If username is not provided, try to extract from email if available
+      if (!username && req.body.email && typeof req.body.email === 'string') {
+        username = req.body.email.split('@')[0];
+      }
+      // Fallbacks for admin/system
+      if (!username) {
+        username = userId !== 1 ? 'Admin' : 'System';
+      }
+      // Always ensure username is just the part before @ if it looks like an email
+      if (username && username.includes('@')) {
+        username = username.split('@')[0];
+      }
       console.log('Logging changes with user info:', { userId, username, changesCount: changesForHistory.length });
       console.log('Changes being logged:', changesForHistory);
       
       try {
-        // Create a single batch insert statement for all changes instead of multiple queries
+        // Create a single batch insert statement for all changes
         if (changesForHistory.length > 0) {
           const valuesSql = changesForHistory.map((_, index) => {
             const offset = index * 8;
@@ -461,8 +551,14 @@ export const updateClaim = async (req: Request, res: Response) => {
           });
           
           // Use a single query for all log entries
-          await query(logQuery, logParams);
-          console.log(`Created ${changesForHistory.length} change log entries for user ${username} (ID: ${userId})`);
+          try {
+            await query(logQuery, logParams);
+            console.log(`Created ${changesForHistory.length} change log entries for user ${username} (ID: ${userId})`);
+          } catch (innerError: any) {
+            // Handle errors at each stage
+            console.error('Error executing log query:', innerError);
+            // Continue with the response even if logging fails
+          }
         }
       } catch (logError: any) {
         // If the error is because the upl_change_logs table doesn't exist, just continue
@@ -604,8 +700,6 @@ export const getClaimHistory = async (req: Request, res: Response) => {
           
           res.status(200).json(result);
         } else {
-          // Rethrow if it's not the "relation does not exist" error
-          throw dbError;
         }
       }
     } catch (error) {
@@ -667,17 +761,6 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
     }
 
     if (cptId) {
-      // Assuming cl.cpt_id is the correct column in upl_change_logs
-      // If it's claim_id that links to upl_billing_reimburse which has cpt_id, adjust accordingly
-      // For now, let's assume there's a direct cpt_id or billing_id in upl_change_logs if this filter is intended for it.
-      // The existing query joins with upl_billing_reimburse on claim_id, so filtering on ubr.cpt_id might be intended.
-      // The original code had `billing_id` for the query param and `cptId` for the variable.
-      // It then pushed `billing_id = $${paramIndex++}`. Let's assume `cl.cpt_id` is the column to filter by in `upl_change_logs` for this parameter.
-      // If `billing_id` refers to `cpt_id` in `upl_billing_reimburse` table, the join handles it.
-      // The query already selects ubr.cpt_code. If the filter is on cpt_code:
-      // conditions.push(`ubr.cpt_code = $${paramIndex++}`);
-      // queryParams.push(cptId); // if cptId is actually a code string
-      // If cptId is a numerical ID for the CPT code/billing code:
       conditions.push(`cl.cpt_id = $${paramIndex++}`); // Assuming upl_change_logs has cpt_id
       queryParams.push(cptId);
     }
@@ -845,6 +928,144 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to retrieve change history',
       message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+// ERA PDF Management
+const UPLOAD_DIR = path.resolve(__dirname, '..', '..', 'uploads', 'era_pdfs');
+
+interface EraPdfInfo { // Define an interface for the objects in currentFiles
+  id: string;
+  claim_id: string;
+  filename: string;
+  url: string;
+  uploaded_at: string;
+}
+
+export const uploadEraPdfs = async (req: Request, res: Response) => {
+  const claimId = req.params.id;
+  // Correctly type req.files using Express.Multer.File[]
+  const files = req.files as Express.Multer.File[];
+
+  if (!files || files.length === 0) {
+    return res.status(400).json({ success: false, message: 'No files uploaded.' });
+  }
+
+  try {
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    }
+
+    const uploadedPdfData = files.map(file => ({
+      filename: file.filename, // Name given by multer
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      url: `/uploads/era_pdfs/${file.filename}` // Relative URL for frontend access
+    }));
+
+    // TODO: Database Integration - Save metadata for each file in uploadedPdfData
+
+    console.log(`Uploaded ERA PDFs for claim ${claimId} to ${UPLOAD_DIR}:`, uploadedPdfData);
+
+    // For now, return the file info. Later, this should come from the DB.
+    const mockEraPdfsFromDb = uploadedPdfData.map((pdf, index) => ({
+      id: `mock-${Date.now()}-${index}`, 
+      claim_id: claimId,
+      filename: pdf.filename,
+      url: pdf.url,
+      uploaded_at: new Date().toISOString()
+    }));
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'ERA PDFs uploaded successfully.', 
+      data: mockEraPdfsFromDb
+    });
+
+  } catch (error) {
+    console.error(`Error uploading ERA PDFs for claim ${claimId}:`, error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to upload ERA PDFs.', 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+};
+
+export const getEraPdfsForClaim = async (req: Request, res: Response) => {
+  const claimId = req.params.id;
+
+  try {
+    // TODO: Database Integration - Query 'era_pdfs' table for claimId.
+    const currentFiles: EraPdfInfo[] = []; // Initialize with the defined interface
+    if (fs.existsSync(UPLOAD_DIR)) {
+        const filesInDir = fs.readdirSync(UPLOAD_DIR);
+        // This is a very rough mock. In reality, you'd filter by claimId from DB.
+        // And the 'id' would be the database ID.
+        filesInDir.forEach((file, index) => {
+            // For now, we assume all files in the directory might be related if no DB.
+            // A real implementation MUST fetch from DB based on claimId.
+            currentFiles.push({
+                id: `disk-${index}-${file.substring(0,5)}-${Date.now()}`, 
+                claim_id: claimId, 
+                filename: file,
+                url: `/uploads/era_pdfs/${file}`,
+                uploaded_at: fs.existsSync(path.join(UPLOAD_DIR, file)) ? 
+                             new Date(fs.statSync(path.join(UPLOAD_DIR, file)).mtime).toISOString() : 
+                             new Date().toISOString()
+            });
+        });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      data: currentFiles 
+    });
+
+  } catch (error) {
+    console.error(`Error fetching ERA PDFs for claim ${claimId}:`, error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch ERA PDFs.', 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+};
+
+export const deleteEraPdf = async (req: Request, res: Response) => {
+  const claimId = req.params.id;
+  const pdfId = req.params.pdfId; // This will be the filename for now, later DB ID
+
+  try {
+    // TODO: Database Integration
+
+    const filenameToDelete = pdfId; // Assuming pdfId is the filename for mock
+    const filePathToDelete = path.join(UPLOAD_DIR, filenameToDelete);
+
+    if (fs.existsSync(filePathToDelete)) {
+      fs.unlinkSync(filePathToDelete);
+      console.log(`Deleted ERA PDF file: ${filePathToDelete} for claim ${claimId}`);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: 'ERA PDF deleted successfully.' 
+      });
+    } else {
+      console.warn(`ERA PDF file not found for deletion: ${filePathToDelete}`);
+      res.status(404).json({ 
+        success: false, 
+        message: 'ERA PDF not found or already deleted.' 
+      });
+    }
+
+  } catch (error) {
+    console.error(`Error deleting ERA PDF ${pdfId} for claim ${claimId}:`, error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to delete ERA PDF.', 
+      error: error instanceof Error ? error.message : String(error) 
     });
   }
 };
