@@ -34,9 +34,7 @@ WORKDIR /app
 COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY --from=backend-build /app/backend/package*.json ./backend/
 WORKDIR /app/backend
-# Install production dependencies with the --only=production flag and set environment variable
-# to prevent bcrypt from trying to compile (use the prebuilt version)
-ENV npm_config_build_from_source=false
+# Install production dependencies
 RUN npm install --omit=dev
 
 # Copy built frontend
@@ -52,7 +50,8 @@ RUN chmod 644 .env
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Copy start script
-COPY start.sh ./ 
+COPY start.sh ./start.sh 
+RUN sed -i 's/\r$//' ./start.sh
 RUN chmod +x ./start.sh
 
 # Diagnostic: List files to verify start.sh is present

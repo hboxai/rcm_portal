@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import pool from '../config/db.js'; // Adjust path if your db config is elsewhere
 
 const saltRounds = 10; // Standard for bcrypt

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import jwt, { Secret } from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import pool from '../config/db.js';
 
 /**
