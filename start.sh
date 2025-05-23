@@ -1,7 +1,11 @@
 #!/bin/sh
 
 echo "--- Starting backend service ---"
-# Ensure execution from the WORKDIR (/app) or adjust paths accordingly
+# Start from app root where .env is located
+cd /app
+# Export environment variables from .env to make them available to backend
+export $(grep -v '^#' .env | xargs -d '\n')
+# Now change to backend directory and start the service
 cd /app/backend
 node dist/index.js &
 BACKEND_PID=$!

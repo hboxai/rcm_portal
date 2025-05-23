@@ -8,30 +8,12 @@ import { existsSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Try loading from different possible locations of .env file
-const possibleEnvPaths = [
-  join(process.cwd(), '.env'),                // Current working directory
-  join(process.cwd(), '../.env'),             // Parent of current working directory
-  join(__dirname, '../../.env'),              // Backend directory
-  join(__dirname, '../../../.env'),           // Root project directory
-];
+// We're now exclusively using the root .env file
+const rootEnvPath = join(__dirname, '../../../.env');
 
-// Try each path until we find one that exists
-let envLoaded = false;
-for (const envPath of possibleEnvPaths) {
-  if (existsSync(envPath)) {
-    console.log(`Loading .env from: ${envPath}`);
-    dotenv.config({ path: envPath });
-    envLoaded = true;
-    break;
-  }
-}
-
-if (!envLoaded) {
-  console.warn('No .env file found in any of the searched locations');
-  // Try loading with default path as last resort
-  dotenv.config();
-}
+// Load the environment variables from the root .env file
+console.log(`Loading .env from: ${rootEnvPath}`);
+dotenv.config({ path: rootEnvPath });
 
 // Check for required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];

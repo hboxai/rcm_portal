@@ -65,6 +65,5 @@ backend/dist/
 backend/build/
 
 # Sensitive data
-*config.json
 *credentials.json
 *secrets.*

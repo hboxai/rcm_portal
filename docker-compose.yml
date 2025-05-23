@@ -10,8 +10,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env # For start.sh to copy to frontend, and general app availability
-      - ./.env:/app/backend/.env # Mount the root .env directly for the backend
+      - ./.env:/app/.env # Mount the root .env file inside the container
     networks:
       - rcm-network
     extra_hosts:

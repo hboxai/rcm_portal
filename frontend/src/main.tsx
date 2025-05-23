@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import './hmr-debug.js';
+// Import axios setup with interceptors
+import './utils/axiosSetup';
 
 // Preload important resources
 const preloadResources = () => {

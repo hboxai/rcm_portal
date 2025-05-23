@@ -1,18 +1,10 @@
 # Setup environment and start services for RCM Portal development
 
-# Step 1: Copy the root .env file to both frontend and backend
-Write-Host "Copying .env file to both frontend and backend..." -ForegroundColor Yellow
-Copy-Item -Path ".env" -Destination "backend/.env" -Force
-Copy-Item -Path ".env" -Destination "frontend/.env" -Force
+# Use only the root .env file for the entire project
+Write-Host "Using root .env file for the entire project..." -ForegroundColor Yellow
 
-# Step 2: Add the VITE_API_BASE_URL to the frontend .env file if it doesn't exist
-$frontendEnvPath = "frontend/.env"
-$frontendEnvContent = Get-Content $frontendEnvPath -Raw
-
-if (-not ($frontendEnvContent -match "VITE_API_BASE_URL")) {
-    Write-Host "Adding VITE_API_BASE_URL to frontend .env file..." -ForegroundColor Yellow
-    Add-Content -Path $frontendEnvPath -Value "`nVITE_API_BASE_URL=http://localhost:5000/api"
-}
+# Set environment variables for frontend API URL directly
+$env:VITE_API_BASE_URL = 'http://localhost:5000/api'
 
 # Step 3: Set environment variables for CORS
 $env:CORS_ORIGIN = 'http://localhost:5173'

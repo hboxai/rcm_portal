@@ -1,11 +1,19 @@
 import { LoginCredentials, User } from '../types/auth';
 import * as jose from 'jose';
+import axios from '../utils/axiosSetup';
 
 // Use a direct string to avoid any environment variable issues
 const API_BASE_URL = '/api';
 
 // Use environment variable for mock JWT secret (for frontend dev only)
 const MOCK_JWT_SECRET = import.meta.env.VITE_MOCK_JWT_SECRET || '';
+
+// Log if the secret is missing for debugging purposes
+if (!MOCK_JWT_SECRET) {
+  console.warn('VITE_MOCK_JWT_SECRET environment variable is missing! Mock login will fail.');
+} else {
+  console.log('VITE_MOCK_JWT_SECRET is configured correctly.');
+}
 
 /**
  * Authentication service for handling user login and token management
@@ -23,8 +31,7 @@ export const authService = {
       
       // For demo/development purposes only - allows direct login with mock data
       // when API server is not available
-      if (credentials.email === 'HBilling_RCM@hbox.ai' && credentials.password === 'Admin@2025') {
-        console.log('Using mock login for admin user');
+      if (credentials.email === 'HBilling_RCM@hbox.ai' && credentials.password === 'Admin@2025') {        console.log('Using mock login for admin user');
         const mockUser = {
           id: '1',
           email: 'HBilling_RCM@hbox.ai',
@@ -33,30 +40,36 @@ export const authService = {
           role: 'Admin'
         };
         
-        // Create a proper JWT token using jose library
-        const secret = new TextEncoder().encode(MOCK_JWT_SECRET);
-        const token = await new jose.SignJWT({ 
-          id: mockUser.id,
-          email: mockUser.email,
-          role: mockUser.role
-        })
-          .setProtectedHeader({ alg: 'HS256' })
-          .setIssuedAt()
-          .setExpirationTime('24h')
-          .sign(secret);
-        
-        // Store token
-        localStorage.setItem('token', token);
-        
-        return {
-          user: mockUser,
-          token: token
-        };
+        try {
+          // Create a proper JWT token using jose library
+          // Use the JWT_SECRET from .env or fall back to a hardcoded value for development purposes
+          const jwtSecret = MOCK_JWT_SECRET || 'rcm_secure_jwt_key_42550';
+          const secret = new TextEncoder().encode(jwtSecret);
+          const token = await new jose.SignJWT({ 
+            id: mockUser.id,
+            email: mockUser.email,
+            role: mockUser.role
+          })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
+            .setExpirationTime('24h')
+            .sign(secret);
+          
+          // Store token
+          localStorage.setItem('token', token);
+          
+          return {
+            user: mockUser,
+            token: token
+          };
+        } catch (error) {
+          console.error('Failed to generate mock token:', error);
+          throw error;
+        }
       }
       
       // Add mock login for regular user
-      if (credentials.email === 'syed.a@hbox.ai' && credentials.password === 'User@2025') {
-        console.log('Using mock login for regular user');
+      if (credentials.email === 'syed.a@hbox.ai' && credentials.password === 'User@2025') {        console.log('Using mock login for regular user');
         const mockUser = {
           id: '2',
           email: 'syed.a@hbox.ai',
@@ -65,57 +78,55 @@ export const authService = {
           role: 'User'
         };
         
-        // Create a proper JWT token using jose library
-        const secret = new TextEncoder().encode(MOCK_JWT_SECRET);
-        const token = await new jose.SignJWT({ 
-          id: mockUser.id,
-          email: mockUser.email,
-          role: mockUser.role
-        })
-          .setProtectedHeader({ alg: 'HS256' })
-          .setIssuedAt()
-          .setExpirationTime('24h')
-          .sign(secret);
+        try {
+          // Create a proper JWT token using jose library
+          // Use the JWT_SECRET from .env or fall back to a hardcoded value for development purposes
+          const jwtSecret = MOCK_JWT_SECRET || 'rcm_secure_jwt_key_42550';
+          const secret = new TextEncoder().encode(jwtSecret);
+          const token = await new jose.SignJWT({ 
+            id: mockUser.id,
+            email: mockUser.email,
+            role: mockUser.role
+          })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
+            .setExpirationTime('24h')
+            .sign(secret);
+          
+          // Store token
+          localStorage.setItem('token', token);
+          
+          return {
+            user: mockUser,
+            token: token
+          };
+        } catch (error) {
+          console.error('Failed to generate mock token:', error);
+          throw error;
+        }
+      }      // If not using mock login, connect to real backend
+      console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
+      
+      try {
+        const response = await axios.post(`${API_BASE_URL}/auth/login`, credentials);
+        console.log('Login response status:', response.status);
         
-        // Store token
-        localStorage.setItem('token', token);
+        const data = response.data;
+        console.log('Login successful, received token and user data');
+        
+        // Store token in localStorage
+        if (data.data.token) {
+          localStorage.setItem('token', data.data.token);
+        }
         
         return {
-          user: mockUser,
-          token: token
+          user: data.data.user,
+          token: data.data.token,
         };
+      } catch (error: any) {
+        console.error('Login response error:', error.response?.data || error);
+        throw new Error(error.response?.data?.message || error.message || 'Login failed');
       }
-
-      // If not using mock login, connect to real backend
-      console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(credentials),
-      });
-
-      console.log('Login response status:', response.status);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Login response error:', errorData);
-        throw new Error(errorData.message || 'Login failed');
-      }
-
-      const data = await response.json();
-      console.log('Login successful, received token and user data');
-      
-      // Store token in localStorage
-      if (data.data.token) {
-        localStorage.setItem('token', data.data.token);
-      }
-      
-      return {
-        user: data.data.user,
-        token: data.data.token,
-      };
     } catch (error) {
       console.error('Login error (full details):', error);
       throw error;
@@ -188,11 +199,12 @@ export const authService = {
    * Verify if token is valid
    */
   async verifyToken(token: string): Promise<{ valid: boolean; user?: User }> {
-    try {
-      // For mock tokens, verify them locally
+    try {      // For mock tokens, verify them locally
       if (token.startsWith('ey')) {
         try {
-          const secret = new TextEncoder().encode(MOCK_JWT_SECRET);
+          // Use the JWT_SECRET from .env or fall back to a hardcoded value for development purposes
+          const jwtSecret = MOCK_JWT_SECRET || 'rcm_secure_jwt_key_42550';
+          const secret = new TextEncoder().encode(jwtSecret);
           const { payload } = await jose.jwtVerify(token, secret);
           
           if (payload) {
@@ -212,25 +224,17 @@ export const authService = {
           return { valid: false };
         }
       }
-      
-      // For real backend tokens, verify with backend
-      const response = await fetch(`${API_BASE_URL}/auth/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
-
-      if (!response.ok) {
+        // For real backend tokens, verify with backend
+      try {
+        const response = await axios.post(`${API_BASE_URL}/auth/verify`, { token });
+        return {
+          valid: response.data.data.valid,
+          user: response.data.data.user,
+        };
+      } catch (error) {
+        console.error('Token verification API error:', error);
         return { valid: false };
       }
-
-      const data = await response.json();
-      return {
-        valid: data.data.valid,
-        user: data.data.user,
-      };
     } catch (error) {
       console.error('Token verification error:', error);
       return { valid: false };

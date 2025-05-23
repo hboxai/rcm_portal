@@ -178,7 +178,7 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
 };
 
 export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [claims, setClaims] = useState<VisitClaim[]>([]);
   const [kpiData] = useState<KPIData>(mockKPIData);
   const [searchResults, setSearchResults] = useState<VisitClaim[]>([]);
@@ -191,63 +191,62 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [claimsPerPage, setClaimsPerPage] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [hasSearched, setHasSearched] = useState<boolean>(false);
-
-  // Optimized claims initial load with proper connection handling
+  // Load initial data when component mounts
   useEffect(() => {
-    // Only load claims once, prevent multiple refreshes
-    if (initialLoadDone) return;
+    const controller = new AbortController();
     
-    const controller = new AbortController(); // For cancelling the fetch if component unmounts
-    
-    const loadInitialClaims = async (page = 1, limit = 10) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        console.log(`Attempting to load initial claims data (page: ${page}, limit: ${limit})`);
-        // Pass empty object for filters, and page/limit as separate arguments
-        const response = await fetchClaims({}, page, limit); 
-        
-        if (response.success && Array.isArray(response.data)) {
-          const mappedClaims = response.data.map(mapApiClaimToVisitClaim);
-          console.log('Successfully mapped claims data:', mappedClaims);
-          setClaims(mappedClaims);
-          setSearchResults(mappedClaims); // Initialize search results with the first page
-          setTotalClaimCount(response.totalCount || 0);
-          setCurrentPage(response.page || 1);
-          setClaimsPerPage(response.limit || 10);
-          setTotalPages(response.totalPages || 0);
-          console.log('Successfully loaded claims:', mappedClaims.length, 'Total:', response.totalCount);
-        } else {
-          console.error('Failed to fetch claims:', response.error || 'Unknown error', response);
-          setError(response.message || 'Failed to fetch claims');
+    // Only load initial claims if user is authenticated and initial load hasn't been done
+    if (!initialLoadDone && isAuthenticated) {
+      console.log('ClaimContext: User is authenticated, loading initial claims data');
+      const loadInitialClaims = async (page = 1, limit = 10) => {
+        try {
+          setIsLoading(true);
+          setError(null);
+          
+          console.log(`Attempting to load initial claims data (page: ${page}, limit: ${limit})`);
+          // Pass empty object for filters, and page/limit as separate arguments
+          const response = await fetchClaims({}, page, limit);
+          
+          if (response.success && Array.isArray(response.data)) {
+            const mappedClaims = response.data.map(mapApiClaimToVisitClaim);
+            console.log('Successfully mapped claims data:', mappedClaims);
+            setClaims(mappedClaims);
+            setSearchResults(mappedClaims); // Initialize search results with the first page
+            setTotalClaimCount(response.totalCount || 0);
+            setCurrentPage(response.page || 1);
+            setClaimsPerPage(response.limit || 10);
+            setTotalPages(response.totalPages || 0);
+            console.log('Successfully loaded claims:', mappedClaims.length, 'Total:', response.totalCount);
+          } else {
+            console.error('Failed to fetch claims:', response.error || 'Unknown error', response);
+            setError(response.message || 'Failed to fetch claims');
+            setClaims([]);
+            setSearchResults([]);
+            setTotalClaimCount(0);
+            setTotalPages(0);
+          }
+          setInitialLoadDone(true);
+        } catch (err: any) {
+          const errorMessage = 'Error connecting to the claims API';
+          setError(errorMessage);
+          console.error(errorMessage, err);
           setClaims([]);
           setSearchResults([]);
           setTotalClaimCount(0);
           setTotalPages(0);
+          setInitialLoadDone(true);
+        } finally {
+          setIsLoading(false);
         }
-        setInitialLoadDone(true);
-      } catch (err: any) {
-        const errorMessage = 'Error connecting to the claims API';
-        setError(errorMessage);
-        console.error(errorMessage, err);
-        setClaims([]);
-        setSearchResults([]);
-        setTotalClaimCount(0);
-        setTotalPages(0);
-        setInitialLoadDone(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      };
 
-    loadInitialClaims(currentPage, claimsPerPage);
-    
-    // Cleanup function to abort any ongoing fetch when component unmounts
+      loadInitialClaims(currentPage, claimsPerPage);
+    }
+      // Cleanup function to abort any ongoing fetch when component unmounts
     return () => {
       controller.abort();
     };
-  }, [initialLoadDone, currentPage, claimsPerPage]); 
+  }, [initialLoadDone, currentPage, claimsPerPage, isAuthenticated, user]);
 
   // Debounce search function to prevent rapid consecutive API calls
   const searchClaims = useCallback(async (filtersArg: SearchFilters, pageArg?: number, limitArg?: number) => {

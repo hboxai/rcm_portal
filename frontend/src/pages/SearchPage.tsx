@@ -24,9 +24,7 @@ const SearchPage: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [currentFilters, setCurrentFilters] = useState<SearchFilters>({});
-  const [filters, setFilters] = useState<SearchFilters>({});
-
-  useEffect(() => {
+  const [filters, setFilters] = useState<SearchFilters>({});  useEffect(() => {
     console.log('SearchPage: Component mounted');
     console.log('SearchPage: Auth state -', { isAuthenticated, authLoading });
     
@@ -34,9 +32,14 @@ const SearchPage: React.FC = () => {
       console.log('SearchPage: Not authenticated, redirecting to login');
       navigate('/login');
     } else if (isAuthenticated) {
-      console.log('SearchPage: Authentication confirmed');
+      console.log('SearchPage: Authentication confirmed, can load claims');
+      // Verify token is still valid by checking for auth errors
+      if (error && error.includes('Authentication required')) {
+        console.log('SearchPage: Auth error detected, redirecting to login');
+        navigate('/login');
+      }
     }
-  }, [isAuthenticated, authLoading, navigate]);
+  }, [isAuthenticated, authLoading, navigate, error]);
 
   const handleSearch = async (searchFilters: SearchFilters) => {
     setHasSearched(true);

@@ -1,6 +1,9 @@
 # Multi-stage build for RCM Portal application
 FROM node:20-alpine AS base
 
+# Add common build dependencies to the base image
+RUN apk add --no-cache python3 make g++ 
+
 # Build stage for backend
 FROM base AS backend-build
 WORKDIR /app/backend
@@ -15,16 +18,15 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./ 
 RUN npm install
 COPY frontend/ ./ 
-# Update the API URL to point to the container's backend
-RUN sed -i 's|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=http://localhost:5000/api|' .env
+COPY .env ./
 RUN npm run build
 
 # Production stage
 FROM base AS production
 
-# Install Python, build tools, and nginx
+# Install nginx for the production image
 USER root
-RUN apk add --no-cache python3 make g++ nginx
+RUN apk add --no-cache nginx
 
 WORKDIR /app
 
@@ -32,14 +34,19 @@ WORKDIR /app
 COPY --from=backend-build /app/backend/dist ./backend/dist
 COPY --from=backend-build /app/backend/package*.json ./backend/
 WORKDIR /app/backend
+# Install production dependencies with the --only=production flag and set environment variable
+# to prevent bcrypt from trying to compile (use the prebuilt version)
+ENV npm_config_build_from_source=false
 RUN npm install --omit=dev
 
 # Copy built frontend
 WORKDIR /app
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
-# Copy .env file from the build context root to /app/.env
+# Copy .env file from the build context root to /app/.env (single source of env variables)
 COPY .env .env
+# Ensure the .env file has the correct permissions
+RUN chmod 644 .env
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/nginx.conf

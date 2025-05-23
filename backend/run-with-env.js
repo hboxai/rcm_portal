@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * This script copies the main .env file to the backend directory
- * and then runs the server
+ * This script runs the server using the main .env file in the root directory
+ * without copying it to the backend directory
  */
 
-import { copyFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
+import { existsSync } from 'fs';
 
 // Get current script directory
 const __filename = fileURLToPath(import.meta.url);
@@ -15,20 +15,22 @@ const __dirname = dirname(__filename);
 
 // Define paths
 const mainEnvPath = join(__dirname, '../.env');
-const backendEnvPath = join(__dirname, '.env');
 
-try {
-  // Copy the main .env file to the backend directory
-  await copyFile(mainEnvPath, backendEnvPath);
-  console.log('Successfully copied main .env file to backend directory');
-  
-  // Run the server
-  const server = exec('node --loader ts-node/esm src/index.ts', (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return;
-    }
-    console.log(`stdout: ${stdout}`);
+// Check if the main .env file exists
+if (!existsSync(mainEnvPath)) {
+  console.error(`Main .env file not found at: ${mainEnvPath}`);
+  process.exit(1);
+}
+
+console.log(`Using main .env file from root directory: ${mainEnvPath}`);
+
+// Run the server with environment pointing to the root .env
+const server = exec('NODE_ENV_PATH=../.env node --loader ts-node/esm src/index.ts', (error, stdout, stderr) => {
+  if (error) {
+    console.error(`exec error: ${error}`);
+    return;
+  }
+  console.log(`stdout: ${stdout}`);
     console.error(`stderr: ${stderr}`);
   });
 

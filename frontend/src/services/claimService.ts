@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios from '../utils/axiosSetup';
 import { SearchFilters, PaginatedClaimsResponse, VisitClaim, HistoryFilters } from '../types/claim';
 
 // Use a direct string to avoid any environment variable issues
@@ -7,7 +7,11 @@ const API_BASE_URL = '/api';
 // Helper to get the auth token from localStorage
 const getAuthToken = () => {
   const token = localStorage.getItem('token');
-  return token ? `Bearer ${token}` : '';
+  if (!token) {
+    console.warn('No auth token found in localStorage');
+    return '';
+  }
+  return `Bearer ${token}`;
 };
 
 export const fetchClaims = async (
@@ -19,8 +23,8 @@ export const fetchClaims = async (
     const params = new URLSearchParams();
     // Correctly map frontend filter fields to backend parameter names
     if (filters.patientId) params.append('patient_id', filters.patientId);
-    if (filters.billingId) params.append('billingId', filters.billingId); // Correctly map to backend parameter
-    if (filters.dos) params.append('dos', filters.dos); // Change to match backend parameter
+    if (filters.billingId) params.append('billingId', filters.billingId); 
+    if (filters.dos) params.append('dos', filters.dos); 
     if (filters.firstName) params.append('first_name', filters.firstName);
     if (filters.lastName) params.append('last_name', filters.lastName);
     if (filters.payerName) params.append('prim_ins', filters.payerName);
@@ -29,10 +33,17 @@ export const fetchClaims = async (
 
     // Use the explicit page and limit arguments for pagination
     if (pageInput) params.append('page', pageInput.toString());
-    if (limitInput) params.append('limit', limitInput.toString());    console.log('Sending search parameters to backend:', Object.fromEntries(params));
+    if (limitInput) params.append('limit', limitInput.toString());    
+    console.log('Sending search parameters to backend:', Object.fromEntries(params));
+
+    const authToken = getAuthToken();
+    console.log('Using auth token:', authToken ? 'Token exists' : 'No token');
 
     const response = await axios.get(`${API_BASE_URL}/claims`, {
-      headers: { Authorization: getAuthToken() },
+      headers: { 
+        Authorization: authToken,
+        'Content-Type': 'application/json'
+      },
       params
     });
 
@@ -50,12 +61,12 @@ export const fetchClaims = async (
       // For now, assuming if it's an array, it's a non-paginated full list (though backend should be consistent)
       if (Array.isArray(response.data)) {
         return {
-            success: true,
-            data: response.data,
-            totalCount: response.data.length,
-            page: 1,
-            limit: limitInput || (response.data.length > 0 ? response.data.length : 10),
-            totalPages: 1,
+          success: true,
+          data: response.data,
+          totalCount: response.data.length,
+          page: 1,
+          limit: limitInput || (response.data.length > 0 ? response.data.length : 10),
+          totalPages: 1,
         };
       }
       console.error('Unexpected response structure from /api/claims:', response.data);
@@ -72,7 +83,20 @@ export const fetchClaims = async (
     }
   } catch (error: any) {
     console.error('Error fetching claims:', error);
-    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch claims';
+    let errorMessage = 'Failed to fetch claims';
+    
+    // Check for specific authentication errors
+    if (error.response && error.response.status === 401) {
+      errorMessage = 'Authentication required. Please log in.';
+      // Force redirect to login page by clearing token
+      localStorage.removeItem('token');
+      console.error('Failed to fetch claims: ' + errorMessage, error);
+    } else if (error.response && error.response.data && error.response.data.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return {
       success: false,
       message: errorMessage,
@@ -82,8 +106,7 @@ export const fetchClaims = async (
       limit: limitInput || 10,
       totalPages: 0,
       error: errorMessage
-    };
-  }
+    };  }
 };
 
 export const fetchClaimById = async (id: string): Promise<any> => {
@@ -123,7 +146,8 @@ export const fetchAllHistory = async (filters: HistoryFilters): Promise<Paginate
     if (filters.user_name) params.append('username', filters.user_name); // Ensure this matches backend query param
     if (filters.cpt_id) params.append('cpt_id', filters.cpt_id.toString());
     if (filters.start_date) params.append('start_date', filters.start_date);
-    if (filters.end_date) params.append('end_date', filters.end_date);    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.page) params.append('page', filters.page.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
 
     const response = await axios.get(`${API_BASE_URL}/history/all`, { // Assuming /history/all is the correct endpoint
