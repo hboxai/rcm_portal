@@ -44,7 +44,7 @@ const pool = new Pool({  host: DB_HOST,
   } : false,
   connectionTimeoutMillis: 15000,    // 15 second timeout
   idleTimeoutMillis: 30000,          // 30 second idle timeout (reduced from 5 min)
-  max: 10,                           // Maximum 10 clients in the pool (increased from 3)
+  max: 1,                           // Maximum 1 client in the pool
   allowExitOnIdle: true,             // Allow pool to clean up idle connections
   application_name: 'project-bolt'   // Identify connections in pg_stat_activity
 });
