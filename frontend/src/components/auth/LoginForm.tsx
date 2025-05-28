@@ -296,6 +296,15 @@ const LoginForm: React.FC = () => {
             {isLoggingIn ? "Signing In..." : "Sign In"}
           </Button>
         </div>
+        
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, ease: "easeInOut", delay: 0.5 }}
+          className="text-center mt-4"
+        >
+          <span className="text-xs text-gray-500">V0.0.5</span>
+        </motion.div>
       </motion.form>
     </motion.div>
   );
