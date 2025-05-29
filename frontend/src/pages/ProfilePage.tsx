@@ -43,30 +43,29 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated || isLoading) return <div className="text-center text-white py-12">Loading claim details...</div>;
-  if (!currentClaim) return <div className="text-center text-red-400 py-12">Claim not found.</div>;
+  if (!isAuthenticated || isLoading) return <div className="text-center text-textDark py-12">Loading claim details...</div>;
+  if (!currentClaim) return <div className="text-center text-red py-12">Claim not found.</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-white to-light-100 text-textDark">
       <Header />
-      
-      <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
+        <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
         {/* Light header to match search page */}
-        <div className="mb-8 p-6 rounded-xl bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <div className="mb-8 p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
           <div className="flex items-center gap-2 mb-2">
             <Link 
               to="/search" 
-              className="text-white hover:text-white/80 flex items-center gap-1"
+              className="text-purple hover:text-purple/80 flex items-center gap-1"
             >
               <ChevronLeft size={18} />
               <span>Back to Search</span>
             </Link>
           </div>
           
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-textDark">
             Billing ID: {currentClaim.billing_id || currentClaim.claimId || 'N/A'}
           </h1>
-          <p className="text-white/80 mt-2">
+          <p className="text-textDark/70 mt-2">
             Patient: {currentClaim.patientName || 'N/A'} | 
             DOS: {formatDate(currentClaim.dos)}
           </p>
@@ -83,12 +82,11 @@ const ProfilePage: React.FC = () => {
         
         {/* History Section */}
         <HistorySection claimId={currentClaim.id || currentClaim.claimId} />
-        
-        {/* View Full Profile Button with orange color */}
+          {/* View Full Profile Button with brand colors */}
         <div className="mt-8 flex justify-center">
           <Button 
             variant="secondary" 
-            className="text-olive-green bg-earth-yellow hover:bg-earth-yellow/80 px-4 py-2 rounded-md border border-earth-yellow/40 shadow-sm"
+            className="text-white bg-blue hover:bg-blue/90 px-4 py-2 rounded-md border border-blue/40 shadow-sm"
             icon={<FileText size={18} />}
             onClick={handleViewFullProfile}
           >

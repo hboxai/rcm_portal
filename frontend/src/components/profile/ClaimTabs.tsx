@@ -523,32 +523,30 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
 
   // Render without motion animations to improve performance
   return (
-    <div>
-      {/* Feedback message */}
+    <div>      {/* Feedback message */}
       {feedback.status && (
         <div
           className={`mb-4 p-4 rounded-md flex items-center gap-2 ${
-            feedback.status === 'success' ? 'bg-success-900/30 text-success-400' : 'bg-error-900/30 text-error-400'
+            feedback.status === 'success' ? 'bg-green/20 text-green' : 'bg-red/20 text-red'
           }`}
         >
           {feedback.status === 'success' ? (
-            <CheckCircle size={18} className="text-success-400" />
+            <CheckCircle size={18} className="text-green" />
           ) : (
-            <XCircle size={18} className="text-error-400" />
+            <XCircle size={18} className="text-red" />
           )}
           <span>{feedback.message}</span>
         </div>
-      )}
-      
-      <GlassCard className="mb-6 bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+      )}      
+      <GlassCard className="mb-6 bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
         <div className="flex justify-between items-center mb-4">
-          <div className="flex border-b border-white/10 flex-1">
+          <div className="flex border-b border-purple/20 flex-1">
             <button
               onClick={() => handleTabClick('claim')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'claim'
-                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
-                  : 'text-white/70 hover:text-white'
+                  ? 'text-purple border-b-2 border-purple'
+                  : 'text-dark/70 hover:text-dark'
               }`}
             >
               Claim Details
@@ -557,16 +555,16 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               onClick={() => handleTabClick('primary')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'primary'
-                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
-                  : 'text-white/70 hover:text-white'
+                  ? 'text-purple border-b-2 border-purple'
+                  : 'text-dark/70 hover:text-dark'
               } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!claimDetailsComplete}
             >
               Primary Insurance
               {activeTab !== 'claim' && showTooltip && !claimDetailsComplete && (
-                <div className="absolute top-full left-0 mt-2 w-64 p-2 bg-dark-500 text-white text-sm rounded shadow-lg z-10">
+                <div className="absolute top-full left-0 mt-2 w-64 p-2 bg-dark text-white text-sm rounded shadow-lg z-10">
                   <div className="flex items-center gap-2">
-                    <AlertCircle size={16} className="text-error-400" />
+                    <AlertCircle size={16} className="text-red" />
                     <span>Please complete Claim Details first</span>
                   </div>
                 </div>
@@ -576,8 +574,8 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               onClick={() => handleTabClick('secondary')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'secondary'
-                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
-                  : 'text-white/70 hover:text-white'
+                  ? 'text-purple border-b-2 border-purple'
+                  : 'text-dark/70 hover:text-dark'
               } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!claimDetailsComplete}
             >
@@ -587,8 +585,8 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               onClick={() => handleTabClick('patient')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'patient'
-                  ? 'text-earth-yellow border-b-2 border-earth-yellow'
-                  : 'text-white/70 hover:text-white'
+                  ? 'text-purple border-b-2 border-purple'
+                  : 'text-dark/70 hover:text-dark'
               } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!claimDetailsComplete}
             >
@@ -596,39 +594,37 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
             </button>
           </div>
           
-          {/* Save button in tab header with orange color */}
+          {/* Save button in tab header with purple color */}
           <Button
             onClick={getCurrentSaveHandler()}
             icon={<Save size={16} />}
             disabled={localIsLoading || (activeTab !== 'claim' && !claimDetailsComplete) || !isFormDirty}
-            className="ml-4 bg-earth-yellow hover:bg-earth-yellow/80 text-olive-green border-earth-yellow/40"
+            className="ml-4 bg-purple hover:bg-purple/80 text-white border-purple/40"
           >
             {localIsLoading ? 'Saving...' : 'Save'}
           </Button>
         </div>
-      </GlassCard>
-
-      {/* Conditional rendering for tab content */}
+      </GlassCard>      {/* Conditional rendering for tab content */}
       {activeTab === 'claim' && (
-        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="text-earth-yellow" size={20} />
+            <h2 className="text-xl font-semibold flex items-center gap-2 text-pink">
+              <FileText className="text-purple" size={20} />
               Claim Details
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="mb-4">
-              <label className="block text-white/80 mb-2 font-medium">
-                OA Claim ID <span className="text-error-400">*</span>
+              <label className="block text-dark/80 mb-2 font-medium">
+                OA Claim ID <span className="text-red">*</span>
               </label>
               <div className="relative">
                 <input
                   name="oaClaimId"
                   value={claimDetailsForm.oaClaimId}
                   onChange={handleClaimDetailsChange}
-                  className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
+                  className="glass-input w-full bg-white/80 text-dark border border-purple/30 focus:border-purple outline-none"
                   type="text"
                   required
                 />
@@ -636,15 +632,15 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
             </div>
             
             <div className="mb-4">
-              <label className="block text-white/80 mb-2 font-medium">
-                OA Visit ID <span className="text-error-400">*</span>
+              <label className="block text-dark/80 mb-2 font-medium">
+                OA Visit ID <span className="text-red">*</span>
               </label>
               <div className="relative">
                 <input
                   name="oaVisitId"
                   value={claimDetailsForm.oaVisitId}
                   onChange={handleClaimDetailsChange}
-                  className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
+                  className="glass-input w-full bg-white/80 text-dark border border-purple/30 focus:border-purple outline-none"
                   type="text"
                   required
                 />
@@ -652,8 +648,8 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
             </div>
             
             <div className="mb-4">
-              <label className="block text-white/80 mb-2 font-medium">
-                Charge Date <span className="text-error-400">*</span>
+              <label className="block text-dark/80 mb-2 font-medium">
+                Charge Date <span className="text-red">*</span>
               </label>
               <div className="flex flex-col">
                 <div className="relative">
@@ -662,19 +658,19 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                     type="date"
                     value={formatDateForInput(claimDetailsForm.chargeDt)}
                     onChange={handleClaimDetailsChange}
-                    className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
+                    className="glass-input w-full bg-white/80 text-dark border border-purple/30 focus:border-purple outline-none"
                     required
                   />
                 </div>
-                <span className="text-xs text-white/50 mt-1">
+                <span className="text-xs text-dark/50 mt-1">
                   {claim.charge_dt ? `DB value: ${new Date(claim.charge_dt).toLocaleDateString()}` : 'No date in database'}
                 </span>
               </div>
             </div>
             
             <div className="mb-4">
-              <label className="block text-white/80 mb-2 font-medium">
-                Charge Amount <span className="text-error-400">*</span>
+              <label className="block text-dark/80 mb-2 font-medium">
+                Charge Amount <span className="text-red">*</span>
               </label>
               <div className="relative">
                 <input
@@ -683,21 +679,19 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
                   step="0.01"
                   value={claimDetailsForm.chargeAmount}
                   onChange={handleClaimDetailsChange}
-                  className="glass-input w-full bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
+                  className="glass-input w-full bg-white/80 text-dark border border-purple/30 focus:border-purple outline-none"
                   required
                 />
               </div>
             </div>
           </div>
         </GlassCard>
-      )}
-
-      {/* Primary Insurance Form */}
+      )}      {/* Primary Insurance Form */}
       {activeTab === 'primary' && claimDetailsComplete && (
-        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="text-earth-yellow" size={20} />
+            <h2 className="text-xl font-semibold flex items-center gap-2 text-pink">
+              <FileText className="text-purple" size={20} />
               Primary Insurance
             </h2>
           </div>
@@ -709,9 +703,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primIns}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primIns}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Primary Amount"
@@ -721,9 +715,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primAmt}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primAmt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Primary Post Date"
@@ -732,9 +726,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(primaryForm.primPostDt)}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primPostDt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Primary Check Details"
@@ -742,9 +736,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primChkDetails}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primChkDetails}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Primary Received Date"
@@ -753,9 +747,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(primaryForm.primRecDt)}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primRecDt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Primary Check Amount"
@@ -765,19 +759,19 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={primaryForm.primChkAmt}
               onChange={handlePrimaryChange}
               status={fieldStatuses.primChkAmt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <div className="md:col-span-2">
-              <label className="block text-white/80 mb-2 font-medium">
+              <label className="block text-dark/80 mb-2 font-medium">
                 Primary Comment
               </label>
               <textarea
                 name="primCmnt"
                 value={primaryForm.primCmnt}
                 onChange={handlePrimaryChange}
-                className="glass-input w-full min-h-[120px] bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
+                className="glass-input w-full min-h-[120px] bg-white/80 text-dark border border-purple/30 focus:border-purple outline-none"
               ></textarea>
             </div>
             <GlassInput
@@ -785,20 +779,18 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="primDenialCode"
               value={primaryForm.primDenialCode}
               onChange={handlePrimaryChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
           </div>
         </GlassCard>
-      )}
-
-      {/* Secondary Insurance Form */}
+      )}      {/* Secondary Insurance Form */}
       {activeTab === 'secondary' && claimDetailsComplete && (
-        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <FileText className="text-earth-yellow" size={20} />
+            <h2 className="text-xl font-semibold flex items-center gap-2 text-pink">
+              <FileText className="text-purple" size={20} />
               Secondary Insurance
             </h2>
           </div>
@@ -810,9 +802,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secIns}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secIns}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Secondary Amount"
@@ -822,9 +814,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secAmt}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secAmt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Secondary Post Date"
@@ -833,9 +825,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(secondaryForm.secPostDt)}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secPostDt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Secondary Check Details"
@@ -843,9 +835,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secChkDetails}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secChkDetails}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Secondary Received Date"
@@ -854,9 +846,9 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={formatDateForInput(secondaryForm.secRecDt)}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secRecDt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <GlassInput
               label="Secondary Check Amount"
@@ -866,19 +858,19 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secChkAmt}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secChkAmt}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
             <div className="md:col-span-2">
-              <label className="block text-white/80 mb-2 font-medium">
+              <label className="block text-dark/80 mb-2 font-medium">
                 Secondary Comment
               </label>
               <textarea
                 name="secCmnt"
                 value={secondaryForm.secCmnt}
                 onChange={handleSecondaryChange}
-                className="glass-input w-full min-h-[120px] bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow outline-none"
+                className="glass-input w-full min-h-[120px] bg-white/80 text-dark border border-purple/30 focus:border-purple outline-none"
               ></textarea>
             </div>
             <GlassInput
@@ -887,20 +879,19 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               value={secondaryForm.secDenialCode}
               onChange={handleSecondaryChange}
               status={fieldStatuses.secDenialCode}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
             />
           </div>
         </GlassCard>
-      )}
-      
+      )}      
       {/* Patient Data Form - New Tab */}
       {activeTab === 'patient' && claimDetailsComplete && (
-        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <User className="text-earth-yellow" size={20} />
+            <h2 className="text-xl font-semibold flex items-center gap-2 text-pink">
+              <User className="text-purple" size={20} />
               Patient Data
             </h2>
           </div>
@@ -913,36 +904,34 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               step="0.01"
               value={patientForm.patAmt}
               onChange={handlePatientChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-              icon={<DollarSign size={16} className="text-earth-yellow" />} />
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
+              icon={<DollarSign size={16} className="text-purple" />} />
             <GlassInput
               label="Patient Received Date"
               name="patRecDt"
               type="date"
               value={formatDateForInput(patientForm.patRecDt)}
               onChange={handlePatientChange}
-              className="bg-dark-olive-green/50 text-white"
-              labelClassName="text-white/80"
-              inputClassName="bg-dark-olive-green/50 text-white border border-white/20 focus:border-earth-yellow"
-              icon={<Calendar size={16} className="text-earth-yellow" />} />
+              className="bg-white/80 text-dark"
+              labelClassName="text-dark/80"
+              inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
+              icon={<Calendar size={16} className="text-purple" />} />
           </div>
         </GlassCard>
-      )}
-
-      {/* Placeholder for incomplete claim details */}
+      )}      {/* Placeholder for incomplete claim details */}
       {(activeTab === 'primary' || activeTab === 'secondary' || activeTab === 'patient') && !claimDetailsComplete && (
-        <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <AlertCircle size={48} className="text-warning-400 mb-4" />
-            <h3 className="text-xl font-medium text-white mb-2">Complete Claim Details First</h3>
-            <p className="text-white/60 max-w-md">
+            <AlertCircle size={48} className="text-yellow mb-4" />
+            <h3 className="text-xl font-medium text-dark mb-2">Complete Claim Details First</h3>
+            <p className="text-dark/60 max-w-md">
               Please fill in and save all required fields in the Claim Details tab before accessing this section.
             </p>
             <Button
               variant="secondary"
-              className="mt-6 bg-earth-yellow hover:bg-earth-yellow/80 text-olive-green"
+              className="mt-6 bg-purple hover:bg-purple/80 text-white"
               onClick={() => setActiveTab('claim')}
             >
               Go to Claim Details

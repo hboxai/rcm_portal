@@ -78,45 +78,42 @@ const FullProfilePage: React.FC = () => {
     
     return String(value);
   };
-  
-  // Field display component
+    // Field display component
   const Field: React.FC<{ label: string; value: any }> = ({ label, value }) => (
     <div className="mb-4">
-      <p className="text-white/60 text-sm mb-1">{label}</p>
-      <p className="font-medium">{formatValue(value, label)}</p>
+      <p className="text-textDark/60 text-sm mb-1">{label}</p>
+      <p className="font-medium text-textDark">{formatValue(value, label)}</p>
     </div>
   );
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white text-textDark">
       <Header />
       
       <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
-        <div className="mb-8 p-6 rounded-xl bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+        <div className="mb-8 p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
           <div className="flex items-center gap-2 mb-2">
             <Link 
               to={`/profile/${id}`} 
-              className="text-white hover:text-white/80 flex items-center gap-1 transition-colors"
+              className="text-purple hover:text-purple/80 flex items-center gap-1 transition-colors"
             >
               <ChevronLeft size={18} />
               <span>Back to Profile</span>
             </Link>
           </div>
           
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="text-3xl font-bold text-textDark">
             Full Profile: Billing ID {currentClaim.billing_id || currentClaim.claimId || 'N/A'}
           </h1>
-          <p className="text-white/80 mt-2">
+          <p className="text-textDark/70 mt-2">
             Complete information for this claim
           </p>
         </div>
-        
-        {/* Patient Information Card */}
+          {/* Patient Information Card */}
         <div className="mb-8">
-          <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+          <GlassCard className="bg-white/95 backdrop-blur-sm border border-purple/20">
             <div className="flex items-center gap-2 mb-6">
-              <User className="text-earth-yellow" size={22} />
-              <h2 className="text-xl font-semibold">Patient Information</h2>
+              <User className="text-pink" size={22} />
+              <h2 className="text-xl font-semibold text-pink">Patient Information</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -135,13 +132,12 @@ const FullProfilePage: React.FC = () => {
             </div>
           </GlassCard>
         </div>
-        
-        {/* Claim & Billing Information Card */}
+          {/* Claim & Billing Information Card */}
         <div className="mb-8">
-          <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+          <GlassCard className="bg-white/95 backdrop-blur-sm border border-purple/20">
             <div className="flex items-center gap-2 mb-6">
-              <DollarSign className="text-earth-yellow" size={22} />
-              <h2 className="text-xl font-semibold">Claim & Billing Information</h2>
+              <DollarSign className="text-pink" size={22} />
+              <h2 className="text-xl font-semibold text-pink">Claim & Billing Information</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -162,19 +158,18 @@ const FullProfilePage: React.FC = () => {
             </div>
           </GlassCard>
         </div>
-        
-        {/* Insurance Information Card */}
+          {/* Insurance Information Card */}
         <div>
-          <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+          <GlassCard className="bg-white/95 backdrop-blur-sm border border-purple/20">
             <div className="flex items-center gap-2 mb-6">
-              <Shield className="text-earth-yellow" size={22} />
-              <h2 className="text-xl font-semibold">Insurance Information</h2>
+              <Shield className="text-pink" size={22} />
+              <h2 className="text-xl font-semibold text-pink">Insurance Information</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Primary Insurance */}
               <div className="md:col-span-3 mt-2 mb-4">
-                <h3 className="text-lg font-medium text-white/90 border-b border-white/10 pb-2 mb-4">Primary Insurance</h3>
+                <h3 className="text-lg font-medium text-textDark border-b border-purple/20 pb-2 mb-4">Primary Insurance</h3>
               </div>
               
               <Field label="Primary Insurance" value={currentClaim.payer} />
@@ -189,7 +184,7 @@ const FullProfilePage: React.FC = () => {
               
               {/* Secondary Insurance */}
               <div className="md:col-span-3 mt-4 mb-4">
-                <h3 className="text-lg font-medium text-white/90 border-b border-white/10 pb-2 mb-4">Secondary Insurance</h3>
+                <h3 className="text-lg font-medium text-textDark border-b border-purple/20 pb-2 mb-4">Secondary Insurance</h3>
               </div>
               
               <Field label="Secondary Insurance" value={undefined} />
@@ -204,7 +199,7 @@ const FullProfilePage: React.FC = () => {
               
               {/* Patient Payment */}
               <div className="md:col-span-3 mt-4 mb-4">
-                <h3 className="text-lg font-medium text-white/90 border-b border-white/10 pb-2 mb-4">Patient Payment</h3>
+                <h3 className="text-lg font-medium text-textDark border-b border-purple/20 pb-2 mb-4">Patient Payment</h3>
               </div>
               
               <Field label="Patient Amount" value={undefined} />

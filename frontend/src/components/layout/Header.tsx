@@ -58,12 +58,11 @@ const Header: React.FC = () => {
   
   const isActive = (path: string) => location.pathname === path;
   
-  return (
-    <motion.header 
+  return (    <motion.header 
       className={`fixed top-0 left-0 right-0 z-50 py-4 transition-all duration-300 ease-in-out ${
         isScrolled 
-          ? 'bg-olive-green/85 backdrop-blur-md shadow-lg shadow-dark-olive-green/20' 
-          : 'bg-olive-green/80 backdrop-blur-sm'
+          ? 'bg-purple/90 backdrop-blur-md shadow-lg shadow-purple/20' 
+          : 'bg-purple/85 backdrop-blur-sm'
       }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -102,13 +101,12 @@ const Header: React.FC = () => {
               whileHover="hover"
               custom={0}
               transition={{ delay: 0.1 }}
-            >
-              <Link 
+            >              <Link 
                 to="/search" 
                 className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 ${
                   isActive('/search') 
-                    ? 'text-textLight bg-white/10 shadow-sm shadow-white/5' 
-                    : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
+                    ? 'text-white bg-white/20 shadow-sm shadow-white/10' 
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Search
@@ -122,13 +120,12 @@ const Header: React.FC = () => {
               whileHover="hover"
               custom={1}
               transition={{ delay: 0.2 }}
-            >
-              <Link 
+            >              <Link 
                 to="/history" 
                 className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 flex items-center gap-1 ${
                   isActive('/history') 
-                    ? 'text-textLight bg-white/10 shadow-sm shadow-white/5' 
-                    : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
+                    ? 'text-white bg-white/20 shadow-sm shadow-white/10' 
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <History size={16} />

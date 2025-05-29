@@ -134,29 +134,27 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
   };
 
   return (
-    <div className="mb-6">
-      <GlassCard 
-        className={`overflow-hidden bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white ${
+    <div className="mb-6">      <GlassCard 
+        className={`overflow-hidden bg-white/95 backdrop-blur-sm border border-purple/20 text-textDark ${
           isExpanded 
-            ? 'border-earth-yellow/50 shadow-lg' 
+            ? 'border-purple/50 shadow-lg' 
             : ''
         }`}
       >
-        <div className={`flex justify-between items-center mb-6 pb-3 ${isExpanded ? 'border-b border-white/10' : ''}`}>
+        <div className={`flex justify-between items-center mb-6 pb-3 ${isExpanded ? 'border-b border-purple/10' : ''}`}>
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-earth-yellow/20 flex items-center justify-center">
-              <FileText className="text-earth-yellow" size={20} />
+            <div className="p-2 rounded-full bg-pink/20 flex items-center justify-center">
+              <FileText className="text-pink" size={20} />
             </div>
-            <h2 className="text-xl font-semibold text-white">
+            <h2 className="text-xl font-semibold text-pink">
               Claim Summary
             </h2>
           </div>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
-            <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
-              <User className="text-earth-yellow" size={16} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="bg-light-100/50 p-4 rounded-lg border border-purple/10">
+            <h3 className="text-md font-medium text-pink mb-3 flex items-center gap-2">
+              <User className="text-pink" size={16} />
               Patient Information
             </h3>
             <div className="space-y-4">
@@ -176,9 +174,9 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             </div>
           </div>
           
-          <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
-            <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
-              <Clipboard className="text-earth-yellow" size={16} />
+          <div className="bg-light-100/50 p-4 rounded-lg border border-purple/10">
+            <h3 className="text-md font-medium text-pink mb-3 flex items-center gap-2">
+              <Clipboard className="text-pink" size={16} />
               Claim Details
             </h3>
             <div className="space-y-4">
@@ -198,9 +196,8 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             </div>
           </div>
           
-          <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5">
-            <h3 className="text-md font-medium text-white mb-3 flex items-center gap-2">
-              <DollarSign className="text-earth-yellow" size={16} />
+          <div className="bg-light-100/50 p-4 rounded-lg border border-purple/10">            <h3 className="text-md font-medium text-pink mb-3 flex items-center gap-2">
+              <DollarSign className="text-pink" size={16} />
               Financial Information
             </h3>
             <div className="space-y-4">
@@ -221,18 +218,17 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             </div>
           </div>
         </div>
-        
-        <div className="bg-dark-olive-green/30 p-4 rounded-lg border border-white/5 mb-4">
+          <div className="bg-light-100/50 p-4 rounded-lg border border-purple/10 mb-4">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
-              <Activity className="text-earth-yellow" size={16} />
-              <h3 className="text-md font-medium text-white">Claim Status</h3>
+              <Activity className="text-pink" size={16} />
+              <h3 className="text-md font-medium text-pink">Claim Status</h3>
             </div>
             
             {!isEditable && selectedStatus && (
               <button 
                 onClick={toggleEditMode} 
-                className="flex items-center gap-1 text-earth-yellow hover:text-earth-yellow/80 text-sm bg-white/5 px-3 py-1.5 rounded-full"
+                className="flex items-center gap-1 text-purple hover:text-purple/80 text-sm bg-purple/5 px-3 py-1.5 rounded-full"
               >
                 <Edit2 size={14} />
                 <span>Edit Status</span>
@@ -241,15 +237,14 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           </div>
           
           {isEditable ? (
-            <div className="flex gap-3">
-              <select
-                className="glass-input flex-grow bg-dark-olive-green/50 text-white px-4 py-2.5 rounded-lg border border-white/20 focus:border-earth-yellow outline-none"
+            <div className="flex gap-3">              <select
+                className="glass-input flex-grow bg-white/70 text-textDark px-4 py-2.5 rounded-lg border border-purple/20 focus:border-purple outline-none"
                 value={selectedStatus || ''}
                 onChange={handleStatusChange}
               >
-                <option value="" className="bg-dark-olive-green text-white">Select a status</option>
+                <option value="" className="bg-white text-textDark">Select a status</option>
                 {claimStatusOptions.map(status => (
-                  <option key={status} value={status} className="bg-dark-olive-green text-white">
+                  <option key={status} value={status} className="bg-white text-textDark">
                     {status}
                   </option>
                 ))}
@@ -258,7 +253,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                 variant="primary" 
                 onClick={handleSaveStatus}
                 disabled={!selectedStatus}
-                className="px-6 bg-earth-yellow hover:bg-earth-yellow/80 text-olive-green"
+                className="px-6 bg-purple hover:bg-purple/90 text-white"
                 data-save-status
               >
                 Save
@@ -274,15 +269,14 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                     {getStatusDisplayStyle(selectedStatus).icon}
                   </div>
                   <span className="font-medium">{selectedStatus}</span>
-                </div>
-              ) : (
-                <span className="bg-gray-600/30 text-white/70 px-4 py-2.5 rounded-lg">
+                </div>              ) : (
+                <span className="bg-gray-500/20 text-textDark/70 px-4 py-2.5 rounded-lg">
                   No status set
                 </span>
               )}
               
               {!isEditable && selectedStatus && (
-                <span className="flex items-center gap-1 text-white/50 text-sm bg-white/5 px-3 py-1.5 rounded-full">
+                <span className="flex items-center gap-1 text-textDark/50 text-sm bg-purple/5 px-3 py-1.5 rounded-full">
                   <Lock size={14} />
                   <span>Locked</span>
                 </span>
@@ -297,12 +291,11 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
             </div>
           )}
         </div>
-        
-        <div className="mt-5 flex justify-center">
+          <div className="mt-5 flex justify-center">
           <Button
             variant="secondary"
             onClick={handleViewDetailsClick}
-            className="px-6 py-2 bg-earth-yellow/20 hover:bg-earth-yellow/30 text-white border border-earth-yellow/30"
+            className="px-6 py-2 bg-purple/20 hover:bg-purple/30 text-purple border border-purple/30"
             icon={isExpanded ? <ChevronUp size={16} /> : <Eye size={16} />}
           >
             {isExpanded ? "Hide Details" : "View Details"}

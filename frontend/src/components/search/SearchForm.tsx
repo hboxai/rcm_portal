@@ -13,7 +13,7 @@ const PatientIdIcon = () => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-textLight/80"
+    className="text-purple"
   >
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
     <circle cx="9" cy="7" r="4"></circle>
@@ -32,7 +32,7 @@ const CptIdIcon = () => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-textLight/80"
+    className="text-purple"
   >
     <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0-2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
     <rect x="9" y="3" width="6" height="4" rx="2"></rect>
@@ -54,7 +54,7 @@ const CalendarIcon = () => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-textLight/80"
+    className="text-purple"
   >
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
     <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -74,7 +74,7 @@ const SearchIcon = () => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className="text-textLight/80"
+    className="text-white"
   >
     <circle cx="11" cy="11" r="8"></circle>
     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -118,20 +118,21 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
       cptCode: '',
     });
   };
-
-  // Common input class to maintain consistent styling
-  const inputClass = "w-full pl-12 border border-slate-600/40 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-earth-yellow/50 bg-olive-green/20 text-white placeholder-gray-300/70";
+  // Common input class to maintain consistent styling with new palette
+  const inputClass = "w-full pl-12 border border-purple/30 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue/50 bg-white/90 text-textDark placeholder-purple/50";
   
   // Modified input class for inputs without icons
-  const inputNoIconClass = "w-full pl-4 pr-4 border border-slate-600/40 rounded-lg py-2.5 outline-none focus:ring-2 focus:ring-earth-yellow/50 bg-olive-green/20 text-white placeholder-gray-300/70";
-
+  const inputNoIconClass = "w-full pl-4 pr-4 border border-purple/30 rounded-lg py-2.5 outline-none focus:ring-2 focus:ring-blue/50 bg-white/90 text-textDark placeholder-purple/50";
   return (
     <div className="mb-8">
-      <form onSubmit={handleSubmit} className="glass-card-dark p-6 rounded-xl bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+      <form onSubmit={handleSubmit} className="glass-card p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20 text-textDark shadow-lg">
+        <div className="card-header rounded-t-lg -mx-6 -mt-6 mb-6">
+          <h2 className="text-lg font-semibold">Search Claims</h2>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> 
           {/* Row 1: First Name, Last Name, Patient ID, Billing ID */}
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               First Name
             </label>
             <div className="relative">
@@ -142,11 +143,10 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
                 onChange={handleChange}
                 className={inputNoIconClass}
               />
-            </div>
-          </div>
+            </div>          </div>
 
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               Last Name
             </label>
             <div className="relative">
@@ -157,11 +157,10 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
                 onChange={handleChange}
                 className={inputNoIconClass}
               />
-            </div>
-          </div>
+            </div>          </div>
 
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               Patient ID
             </label>
             <div className="relative">
@@ -181,10 +180,9 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
                 className={inputClass}
               />
             </div>
-          </div>
-          
+          </div>          
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               Billing ID 
             </label>
             <div className="relative">
@@ -210,11 +208,9 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
                 ))}
               </datalist>
             </div>
-          </div>
-
-          {/* Row 2: Payer Name, CPT Code, Date of Service (DOS), Date of Birth (DOB) */}
+          </div>          {/* Row 2: Payer Name, CPT Code, Date of Service (DOS), Date of Birth (DOB) */}
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               Payer Name
             </label>
             <div className="relative">
@@ -229,7 +225,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
           </div>
 
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               CPT Code
             </label>
             <div className="relative">
@@ -244,7 +240,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
           </div>
           
           <div>
-            <label className="block text-white mb-2 font-medium">
+            <label className="block text-textDark mb-2 font-medium">
               Date of Service (DOS)
             </label>
             <div className="relative">
@@ -265,10 +261,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
                 className={inputClass}
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-white mb-2 font-medium">
+          </div>          <div>
+            <label className="block text-textDark mb-2 font-medium">
               Date of Birth (DOB)
             </label>
             <div className="relative">
@@ -291,20 +285,18 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
             </div>
           </div>
         </div>
-        
-        <div className="flex flex-wrap justify-end gap-4 mt-6">
+          <div className="flex flex-wrap justify-end gap-4 mt-6">
           <button 
             type="button" 
             onClick={handleClear}
-            className="px-6 py-2.5 rounded-lg border border-slate-600/40 text-white bg-slate-700/30 hover:bg-slate-600/50 transition-colors"
+            className="px-6 py-2.5 rounded-lg border border-purple/30 text-textDark bg-white/80 hover:bg-purple/10 transition-colors"
           >
-            Clear
-          </button>
+            Clear          </button>
           
           <button 
             type="submit"
-            className="px-6 py-2.5 rounded-lg bg-earth-yellow text-olive-green font-medium flex items-center gap-2 hover:bg-earth-yellow/80 transition-colors"
             disabled={isLoading}
+            className="px-6 py-2.5 rounded-lg bg-purple hover:bg-purple/80 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isLoading ? (
               <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

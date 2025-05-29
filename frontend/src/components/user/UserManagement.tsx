@@ -19,11 +19,11 @@ const SearchIcon = () => (
     height="18" 
     viewBox="0 0 24 24" 
     fill="none" 
-    stroke="black" 
+    stroke="currentColor" 
     strokeWidth="2"
     strokeLinecap="round" 
     strokeLinejoin="round" 
-    className="text-black"
+    className="text-purple"
   >
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.3-4.3"></path>
@@ -38,10 +38,11 @@ const ClearSearchIcon = () => (
     height="18" 
     viewBox="0 0 24 24" 
     fill="none" 
-    stroke="white" 
+    stroke="currentColor" 
     strokeWidth="2"
     strokeLinecap="round" 
     strokeLinejoin="round" 
+    className="text-purple"
   >
     <circle cx="11" cy="11" r="8"></circle>
     <path d="m21 21-4.3-4.3"></path>
@@ -131,10 +132,9 @@ const UserManagement: React.FC = () => {
     setFormErrors({});
     setIsModalOpen(true);
   }, []);
-
   const handleOpenDeleteModal = useCallback((user: User) => {
     // Check if trying to delete yourself as admin
-    if (currentLoggedInUser?.id === user.id && user.role === 'Admin') {
+    if (String(currentLoggedInUser?.id) === String(user.id) && user.role === 'Admin') {
       if (!hasMultipleAdmins) {
         setShowPermissionError(true);
         setTimeout(() => setShowPermissionError(false), 3000);
@@ -243,10 +243,8 @@ const UserManagement: React.FC = () => {
   }, [currentUser, token, validateForm]);
 
   const handleDeleteUser = useCallback(async () => {
-    if (!userToDelete || !token) return;
-
-    // Check if trying to delete yourself as admin
-    if (currentLoggedInUser?.id === userToDelete.id && userToDelete.role === 'Admin') {
+    if (!userToDelete || !token) return;    // Check if trying to delete yourself as admin
+    if (String(currentLoggedInUser?.id) === String(userToDelete.id) && userToDelete.role === 'Admin') {
       if (!hasMultipleAdmins) {
         setShowPermissionError(true);
         setTimeout(() => setShowPermissionError(false), 3000);
@@ -277,15 +275,17 @@ const UserManagement: React.FC = () => {
       }, 300);
     }
   }, [currentLoggedInUser, hasMultipleAdmins, userToDelete, token]);
-
   const handleFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
     if (currentUser) {
-      setCurrentUser(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setCurrentUser(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [name]: value
+        };
+      });
     }
 
     // Clear error when user types
@@ -293,13 +293,11 @@ const UserManagement: React.FC = () => {
       setFormErrors(prev => ({ ...prev, [name]: '' }));
     }
   }, [currentUser, formErrors]);
-  
-  // Generate background color based on username for avatar
+    // Generate background color based on username for avatar
   const getAvatarColor = useCallback((username: string) => {
     const colors = [
-      'bg-accent-500', 'bg-primary-500', 'bg-success-500', 
-      'bg-warning-500', 'bg-error-500', 'bg-blue-500', 
-      'bg-purple-500', 'bg-pink-500', 'bg-indigo-500'
+      'bg-pink', 'bg-purple', 'bg-blue', 
+      'bg-green', 'bg-yellow', 'bg-red'
     ];
     
     // Simple hash function to get consistent color for a name
@@ -322,12 +320,11 @@ const UserManagement: React.FC = () => {
   }) => {
     if (!user) return null;
     
-    return (
-      <>
+    return (        <>
         {isOpen && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-olive-green/80 rounded-xl shadow-xl w-full max-w-md p-6 border border-white/10">
-              <h2 className="text-2xl font-bold text-white mb-4">
+            <div className="bg-white/95 rounded-xl shadow-xl w-full max-w-md p-6 border border-purple/20">
+              <h2 className="text-2xl font-bold text-pink mb-4">
                 {user.id ? 'Edit User' : 'Create New User'}
               </h2>
               <div className="space-y-4">
@@ -339,9 +336,9 @@ const UserManagement: React.FC = () => {
                     value={user.username}
                     onChange={onChange}
                     error={errors.username}
-                    labelClassName="text-white/80"
-                    inputClassName="text-white placeholder:text-white/60"
-                    className="border-white/30 focus:border-white"
+                    labelClassName="text-textDark/80"
+                    inputClassName="text-textDark placeholder:text-textDark/60"
+                    className="border-purple/30 focus:border-purple"
                   />
                 </div>
                 <div>
@@ -353,9 +350,9 @@ const UserManagement: React.FC = () => {
                     value={user.email}
                     onChange={onChange}
                     error={errors.email}
-                    labelClassName="text-white/80"
-                    inputClassName="text-white placeholder:text-white/60"
-                    className="border-white/30 focus:border-white"
+                    labelClassName="text-textDark/80"
+                    inputClassName="text-textDark placeholder:text-textDark/60"
+                    className="border-purple/30 focus:border-purple"
                   />
                 </div>
                 <div>
@@ -367,21 +364,21 @@ const UserManagement: React.FC = () => {
                     value={user.password}
                     onChange={onChange}
                     error={errors.password}
-                    labelClassName="text-white/80"
-                    inputClassName="text-white placeholder:text-white/60"
-                    className="border-white/30 focus:border-white"
+                    labelClassName="text-textDark/80"
+                    inputClassName="text-textDark placeholder:text-textDark/60"
+                    className="border-purple/30 focus:border-purple"
                   />
                 </div>
                 <div>
-                  <label className="block text-white/80 mb-2 font-medium">Role</label>
+                  <label className="block text-textDark/80 mb-2 font-medium">Role</label>
                   <select
                     name="role"
                     value={user.role}
                     onChange={onChange}
-                    className="glass-input w-full bg-dark-olive-green/50 text-white rounded-lg px-4 py-2.5 border border-white/30 outline-none focus:ring-2 focus:ring-earth-yellow/50 focus:border-white"
+                    className="glass-input w-full bg-white/50 text-textDark rounded-lg px-4 py-2.5 border border-purple/30 outline-none focus:ring-2 focus:ring-purple/50 focus:border-purple"
                   >
-                    <option value="User" className="bg-dark-olive-green text-white">User</option>
-                    <option value="Admin" className="bg-dark-olive-green text-white">Admin</option>
+                    <option value="User" className="bg-white text-textDark">User</option>
+                    <option value="Admin" className="bg-white text-textDark">Admin</option>
                   </select>
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
@@ -428,19 +425,17 @@ const UserManagement: React.FC = () => {
                 damping: 30,
                 mass: 0.8
               }}
-              className="bg-olive-green/80 rounded-xl shadow-xl w-full max-w-md p-6 border border-white/10"
+              className="bg-white/95 rounded-xl shadow-xl w-full max-w-md p-6 border border-purple/20"
               style={{ 
                 willChange: 'transform, opacity',
                 transform: 'translateZ(0)'
               }}
             >
-              <div className="text-center">
-                <div className="flex justify-center mb-4">
-                  <AlertCircle size={48} className="text-error-400" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Delete User</h2>
-                <p className="text-white/70 mb-6">
-                  Are you sure you want to delete the user <span className="font-semibold text-white">{user.username}</span>? 
+              <div className="text-center">                <div className="flex justify-center mb-4">
+                  <AlertCircle size={48} className="text-red" />
+                </div><h2 className="text-2xl font-bold text-pink mb-2">Delete User</h2>
+                <p className="text-textDark/70 mb-6">
+                  Are you sure you want to delete the user <span className="font-semibold text-textDark">{user.username}</span>?
                   This action cannot be undone.
                 </p>
                 <div className="flex justify-center gap-3">
@@ -450,10 +445,9 @@ const UserManagement: React.FC = () => {
                     icon={<X size={18} />}
                   >
                     Cancel
-                  </Button>
-                  <Button
+                  </Button>                  <Button
                     variant="primary"
-                    className="bg-error-600 hover:bg-error-700"
+                    className="bg-red hover:bg-red/90 text-white"
                     onClick={onDelete}
                     icon={<Check size={18} />}
                   >
@@ -471,63 +465,55 @@ const UserManagement: React.FC = () => {
   return (
     <>
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between">
-        <div className="mb-4 md:mb-0 w-full md:w-64">
-          <GlassInput
+        <div className="mb-4 md:mb-0 w-full md:w-64">          <GlassInput
             placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={<SearchIcon />}
             clearIcon={<ClearSearchIcon />}
-            inputClassName="text-white bg-transparent"
-            className="w-full focus:ring-2 focus:ring-earth-yellow/50"
+            inputClassName="text-textDark bg-transparent"
+            className="w-full focus:ring-2 focus:ring-purple/50 border-purple/30"
           />
-        </div>
-        <Button
+        </div>        <Button
           variant="secondary"
           icon={<UserPlus size={18} />}
           onClick={handleOpenCreateModal}
-          className="w-full md:w-auto shadow-sm hover:shadow flex items-center gap-2 text-black px-4 py-2 rounded-md"
+          className="w-full md:w-auto shadow-sm hover:shadow flex items-center gap-2 text-white bg-purple hover:bg-purple/90 px-4 py-2 rounded-md border border-purple/40"
         >
           Create New User
         </Button>
       </div>
-      
-      {/* Permission Error Alert */}
+        {/* Permission Error Alert */}
       {showPermissionError && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="mb-4 bg-error-900/50 text-error-200 px-4 py-3 rounded-lg flex items-center gap-2"
+          className="mb-4 bg-red/10 text-red border border-red/20 px-4 py-3 rounded-lg flex items-center gap-2"
         >
           <ShieldAlert size={18} />
           <span>You cannot delete/deactivate your own admin account when you are the only admin in the system.</span>
         </motion.div>
-      )}
-
-      {isLoading && (
+      )}{isLoading && (
         <div className="flex justify-center items-center h-64">
-          <div className="w-12 h-12 border-2 border-accent-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="ml-4 text-xl text-white/70">Loading users...</p>
+          <div className="w-12 h-12 border-2 border-purple border-t-transparent rounded-full animate-spin"></div>
+          <p className="ml-4 text-xl text-textDark/70">Loading users...</p>
         </div>
-      )}
-
-      {error && (
+      )}      {error && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 bg-error-900/50 text-error-200 px-4 py-3 rounded-lg flex items-center gap-2"
+          className="mb-4 bg-red/10 text-red border border-red/20 px-4 py-3 rounded-lg flex items-center gap-2"
         >
           <AlertCircle size={18} />
           <span>{error}</span>
         </motion.div>
       )}
 
-      {!isLoading && !error && (
-        <GlassCard className="bg-olive-green/80 text-white rounded-xl overflow-hidden">
+      {!isLoading && !error && (        <GlassCard className="bg-white/95 text-textDark rounded-xl overflow-hidden border border-purple/20">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-dark-olive-green/50 text-white/80">
+              <thead className="bg-light-100 text-textDark/80">
                 <tr>
                   <th className="px-6 py-4 text-left font-medium">Username</th>
                   <th className="px-6 py-4 text-left font-medium">Email</th>
@@ -535,11 +521,10 @@ const UserManagement: React.FC = () => {
                   <th className="px-6 py-4 text-right font-medium">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody className="divide-y divide-purple/10">
                 {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-dark-olive-green/20 transition-colors">
-                      <td className="px-6 py-4 text-white flex items-center gap-3">
+                  filteredUsers.map((user) => (                    <tr key={user.id} className="hover:bg-light-100/50 transition-colors">
+                      <td className="px-6 py-4 text-textDark flex items-center gap-3">
                         <div 
                           className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${getAvatarColor(user.username)}`}
                         >
@@ -547,40 +532,33 @@ const UserManagement: React.FC = () => {
                         </div>
                         {user.username}
                       </td>
-                      <td className="px-6 py-4 text-white/80">{user.email}</td>
+                      <td className="px-6 py-4 text-textDark/80">{user.email}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           user.role === 'Admin' 
-                            ? 'bg-accent-500/20 text-accent-300' 
-                            : 'bg-primary-500/20 text-primary-300'
+                            ? 'bg-pink/20 text-pink' 
+                            : 'bg-purple/20 text-purple'
                         }`}>
                           {user.role}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
+                      </td>                      <td className="px-6 py-4 text-right space-x-2">
                         <button 
                           onClick={() => handleOpenEditModal(user)}
-                          className="text-white/60 hover:text-white p-1 rounded-md hover:bg-white/10"
+                          className="text-textDark/60 hover:text-purple p-1 rounded-md hover:bg-purple/10"
                         >
                           <Edit2 size={18} />
                         </button>
                         <button 
                           onClick={() => handleOpenDeleteModal(user)}
-                          className={`p-1 rounded-md ${
-                            currentLoggedInUser?.id === user.id && user.role === 'Admin' && !hasMultipleAdmins
-                              ? 'text-error-400/40 hover:text-error-400/40 cursor-not-allowed'
-                              : 'text-error-400 hover:text-error-500 hover:bg-error-500/10'
-                          }`}
-                          disabled={currentLoggedInUser?.id === user.id && user.role === 'Admin' && !hasMultipleAdmins}
+                          className="text-red hover:text-red/80 p-1 rounded-md hover:bg-red/10"
                         >
                           <Trash2 size={18} />
                         </button>
                       </td>
                     </tr>
-                  ))
-                ) : (
+                  ))                ) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-white/60">
+                    <td colSpan={4} className="px-6 py-8 text-center text-textDark/60">
                       {users.length === 0 ? 'No users found.' : 'No users found matching your search criteria'}
                     </td>
                   </tr>

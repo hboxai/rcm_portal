@@ -42,9 +42,8 @@ const KPICard: React.FC<KPICardProps> = ({
             </p>
           )}
         </div>
-        
-        <div className="p-3 rounded-full bg-gradient-to-br from-primary to-secondary"> {/* Use primary and secondary from new palette */}
-          {icon} {/* Icon color is set in DashboardMetrics.tsx to contrast this background e.g. text-textLight or specific new palette color */}
+          <div className="p-3 rounded-full bg-gradient-to-br from-purple to-pink shadow-lg"> {/* Brand gradient: purple to pink */}
+          {icon} {/* Icon color is set in DashboardMetrics.tsx to white for contrast */}
         </div>
       </div>
     </GlassCard>

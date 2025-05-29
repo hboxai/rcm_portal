@@ -159,53 +159,51 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
   const handleRefresh = () => {
     loadHistory(true); // Force refresh
   };
-
   return (
     <div className="mt-6">
-      <GlassCard className="bg-olive-green/80 backdrop-blur-sm border border-olive-green/40 text-white">
+      <GlassCard className="bg-white/95 backdrop-blur-sm border border-purple/20">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <History className="text-earth-yellow" size={20} />
-            Change History
+            <History className="text-pink" size={20} />
+            <span className="text-pink">Change History</span>
           </h2>
           <div className="flex items-center gap-2">
             <button 
               onClick={handleRefresh} 
-              className="p-2 hover:bg-dark-olive-green/30 rounded-full"
+              className="p-2 hover:bg-purple/10 rounded-full"
               disabled={isLoading}
               title="Refresh history"
             >
-              <RefreshCw size={18} className={`text-white/70 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw size={18} className={`text-purple/70 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
             <button 
               onClick={toggleExpand} 
-              className="p-2 hover:bg-dark-olive-green/30 rounded-full"
+              className="p-2 hover:bg-purple/10 rounded-full"
               title={isExpanded ? "Collapse" : "Expand"}
             >
-              {isExpanded ? <ChevronUp size={18} className="text-white/70" /> : <ChevronDown size={18} className="text-white/70" />}
+              {isExpanded ? <ChevronUp size={18} className="text-purple/70" /> : <ChevronDown size={18} className="text-purple/70" />}
             </button>
           </div>
         </div>
-        
-        {isExpanded && (
+          {isExpanded && (
           <div className="mt-4">
             {isLoading ? (
               <div className="flex justify-center items-center py-8">
-                <div className="w-8 h-8 border-2 border-earth-yellow border-t-transparent rounded-full animate-spin"></div>
-                <p className="ml-3 text-white/70">Loading history...</p>
+                <div className="w-8 h-8 border-2 border-purple border-t-transparent rounded-full animate-spin"></div>
+                <p className="ml-3 text-textDark/70">Loading history...</p>
               </div>
             ) : error ? (
-              <div className="bg-error-900/30 text-error-400 p-4 rounded-md">
+              <div className="bg-red/20 text-red p-4 rounded-md border border-red/30">
                 <p>{error}</p>
               </div>
             ) : history.length === 0 ? (
-              <div className="text-center py-6 text-white/60">
+              <div className="text-center py-6 text-textDark/60">
                 <History size={32} className="mx-auto mb-3 opacity-40" />
                 <p className="text-lg font-medium mb-1">No History Available</p>
                 <p>No changes have been recorded for this claim yet.</p>
                 <button 
                   onClick={handleRefresh}
-                  className="mt-4 text-earth-yellow hover:text-earth-yellow/80 flex items-center gap-2 mx-auto"
+                  className="mt-4 text-blue hover:text-blue/80 flex items-center gap-2 mx-auto"
                 >
                   <RefreshCw size={14} />
                   <span>Refresh</span>
@@ -214,24 +212,24 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
             ) : (
               <div className="space-y-4">
                 {history.map((log) => (
-                  <div key={log.id} className="bg-dark-olive-green/30 border border-white/5 rounded-md p-4">
+                  <div key={log.id} className="bg-purple/5 border border-purple/20 rounded-md p-4">
                     <div className="flex flex-wrap items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <User size={16} className="text-earth-yellow" />
-                        <span className="font-medium text-white/90">{log.username}</span>
+                        <User size={16} className="text-pink" />
+                        <span className="font-medium text-textDark">{log.username}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Clock size={16} className="text-white/70" />
-                        <span className="text-white/70">{formatDateTimeIST(log.timestamp)}</span>
+                        <Clock size={16} className="text-textDark/70" />
+                        <span className="text-textDark/70">{formatDateTimeIST(log.timestamp)}</span>
                       </div>
                     </div>
                     
                     <div className="mt-2">
-                      <span className="text-white/60">Modified:</span>{' '}
+                      <span className="text-textDark/60">Modified:</span>{' '}
                       <span className="font-medium">{formatFieldName(log.field_name)}</span>
                     </div>
                     <div className="mt-2">
-                      <span className="text-white/60">Change:</span>{' '}
+                      <span className="text-textDark/60">Change:</span>{' '}
                       <span className="font-medium">{getChangeDescription(log)}</span>
                     </div>
                   </div>

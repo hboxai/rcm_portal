@@ -28,11 +28,10 @@ const ClaimField: React.FC<ClaimFieldProps> = ({
   // Use provided formatter or default
   const formatValue = formatter || defaultFormatter;
   const displayValue = formatValue(value);
-
   return (
     <div className={`mb-4 ${className}`}>
-      <div className="text-white/60 text-sm mb-1">{label}</div>
-      <div className="text-white font-medium">{displayValue}</div>
+      <div className="text-textDark/60 text-sm mb-1">{label}</div>
+      <div className="text-textDark font-medium">{displayValue}</div>
     </div>
   );
 };

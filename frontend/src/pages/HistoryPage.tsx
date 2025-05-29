@@ -251,9 +251,8 @@ const HistoryPage: React.FC = () => {
     const newVal = log.new_value || 'None';
     return `${oldVal} → ${newVal}`;
   };
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
+    return (
+    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white text-textDark">
       <Header />
       
       <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
@@ -264,7 +263,7 @@ const HistoryPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Link 
                 to="/" 
-                className="text-black hover:text-gray-700 flex items-center gap-1" // Changed text-white to text-black and hover:text-gray-300 to hover:text-gray-700
+                className="text-purple hover:text-purple/80 flex items-center gap-1"
               >
                 <ChevronLeft size={18} />
                 <span>Back to Dashboard</span>
@@ -275,32 +274,31 @@ const HistoryPage: React.FC = () => {
               variant="secondary"
               onClick={toggleFilters}
               icon={showFilters ? <FilterX size={16} /> : <Filter size={16} />}
-              className="text-black" // Added text-black
+              className="text-white"
             >
               {showFilters ? 'Hide Filters' : 'Show Filters'}
             </Button>
           </div>
           
-          <h1 className="text-3xl font-bold text-black flex items-center gap-3"> {/* Changed text-white to text-black */}
-            <History className="text-accent-400" size={28} />
+          <h1 className="text-3xl font-bold text-textDark flex items-center gap-3">
+            <History className="text-pink" size={28} />
             Change History
           </h1>
-          <p className="text-black mt-2"> {/* Changed text-white to text-black */}
+          <p className="text-textDark/70 mt-2">
             {isAdmin 
               ? 'View all changes made to claims by all users'
               : 'View changes you have made to claims'}
           </p>
         </div>
-        
-        {/* Filters Section */}
+          {/* Filters Section */}
         {showFilters && (
           <div
             className="mb-6"
           >
-            <GlassCard className="bg-olive-green/80 text-white">
+            <GlassCard className="bg-white/95 text-textDark">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold flex items-center gap-2 text-white">
-                  <Filter size={18} className="text-accent-400" />
+                <h2 className="text-xl font-semibold flex items-center gap-2 text-pink">
+                  <Filter size={18} className="text-pink" />
                   Filter History
                 </h2>
                 <Button
@@ -323,8 +321,8 @@ const HistoryPage: React.FC = () => {
                       onChange={handleFilterChange}
                       placeholder="Filter by user name"
                       icon={<User size={16} />}
-                      labelClassName="text-white/80" // Added
-                      inputClassName="text-white" // Added
+                      labelClassName="text-textDark/70"
+                      inputClassName="text-textDark"
                     />
                   </>
                 )}
@@ -337,8 +335,8 @@ const HistoryPage: React.FC = () => {
                   onChange={handleFilterChange}
                   placeholder="Filter by Billing ID"
                   icon={<FileSearch size={16} />}
-                  labelClassName="text-white/80"
-                  inputClassName="text-white"
+                  labelClassName="text-textDark/70"
+                  inputClassName="text-textDark"
                 />
                 
                 <GlassInput
@@ -349,8 +347,8 @@ const HistoryPage: React.FC = () => {
                   onChange={handleFilterChange}
                   placeholder="Filter by start date"
                   icon={<Calendar size={16} />}
-                  labelClassName="text-white/80" // Added
-                  inputClassName="text-white" // Added
+                  labelClassName="text-textDark/70"
+                  inputClassName="text-textDark"
                 />
                 
                 <GlassInput
@@ -361,8 +359,8 @@ const HistoryPage: React.FC = () => {
                   onChange={handleFilterChange}
                   placeholder="Filter by end date"
                   icon={<Calendar size={16} />}
-                  labelClassName="text-white/80" // Added
-                  inputClassName="text-white" // Added
+                  labelClassName="text-textDark/70"
+                  inputClassName="text-textDark"
                 />
               </div>
               
@@ -379,86 +377,84 @@ const HistoryPage: React.FC = () => {
             </GlassCard>
           </div>
         )}
-        
-        {/* History Content */}
+          {/* History Content */}
         <div
         >
-          <GlassCard className="bg-olive-green/80 text-white">
+          <GlassCard className="bg-white/95 text-textDark">
             {isLoading ? (
               <div className="flex justify-center items-center py-20">
-                <div className="w-12 h-12 border-2 border-accent-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="ml-4 text-xl text-white/70">Loading history...</p>
+                <div className="w-12 h-12 border-2 border-purple border-t-transparent rounded-full animate-spin"></div>
+                <p className="ml-4 text-xl text-textDark/70">Loading history...</p>
               </div>
             ) : error ? (
-              <div className="bg-error-900/30 text-error-400 p-6 rounded-md text-center">
+              <div className="bg-red/20 text-red p-6 rounded-md text-center border border-red/30">
                 <p className="text-lg">{error}</p>
               </div>
             ) : history.length === 0 ? (
-              <div className="text-center py-20 text-white/60">
-                <History size={48} className="mx-auto mb-4 text-white/30" />
+              <div className="text-center py-20 text-textDark/60">
+                <History size={48} className="mx-auto mb-4 text-purple/40" />
                 <h3 className="text-2xl font-medium mb-2">No history found</h3>
                 <p>No change history records match your current filters.</p>
               </div>
             ) : (
               <>
-                <div className="mb-4 text-white/70 text-right">
+                <div className="mb-4 text-textDark/70 text-right">
                   Showing {(pagination.page - 1) * pagination.limit + 1} - {Math.min(pagination.page * pagination.limit, pagination.totalCount)} of {pagination.totalCount} records
                 </div>
               
                 <div className="space-y-4">
                   {history.map((log) => (
-                    <div key={log.id} className="bg-dark-olive-green/50 rounded-md p-4 text-white hover:bg-dark-olive-green/70 transition-colors border border-white/5">
+                    <div key={log.id} className="bg-purple/5 rounded-md p-4 text-textDark hover:bg-purple/10 transition-colors border border-purple/20">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2">
-                          <div className="bg-accent-500/20 p-2 rounded-full">
-                            <User size={16} className="text-accent-400" />
+                          <div className="bg-pink/20 p-2 rounded-full">
+                            <User size={16} className="text-pink" />
                           </div>
-                          <span className="font-medium text-white">{log.username}</span>
+                          <span className="font-medium text-textDark">{log.username}</span>
                         </div>
                         
                         <div className="flex items-center gap-2">
                           <Link
                             to={`/profile/${log.cpt_id}`}
-                            className="text-accent-400 hover:text-accent-300 transition-colors flex items-center gap-1 bg-white/10 px-3 py-1 rounded-full"
+                            className="text-blue hover:text-blue/80 transition-colors flex items-center gap-1 bg-blue/10 px-3 py-1 rounded-full"
                           >
                             <FileSearch size={14} />
                             <span>View Claim</span>
                           </Link>
                           
-                          <div className="bg-white/10 px-3 py-1 rounded-full text-white/90 flex items-center gap-1">
-                            <span className="text-white/70">Billing ID:</span>
+                          <div className="bg-purple/10 px-3 py-1 rounded-full text-textDark flex items-center gap-1">
+                            <span className="text-textDark/70">Billing ID:</span>
                             <span>{log.cpt_id ? log.cpt_id : 'Pending Assignment'}</span>
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-2 text-white/80 bg-white/5 px-3 py-1 rounded-full">
+                        <div className="flex items-center gap-2 text-textDark/70 bg-purple/5 px-3 py-1 rounded-full">
                           <Clock size={14} />
                           <span>{formatDateTimeIST(log.timestamp)}</span>
                         </div>
                       </div>
-                      
-                      <div className="flex flex-col p-3 bg-white/5 rounded-md mt-2 border-l-2 border-accent-400">
+                        <div className="flex flex-col p-3 bg-purple/5 rounded-md mt-2 border-l-2 border-pink">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-white/60">Modified:</span>
-                          <span className="font-medium text-white bg-white/10 px-2 py-0.5 rounded">
+                          <span className="text-textDark/60">Modified:</span>
+                          <span className="font-medium text-textDark bg-pink/10 px-2 py-0.5 rounded">
                             {formatFieldName(log.field_name)}
                           </span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
                           <div className="flex flex-col">
-                            <span className="text-xs text-white/60">Previous value:</span>
+                            <span className="text-xs text-textDark/60">Previous value:</span>
                             <div 
-                              className="text-white font-medium bg-white/5 p-2 rounded mt-1 break-words relative group cursor-help"
+                              className="text-textDark font-medium bg-red/10 p-2 rounded mt-1 break-words relative group cursor-help border border-red/20"
                               title={log.old_value || 'None'}
                             >
                               <span className="line-clamp-3">{log.old_value || 'None'}</span>
                               
                               {/* Hover tooltip for longer text */}
                               {log.old_value && log.old_value.length > 100 && (
-                                <div className="absolute left-0 top-full mt-2 z-10 bg-dark-olive-green p-4 rounded-md shadow-lg 
+                                <div className="absolute left-0 top-full mt-2 z-10 bg-white p-4 rounded-md shadow-lg 
                                   max-w-md w-max max-h-60 overflow-auto invisible group-hover:visible opacity-0 group-hover:opacity-100 
-                                  transition-opacity duration-200 border border-white/20">
+                                  transition-opacity duration-200 border border-purple/20">
                                   {log.old_value}
                                 </div>
                               )}
@@ -466,18 +462,18 @@ const HistoryPage: React.FC = () => {
                           </div>
                           
                           <div className="flex flex-col">
-                            <span className="text-xs text-white/60">New value:</span>
+                            <span className="text-xs text-textDark/60">New value:</span>
                             <div 
-                              className="text-white font-medium bg-accent-500/10 p-2 rounded mt-1 break-words relative group cursor-help"
+                              className="text-textDark font-medium bg-green/10 p-2 rounded mt-1 break-words relative group cursor-help border border-green/20"
                               title={log.new_value || 'None'}
                             >
                               <span className="line-clamp-3">{log.new_value || 'None'}</span>
                               
                               {/* Hover tooltip for longer text */}
                               {log.new_value && log.new_value.length > 100 && (
-                                <div className="absolute left-0 top-full mt-2 z-10 bg-dark-olive-green p-4 rounded-md shadow-lg 
+                                <div className="absolute left-0 top-full mt-2 z-10 bg-white p-4 rounded-md shadow-lg 
                                   max-w-md w-max max-h-60 overflow-auto invisible group-hover:visible opacity-0 group-hover:opacity-100 
-                                  transition-opacity duration-200 border border-white/20">
+                                  transition-opacity duration-200 border border-purple/20">
                                   {log.new_value}
                                 </div>
                               )}
@@ -486,14 +482,13 @@ const HistoryPage: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="mt-3 text-xs text-white/50 italic">
+                      <div className="mt-3 text-xs text-textDark/50 italic">
                         Log ID: {log.id}
                       </div>
                     </div>
                   ))}
                 </div>
-                
-                {/* Pagination */}
+                  {/* Pagination */}
                 {pagination.totalPages > 1 && (
                   <div className="mt-6 flex justify-center">
                     <div className="flex items-center space-x-1">
@@ -502,8 +497,8 @@ const HistoryPage: React.FC = () => {
                         disabled={pagination.page === 1}
                         className={`p-2 rounded-md ${
                           pagination.page === 1 
-                            ? 'text-white/30 cursor-not-allowed' 
-                            : 'text-white/70 hover:bg-white/10'
+                            ? 'text-textDark/30 cursor-not-allowed' 
+                            : 'text-textDark/70 hover:bg-purple/10'
                         }`}
                       >
                         First
@@ -514,8 +509,8 @@ const HistoryPage: React.FC = () => {
                         disabled={pagination.page === 1}
                         className={`p-2 rounded-md ${
                           pagination.page === 1 
-                            ? 'text-white/30 cursor-not-allowed' 
-                            : 'text-white/70 hover:bg-white/10'
+                            ? 'text-textDark/30 cursor-not-allowed' 
+                            : 'text-textDark/70 hover:bg-purple/10'
                         }`}
                       >
                         <ChevronLeft size={18} />
@@ -527,8 +522,8 @@ const HistoryPage: React.FC = () => {
                           onClick={() => handlePageChange(number)}
                           className={`w-10 h-10 flex items-center justify-center rounded-md ${
                             pagination.page === number 
-                              ? 'bg-accent-500/20 text-accent-400' 
-                              : 'text-white/70 hover:bg-white/10'
+                              ? 'bg-purple/20 text-purple' 
+                              : 'text-textDark/70 hover:bg-purple/10'
                           }`}
                         >
                           {number}
@@ -540,8 +535,8 @@ const HistoryPage: React.FC = () => {
                         disabled={pagination.page === pagination.totalPages}
                         className={`p-2 rounded-md ${
                           pagination.page === pagination.totalPages 
-                            ? 'text-white/30 cursor-not-allowed' 
-                            : 'text-white/70 hover:bg-white/10'
+                            ? 'text-textDark/30 cursor-not-allowed' 
+                            : 'text-textDark/70 hover:bg-purple/10'
                         }`}
                       >
                         <ChevronRight size={18} />
@@ -552,8 +547,8 @@ const HistoryPage: React.FC = () => {
                         disabled={pagination.page === pagination.totalPages}
                         className={`p-2 rounded-md ${
                           pagination.page === pagination.totalPages 
-                            ? 'text-white/30 cursor-not-allowed' 
-                            : 'text-white/70 hover:bg-white/10'
+                            ? 'text-textDark/30 cursor-not-allowed' 
+                            : 'text-textDark/70 hover:bg-purple/10'
                         }`}
                       >
                         Last

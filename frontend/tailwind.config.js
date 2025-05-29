@@ -5,22 +5,26 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
-      },
-      colors: {
-        // New Palette
-        'olive-green': '#606c38',
-        'dark-olive-green': '#283618',
-        'cornsilk': '#fefae0',
-        'earth-yellow': '#dda15e',
-        'sienna': '#bc6c25',
+      },      colors: {
+        // New Color Palette
+        'purple': '#8029D5',
+        'pink': '#F44893',
+        'blue': '#3B58F2',
+        'green': '#04B8B8',
+        'yellow': '#FFAE3B',
+        'red': '#FF4521',
+        'white': '#FFFFFF',
 
-        // Semantic mapping (example)
-        primary: '#606c38', // olive-green
-        secondary: '#dda15e', // earth-yellow
-        accent: '#bc6c25', // sienna
-        background: '#fefae0', // cornsilk
-        textDark: '#283618', // dark-olive-green
-        textLight: '#fefae0', // cornsilk (for dark backgrounds)
+        // Semantic mapping using the new palette
+        primary: '#8029D5', // purple
+        secondary: '#3B58F2', // blue
+        accent: '#F44893', // pink
+        success: '#04B8B8', // green
+        warning: '#FFAE3B', // yellow
+        error: '#FF4521', // red
+        background: '#FFFFFF', // white
+        textDark: '#2D1B69', // darker purple for text
+        textLight: '#FFFFFF', // white for dark backgrounds
 
         // Keeping existing for compatibility, can be removed/updated later
         // primary: { // Light Blue / Indigo

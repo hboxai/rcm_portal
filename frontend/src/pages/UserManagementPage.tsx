@@ -23,9 +23,8 @@ const UserManagementPage: React.FC = () => {
   }, [isAuthenticated, user, navigate]);
 
   if (!isAuthenticated || user?.role !== 'Admin') return null;
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
+    return (
+    <div className="min-h-screen bg-gradient-to-br from-white to-light-100 text-textDark">
       <Header />
       
       <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
@@ -33,13 +32,13 @@ const UserManagementPage: React.FC = () => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-8"
+          className="mb-8 p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20"
         >
-          <h1 className="text-3xl font-bold text-black flex items-center gap-3">
-            <Users className="text-accent-400" size={28} />
+          <h1 className="text-3xl font-bold text-textDark flex items-center gap-3">
+            <Users className="text-pink" size={28} />
             User Management
           </h1>
-          <p className="text-black mt-2">
+          <p className="text-textDark/70 mt-2">
             Create, edit, and manage user accounts for the RCM system
           </p>
         </motion.div>
