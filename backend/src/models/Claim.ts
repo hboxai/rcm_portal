@@ -12,6 +12,7 @@ interface Claim {
   icd_code: string;
   units: number;
   provider_name: string;
+  facility_name?: string; // Added facility name field
   oa_claim_id: string | null;
   oa_visit_id: string | null;
   charge_dt: string;

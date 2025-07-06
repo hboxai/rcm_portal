@@ -90,12 +90,37 @@ interface SearchFormProps {
   isLoading: boolean;
   filters: SearchFilters;
   setFilters: React.Dispatch<React.SetStateAction<SearchFilters>>;
+  onClear?: () => void;
 }
 
-const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, setFilters }) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, setFilters, onClear }) => {  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
+    
+    // Special handling for date fields - ensure consistent format
+    if (name === 'dos' || name === 'dateOfBirth') {
+      // Ensure date is in correct format YYYY-MM-DD for backend processing
+      if (value) {
+        try {
+          // Format the date correctly
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            const formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+            setFilters(prev => ({ ...prev, [name]: formattedDate }));
+          } else {
+            setFilters(prev => ({ ...prev, [name]: value }));
+          }
+        } catch (error) {
+          console.error(`Error formatting date for ${name}:`, error);
+          setFilters(prev => ({ ...prev, [name]: value }));
+        }
+      } else {
+        setFilters(prev => ({ ...prev, [name]: '' }));
+      }
+    } else {
+      // Normal handling for non-date fields
+      setFilters(prev => ({ ...prev, [name]: value }));
+    }
+    
     console.log(`Search field ${name} changed to: ${value}`);
   };
 
@@ -103,9 +128,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
     e.preventDefault();
     console.log('Search form submitted with filters:', filters);
     onSearch(filters);
-  };
-
-  const handleClear = () => {
+  };  const handleClear = () => {
     console.log('Clearing search form');
     setFilters({
       patientId: '',
@@ -116,7 +139,13 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
       payerName: '',
       dateOfBirth: '',
       cptCode: '',
+      clinicName: '',
+      providerName: '',
     });
+    // Call onClear if provided, to reset search results
+    if (onClear) {
+      onClear();
+    }
   };
   // Common input class to maintain consistent styling with new palette
   const inputClass = "w-full pl-12 border border-purple/30 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue/50 bg-white/90 text-textDark placeholder-purple/50";
@@ -128,9 +157,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
       <form onSubmit={handleSubmit} className="glass-card p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20 text-textDark shadow-lg">
         <div className="card-header rounded-t-lg -mx-6 -mt-6 mb-6">
           <h2 className="text-lg font-semibold">Search Claims</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> 
-          {/* Row 1: First Name, Last Name, Patient ID, Billing ID */}
+        </div>        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"> 
+          {/* Row 1: First Name, Last Name, DOB, Patient ID */}
           <div>
             <label className="block text-textDark mb-2 font-medium">
               First Name
@@ -161,6 +189,30 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
 
           <div>
             <label className="block text-textDark mb-2 font-medium">
+              Date of Birth (DOB)
+            </label>
+            <div className="relative">
+               <div 
+                className="absolute left-3 top-1/2 z-10" 
+                style={{
+                  transform: 'translateY(-50%)',
+                }}
+              >
+                <CalendarIcon /> 
+              </div>
+              <input
+                type="date"
+                name="dateOfBirth"
+                placeholder="Select Date of Birth"
+                value={filters.dateOfBirth}
+                onChange={handleChange}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-textDark mb-2 font-medium">
               Patient ID
             </label>
             <div className="relative">
@@ -181,34 +233,8 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
               />
             </div>
           </div>          
-          <div>
-            <label className="block text-textDark mb-2 font-medium">
-              Billing ID 
-            </label>
-            <div className="relative">
-              <div 
-                className="absolute left-3 top-1/2 z-10" 
-                style={{
-                  transform: 'translateY(-50%)',
-                }}
-              >
-                <CptIdIcon />
-              </div>
-              <input
-                name="billingId" 
-                placeholder="Enter Billing ID"
-                value={filters.billingId} 
-                onChange={handleChange}
-                list="billingIdOptions" 
-                className={inputClass}
-              />
-              <datalist id="billingIdOptions"> 
-                {sampleBillingIds.map((id) => (
-                  <option key={id} value={id} />
-                ))}
-              </datalist>
-            </div>
-          </div>          {/* Row 2: Payer Name, CPT Code, Date of Service (DOS), Date of Birth (DOB) */}
+          
+          {/* Row 2: Payer Name, CPT Code, DOS, Billing ID */}
           <div>
             <label className="block text-textDark mb-2 font-medium">
               Payer Name
@@ -261,26 +287,64 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
                 className={inputClass}
               />
             </div>
-          </div>          <div>
+          </div>
+          
+          <div>
             <label className="block text-textDark mb-2 font-medium">
-              Date of Birth (DOB)
+              Billing ID 
             </label>
             <div className="relative">
-               <div 
+              <div 
                 className="absolute left-3 top-1/2 z-10" 
                 style={{
                   transform: 'translateY(-50%)',
                 }}
               >
-                <CalendarIcon /> 
+                <CptIdIcon />
               </div>
               <input
-                type="date"
-                name="dateOfBirth"
-                placeholder="Select Date of Birth"
-                value={filters.dateOfBirth}
+                name="billingId" 
+                placeholder="Enter Billing ID"
+                value={filters.billingId} 
                 onChange={handleChange}
+                list="billingIdOptions" 
                 className={inputClass}
+              />
+              <datalist id="billingIdOptions"> 
+                {sampleBillingIds.map((id) => (
+                  <option key={id} value={id} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          {/* Row 3: Clinic Name, Provider Name */}
+          <div>
+            <label className="block text-textDark mb-2 font-medium">
+              Clinic Name
+            </label>
+            <div className="relative">
+              <input
+                name="clinicName"
+                placeholder="Enter Clinic Name"
+                value={filters.clinicName}
+                onChange={handleChange}
+                className={inputNoIconClass}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-textDark mb-2 font-medium">
+              Provider Name
+            </label>
+            <div className="relative">
+              <input
+                name="providerName"
+                placeholder="Enter Provider Name"
+                value={filters.providerName}
+                onChange={handleChange}
+                className={inputNoIconClass}
               />
             </div>
           </div>

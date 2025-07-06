@@ -155,12 +155,11 @@ const Header: React.FC = () => {
               </motion.div>
             )}
           </nav>
-          
-          {/* Logout Button - Right */}
+            {/* Logout Button - Right */}
           <div className="flex items-center">
             <motion.button 
               onClick={handleLogout}
-              className="hidden md:flex items-center gap-2 text-textLight/80 hover:text-textLight px-4 py-2 rounded-md border border-textLight/10 hover:border-textLight/20 bg-white/5 hover:bg-white/10 transition-all duration-200 shadow-sm hover:shadow"
+              className="hidden md:flex items-center gap-2 text-white px-4 py-2 rounded-md bg-pink hover:bg-pink/90 border border-pink/20 transition-all duration-200 shadow-sm shadow-pink/30 hover:shadow-md hover:shadow-pink/40"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -260,10 +259,9 @@ const Header: React.FC = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
-              >
-                <button 
+              >                <button 
                   onClick={handleLogout}
-                  className="w-full py-3 text-center flex items-center justify-center gap-2 text-textLight/80 hover:text-textLight rounded-md border border-textLight/10 hover:bg-white/10 transition-all"
+                  className="w-full py-3 text-center flex items-center justify-center gap-2 text-white rounded-md bg-pink hover:bg-pink/90 border border-pink/20 transition-all shadow-sm shadow-pink/30"
                 >
                   <LogOut size={18} />
                   Logout

@@ -238,12 +238,11 @@ const LoginForm: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease: "easeInOut", delay: 0.4 }}
-      >
-        <GlassInput
+      >        <GlassInput
           label="Email"
           type="email"
           name="email"
-          placeholder="your@email.com"
+          placeholder="Enter your email address"
           value={credentials.email}
           onChange={handleChange}
           icon={<MailIcon />}
@@ -251,12 +250,11 @@ const LoginForm: React.FC = () => {
           error={errors.email}
           autoComplete="email"
         />
-        
-        <GlassInput
+          <GlassInput
           label="Password"
           type="password"
           name="password"
-          placeholder="••••••••"
+          placeholder="Enter your password"
           value={credentials.password}
           onChange={handleChange}
           icon={<LockIcon />}

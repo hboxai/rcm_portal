@@ -40,11 +40,27 @@ const SearchPage: React.FC = () => {
       }
     }
   }, [isAuthenticated, authLoading, navigate, error]);
-
   const handleSearch = async (searchFilters: SearchFilters) => {
     setHasSearched(true);
     setCurrentFilters(searchFilters);
     await searchClaims({ ...searchFilters, page: 1, limit: claimsPerPage });
+  };
+  const handleClear = () => {
+    // Reset the search results
+    setHasSearched(false);
+    setCurrentFilters({});
+    // Reset form fields to empty state
+    setFilters({
+      patientId: '',
+      billingId: '',
+      dos: '',
+      firstName: '',
+      lastName: '',
+      payerName: '',
+      dateOfBirth: '',
+      cptCode: '',
+    });
+    // No need to call searchClaims - setting hasSearched to false will hide the results
   };
 
   const handlePageChange = (newPage: number) => {
@@ -70,12 +86,11 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
       <Header />
       <div className="p-4 md:p-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
+        <div className="mb-8">          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
             Claim Search
           </h1>
           
-          <SearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} />
+          <SearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} onClear={handleClear} />
         </div>
 
         {/* Display error message if there is an error from the context */}

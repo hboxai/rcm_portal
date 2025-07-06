@@ -206,18 +206,17 @@ const HistoryPage: React.FC = () => {
   // Helper function to format date/time in IST
   const formatDateTimeIST = (dateTime: string): string => {
     try {
-      const date = new Date(dateTime);
-      // Convert to IST (UTC+5:30)
+      const date = new Date(dateTime);      // Convert to IST (UTC+5:30)
       const options: Intl.DateTimeFormatOptions = {
         timeZone: 'Asia/Kolkata',
-        day: '2-digit',
-        month: 'short',
+        month: 'numeric',
+        day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true
       };
-      return new Intl.DateTimeFormat('en-IN', options).format(date);
+      return new Intl.DateTimeFormat('en-US', options).format(date);
     } catch (err) {
       return dateTime;
     }

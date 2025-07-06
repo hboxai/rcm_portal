@@ -50,17 +50,16 @@ export const formatters = {
       maximumFractionDigits: 2
     }).format(Number(value));
   },
-  
-  // Date formatter
+    // Date formatter
   date: (value: any): string => {
     if (value === null || value === undefined || value === '') {
       return 'N/A';
     }
     try {
       return new Date(value).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric'
       });
     } catch (e) {
       return 'Invalid Date';

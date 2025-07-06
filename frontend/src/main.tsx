@@ -2,16 +2,21 @@ import { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './styles/fonts.css'; // Import custom font styling
 import './hmr-debug.js';
 // Import axios setup with interceptors
 import './utils/axiosSetup';
+// Import font loader
+import { loadFonts } from './utils/fontLoader';
 
 // Preload important resources
 const preloadResources = () => {
   // Preload key images, fonts or other resources for faster initial load
   const preloadLinks = [
-    // Add your critical resources here, for example:
-    // { rel: 'preload', href: '/fonts/your-font.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' }
+    // FF Mark font preloading
+    { rel: 'preload', href: '/fonts/FFMark-Regular.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
+    { rel: 'preload', href: '/fonts/FFMark-Medium.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
+    { rel: 'preload', href: '/fonts/FFMark-Bold.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' }
   ];
   
   preloadLinks.forEach(linkProps => {
@@ -21,6 +26,9 @@ const preloadResources = () => {
     });
     document.head.appendChild(link);
   });
+  
+  // Load FF Mark fonts
+  loadFonts();
 };
 
 // Initialize performance measurements

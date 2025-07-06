@@ -31,9 +31,7 @@ export const getClaims = async (req: Request, res: Response) => {
     const shouldLog = requestId % 5 === 0;
     if (shouldLog) {
       console.log(`[Request #${requestId}] GET /api/claims received with query params:`, req.query);
-    }
-
-    // Extract query parameters
+    }    // Extract query parameters
     const patientId = req.query.patient_id ? String(req.query.patient_id) : undefined;
     const billingId = req.query.billingId ? String(req.query.billingId) : undefined;
     const dos = req.query.dos ? String(req.query.dos) : undefined;
@@ -42,6 +40,8 @@ export const getClaims = async (req: Request, res: Response) => {
     const payerName = req.query.prim_ins as string | undefined;
     const dateOfBirth = req.query.date_of_birth as string | undefined;
     const cptCode = req.query.cpt_code as string | undefined;
+    const clinicName = req.query.clinic_name as string | undefined;
+    const providerName = req.query.provider_name as string | undefined;
 
     // Pagination parameters
     const page = parseInt(req.query.page as string || '1');
@@ -55,9 +55,8 @@ export const getClaims = async (req: Request, res: Response) => {
       }
       if (billingId) {
         console.log(`[Request #${requestId}] Billing ID filter received:`, billingId);
-      }
-    }
-
+      }    }
+    
     // Build query components
     let selectQuery = `
       SELECT
@@ -91,19 +90,44 @@ export const getClaims = async (req: Request, res: Response) => {
         cpt_id::text LIKE $${paramIndex} OR 
         oa_claim_id::text LIKE $${paramIndex}
       )`);
-      queryParams.push(`%${billingId}%`);
-      paramIndex++;
+      queryParams.push(`%${billingId}%`);      paramIndex++;
     }
-
+    
     if (dos) {
-      // Support multiple date formats and partial date matching
-      conditions.push(`(
-        service_start::text LIKE $${paramIndex} OR 
-        service_end::text LIKE $${paramIndex} OR
-        charge_dt::text LIKE $${paramIndex}
-      )`);
-      queryParams.push(`%${dos}%`);
-      paramIndex++;
+      try {
+        // Try to handle the date as a proper date
+        const dateObj = new Date(dos);
+        if (!isNaN(dateObj.getTime())) {
+          // Format date consistently for database comparison (YYYY-MM-DD)
+          const formattedDate = dateObj.toISOString().split('T')[0];
+          // Match exact date in any of the service date fields
+          conditions.push(`(
+            service_start::date = $${paramIndex} OR
+            service_end::date = $${paramIndex} OR
+            charge_dt::date = $${paramIndex}
+          )`);
+          queryParams.push(formattedDate);
+          paramIndex++;
+        } else {
+          // Fallback to partial text matching
+          conditions.push(`(
+            service_start::text LIKE $${paramIndex} OR 
+            service_end::text LIKE $${paramIndex} OR
+            charge_dt::text LIKE $${paramIndex}
+          )`);
+          queryParams.push(`%${dos}%`);
+          paramIndex++;
+        }
+      } catch (e) {
+        // Fallback to partial text matching if date parsing fails
+        conditions.push(`(
+          service_start::text LIKE $${paramIndex} OR 
+          service_end::text LIKE $${paramIndex} OR
+          charge_dt::text LIKE $${paramIndex}
+        )`);
+        queryParams.push(`%${dos}%`);
+        paramIndex++;
+      }
     }
 
     if (firstName) {
@@ -117,19 +141,44 @@ export const getClaims = async (req: Request, res: Response) => {
     }
 
     if (payerName) {
-      conditions.push(`LOWER(prim_ins) LIKE LOWER($${paramIndex++})`);
-      queryParams.push(`%${payerName}%`);
+      conditions.push(`LOWER(prim_ins) LIKE LOWER($${paramIndex++})`);      queryParams.push(`%${payerName}%`);
     }
-
+    
     if (dateOfBirth) {
-      // Support multiple date formats and partial matching
-      conditions.push(`date_of_birth::text LIKE $${paramIndex++}`);
-      queryParams.push(`%${dateOfBirth}%`);
+      try {
+        // Try to handle the date as a proper date
+        const dateObj = new Date(dateOfBirth);
+        if (!isNaN(dateObj.getTime())) {
+          // Format date consistently for database comparison (YYYY-MM-DD)
+          const formattedDate = dateObj.toISOString().split('T')[0];
+          // Match exact date in the date_of_birth field
+          conditions.push(`date_of_birth::date = $${paramIndex++}`);
+          queryParams.push(formattedDate);
+        } else {
+          // Fallback to partial text matching
+          conditions.push(`date_of_birth::text LIKE $${paramIndex++}`);
+          queryParams.push(`%${dateOfBirth}%`);
+        }
+      } catch (e) {
+        // Fallback to partial text matching if date parsing fails
+        conditions.push(`date_of_birth::text LIKE $${paramIndex++}`);      queryParams.push(`%${dateOfBirth}%`);
+      }
+    }
+    
+    if (cptCode) {
+      conditions.push(`cpt_code::text LIKE $${paramIndex++}`); // Remove LOWER(), cast to text      queryParams.push(`%${cptCode}%`);
+    }
+    
+    // Map clinicName to cpt_code as facility_name column doesn't exist in the database
+    if (clinicName) {
+      conditions.push(`cpt_code::text LIKE $${paramIndex++}`);
+      queryParams.push(`%${clinicName}%`);
     }
 
-    if (cptCode) {
-      conditions.push(`cpt_code::text LIKE $${paramIndex++}`); // Remove LOWER(), cast to text
-      queryParams.push(`%${cptCode}%`);
+    // Map providerName to provider_name which exists in the database
+    if (providerName) {
+      conditions.push(`LOWER(provider_name) LIKE LOWER($${paramIndex++})`);
+      queryParams.push(`%${providerName}%`);
     }
 
     let whereClause = '';

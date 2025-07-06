@@ -134,9 +134,12 @@ const RecentClaims: React.FC = () => {
                       <Link to={`/profile/${claim.id}`} className="hover:underline text-blue-600">
                         {claim.patientName}
                       </Link>
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-textDark">
-                      {claim.dos ? new Date(claim.dos).toLocaleDateString() : 'N/A' /* Basic date formatting */}
+                    </td>                    <td className="px-4 py-4 whitespace-nowrap text-sm text-textDark">
+                      {claim.dos ? new Date(claim.dos).toLocaleDateString('en-US', {
+                        month: 'numeric',
+                        day: 'numeric',
+                        year: 'numeric'
+                      }) : 'N/A' /* MM-DD-YYYY date formatting */}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
                       <Badge variant={claim.status === 'Paid' ? 'default' : claim.status === 'Pending' ? 'secondary' : 'destructive'}>

@@ -32,12 +32,15 @@ const ProfilePage: React.FC = () => {
   const toggleDetails = () => {
     setShowDetails(prev => !prev);
   };
-
   // Format date safely
   const formatDate = (dateString?: string | null): string => {
     if (!dateString) return 'N/A';
     try {
-      return new Date(dateString).toLocaleDateString();
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric'
+      });
     } catch (e) {
       return 'Invalid Date';
     }

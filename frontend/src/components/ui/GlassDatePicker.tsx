@@ -39,7 +39,6 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({
   const formatInputDate = (date: Date): string => {
     return date.toISOString().split('T')[0];
   };
-
   // Format the date for display in the input field
   const formatDisplayDate = (dateString: string): string => {
     if (!dateString) return '';
@@ -47,7 +46,7 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return '';
       return date.toLocaleDateString('en-US', {
-        month: 'short',
+        month: 'numeric',
         day: 'numeric',
         year: 'numeric',
       });

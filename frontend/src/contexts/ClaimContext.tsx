@@ -154,18 +154,20 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
     // Patient Payment
     pat_amt: apiClaim.pat_amt !== undefined ? apiClaim.pat_amt : null,
     pat_recv_dt: apiClaim.pat_recv_dt || null,
-    
-    // Frontend fields (mapped for compatibility with UI components)
+      // Frontend fields (mapped for compatibility with UI components)
     visitId: apiClaim.oa_visit_id || `V-${mappedId}`, 
     patientName: `${apiClaim.first_name || ''} ${apiClaim.last_name || ''}`.trim() || 'Unknown Patient',
     dob: apiClaim.date_of_birth || '', // Retained for potential direct use, though dateOfBirth is preferred
     dateOfBirth: apiClaim.date_of_birth || '', 
     dos: apiClaim.service_end || apiClaim.service_start || '',
-    checkNumber: apiClaim.prim_chk_det || apiClaim.sec_chk_det || '', // Not in VisitClaim
-    amount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0, // Not in VisitClaim, use billedAmount
+    checkNumber: apiClaim.prim_chk_det || apiClaim.sec_chk_det || '', // Not in VisitClaim    amount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0, // Not in VisitClaim, use billedAmount
     status: apiClaim.claim_status || 'Pending',
     billedAmount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0,
-    paidAmount: (apiClaim.prim_amt !== undefined && apiClaim.prim_amt !== null ? apiClaim.prim_amt : (apiClaim.total_amt !== undefined && apiClaim.total_amt !== null ? apiClaim.total_amt : 0)),
+    paidAmount: (
+      (apiClaim.prim_chk_amt !== undefined && apiClaim.prim_chk_amt !== null ? Number(apiClaim.prim_chk_amt) : 0) +
+      (apiClaim.sec_chk_amt !== undefined && apiClaim.sec_chk_amt !== null ? Number(apiClaim.sec_chk_amt) : 0) +
+      (apiClaim.pat_amt !== undefined && apiClaim.pat_amt !== null ? Number(apiClaim.pat_amt) : 0)
+    ),
     claimId: apiClaim.oa_claim_id || `C-${mappedId}`,
     memberId: apiClaim.patient_id ? String(apiClaim.patient_id) : (apiClaim.patient_emr_no ? String(apiClaim.patient_emr_no) : ''),
     payer: apiClaim.prim_ins || '',
@@ -173,7 +175,9 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
     icdCodes: apiClaim.icd_code ? (Array.isArray(apiClaim.icd_code) ? apiClaim.icd_code.map(String) : [String(apiClaim.icd_code)]) : [],
     createdAt: apiClaim.charge_dt || new Date().toISOString(),
     updatedAt: apiClaim.prim_post_dt || apiClaim.sec_post_dt || new Date().toISOString(),
-    notes: Array.isArray(apiClaim.notes) ? apiClaim.notes.map(String) : (apiClaim.notes ? [String(apiClaim.notes)] : [])
+    notes: Array.isArray(apiClaim.notes) ? apiClaim.notes.map(String) : (apiClaim.notes ? [String(apiClaim.notes)] : []),    // Map clinicName to cpt_code as facility_name doesn't exist in the database
+    clinicName: apiClaim.cpt_code || '',
+    providerName: apiClaim.provider_name || ''
   } as VisitClaim; // Added 'as VisitClaim' for stricter type checking if needed, but ensure all fields match
 };
 

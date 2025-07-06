@@ -20,6 +20,7 @@ export interface VisitClaim {
   id?: string;
   claimId: string;
   patientName: string;
+  patientId?: string;  // Added patientId field
   memberId: string;
   payer: string;
   billedAmount: number;
@@ -69,6 +70,9 @@ export interface VisitClaim {
   write_off_amt?: number | null;
   bal_amt?: number | null;
   reimb_pct?: number | null;
+  // New fields for clinic and provider
+  clinicName?: string;
+  providerName?: string;
 }
 
 export interface VisitDetail {
@@ -91,12 +95,17 @@ export interface ChangeLogEntry {
 
 
 export interface KPIData {
-  totalClaims: number;
-  pendingClaims: number;
-  paidClaims: number;
-  deniedClaims: number;
+  totalClaims?: number;
+  pendingClaims?: number;
+  paidClaims?: number;
+  deniedClaims?: number;
   averageCollectionRate?: number; // Optional as it might not always be available
   averageClaimProcessingTime?: number; // In days, optional
+  // Legacy fields
+  totalCheckNumbers?: number;
+  totalVisitIds?: number;
+  postedVisitIds?: number;
+  pendingPosting?: number;
 }
 
 export interface SearchFilters {
@@ -117,6 +126,8 @@ export interface SearchFilters {
   payerName?: string; // This might be different from payer
   dateOfBirth?: string;
   cptCode?: string;
+  clinicName?: string; // Added for clinic name search
+  providerName?: string; // Added for provider name search
 }
 
 export interface PaginatedClaimsResponse {

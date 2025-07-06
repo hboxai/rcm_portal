@@ -41,7 +41,7 @@ interface SecondaryInsuranceForm {
   secDenialCode: string;
 }
 
-interface PatientDataForm {
+interface PatientPaymentForm {
   patAmt: string;
   patRecDt: string;
 }
@@ -127,9 +127,8 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
     secCmnt: formatInputValue(claim.sec_cmt),
     secDenialCode: formatInputValue(claim.sec_denial_code),
   });
-  
-  // State for patient data form
-  const [patientForm, setPatientForm] = useState<PatientDataForm>({
+    // State for patient payment form
+  const [patientForm, setPatientForm] = useState<PatientPaymentForm>({
     patAmt: claim.pat_amt != null ? claim.pat_amt.toString() : '',
     patRecDt: formatInputValue(claim.pat_recv_dt),
   });
@@ -473,26 +472,23 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       }
       
       // Only send update if there are actual changes
-      if (Object.keys(updateData).length > 1) { // > 1 because id is always included
-        await updateClaim(updateData);
+      if (Object.keys(updateData).length > 1) { // > 1 because id is always included        await updateClaim(updateData);
         
         setFeedback({
           status: 'success',
-          message: 'Patient data saved successfully!'
+          message: 'Patient payment saved successfully!'
         });
         setIsFormDirty(false);
-      } else {
-        // No changes were made
+      } else {        // No changes were made
         setFeedback({
           status: 'success',
-          message: 'No changes to save in Patient Data.'
+          message: 'No changes to save in Patient Payment.'
         });
       }
-    } catch (err) {
-      console.error('Error saving patient data:', err);
+    } catch (err) {      console.error('Error saving patient payment:', err);
       setFeedback({
         status: 'error',
-        message: 'An error occurred while saving patient data.'
+        message: 'An error occurred while saving patient payment.'
       });
     } finally {
       setLocalIsLoading(false);
@@ -580,8 +576,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               disabled={!claimDetailsComplete}
             >
               Secondary Insurance
-            </button>
-            <button
+            </button>            <button
               onClick={() => handleTabClick('patient')}
               className={`px-4 py-3 font-medium transition-colors relative ${
                 activeTab === 'patient'
@@ -590,7 +585,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               } ${!claimDetailsComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={!claimDetailsComplete}
             >
-              Patient Data
+              Patient Payment
             </button>
           </div>
           
@@ -888,11 +883,10 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
       )}      
       {/* Patient Data Form - New Tab */}
       {activeTab === 'patient' && claimDetailsComplete && (
-        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">
-          <div className="flex justify-between items-center mb-6">
+        <GlassCard className="bg-white/90 backdrop-blur-sm border border-purple/20 text-dark">          <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2 text-pink">
               <User className="text-purple" size={20} />
-              Patient Data
+              Patient Payment
             </h2>
           </div>
 

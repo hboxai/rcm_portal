@@ -3,10 +3,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* FF Mark Font */
+@font-face {
+  font-family: 'FF Mark';
+  src: url('/fonts/FFMark-Medium.woff2') format('woff2'),
+       url('/fonts/FFMark-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'FF Mark';
+  src: url('/fonts/FFMark-Bold.woff2') format('woff2'),
+       url('/fonts/FFMark-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'FF Mark';
+  src: url('/fonts/FFMark-Regular.woff2') format('woff2'),
+       url('/fonts/FFMark-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'FF Mark';
+  src: url('/fonts/FFMark-Light.woff2') format('woff2'),
+       url('/fonts/FFMark-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   body {
     /* Using the brand color palette - light purple gradient background */
-    @apply bg-white text-textDark min-h-screen;
+    @apply bg-white text-textDark min-h-screen font-ff-mark;
     /* Subtle gradient background for visual interest */
     background: linear-gradient(135deg, #FFFFFF 0%, #F4EFFF 100%);
     background-attachment: fixed;
@@ -107,10 +144,9 @@
     /* For elements that need darker styling - light purple background */
     @apply bg-purple/5 backdrop-blur-md border border-purple/30 shadow-xl text-textDark;
   }
-  
-  .glass-input {
+    .glass-input {
     /* Using brand palette: white background with purple border focus */
-    @apply bg-white/95 border border-purple/30 rounded-lg px-4 py-2 text-textDark outline-none focus:ring-2 focus:ring-purple/50 focus:border-purple transition-all duration-300 placeholder-purple/50;
+    @apply bg-white/95 border border-purple/30 rounded-lg px-4 py-2 text-textDark outline-none focus:ring-2 focus:ring-purple/50 focus:border-purple transition-all duration-300 placeholder-gray-400;
   }
   
   .btn-primary {

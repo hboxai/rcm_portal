@@ -31,29 +31,56 @@ const claimStatusOptions = [
   'Sec Pymt Pending'
 ];
 
+const claimClosureOptions = [
+  'Completed - Payment Received',
+  'Closed - Denied with no appeal',
+  'Closed - Write-off',
+  'Closed - Patient Responsibility',
+  'Closed - Timely Filing',
+  'Closed - Non-covered Service',
+  'Closed - Duplicate Claim'
+];
+
 const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExpanded }) => {
   const { updateClaim } = useClaims();
   const [selectedStatus, setSelectedStatus] = useState('');
   const [isEditable, setIsEditable] = useState(true);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [hasBeenEdited, setHasBeenEdited] = useState(false);
-
+  const [isClaimClosed, setIsClaimClosed] = useState(false);
+  const [selectedClosureStatus, setSelectedClosureStatus] = useState('');
   useEffect(() => {
     setSelectedStatus(claim.status || '');
     if (claim.status && !hasBeenEdited) {
       setIsEditable(false);
     }
+    
+    // Initialize claim closure status
+    if (claim.claim_status_type && claim.claim_status_type.startsWith('Closed')) {
+      setIsClaimClosed(true);
+      setSelectedClosureStatus(claim.claim_status_type);
+    }
+    
     return () => {
       if (showConfirmation) {
         setShowConfirmation(false);
       }
     };
-  }, [claim.status, hasBeenEdited, showConfirmation]);
-
+  }, [claim.status, claim.claim_status_type, hasBeenEdited, showConfirmation]);
   const handleStatusChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedStatus(e.target.value);
   }, []);
 
+  const handleClosureStatusChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedClosureStatus(e.target.value);
+  }, []);
+
+  const handleClaimClosureChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setIsClaimClosed(e.target.checked);
+    if (!e.target.checked) {
+      setSelectedClosureStatus('');
+    }
+  }, []);
   const handleSaveStatus = useCallback(() => {
     if (selectedStatus) {
       const saveButton = document.querySelector('button[data-save-status]');
@@ -61,11 +88,22 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
         (saveButton as HTMLButtonElement).disabled = true;
         (saveButton as HTMLButtonElement).innerHTML = 'Saving...';
       }
-      updateClaim({
+      
+      // Prepare update data
+      const updateData: any = {
         id: claim.id,
-        claim_status: selectedStatus, // <-- send claim_status, not status
+        claim_status: selectedStatus,
         updatedAt: new Date().toISOString(),
-      })
+      };
+      
+      // Add closure status if claim is closed
+      if (isClaimClosed && selectedClosureStatus) {
+        updateData.claim_status_type = selectedClosureStatus;
+      } else if (!isClaimClosed) {
+        updateData.claim_status_type = ''; // Clear closure status if claim is not closed
+      }
+      
+      updateClaim(updateData)
       .then((result) => {
         setIsEditable(false);
         setHasBeenEdited(true);
@@ -86,7 +124,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
         }
       });
     }
-  }, [selectedStatus, claim.id, updateClaim]);
+  }, [selectedStatus, isClaimClosed, selectedClosureStatus, claim.id, updateClaim]);
 
   const toggleEditMode = useCallback(() => {
     if (!isEditable) {
@@ -209,10 +247,13 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                 label="Amount" 
                 value={claim.billedAmount}
                 formatter={formatters.currency}
-              />
-              <ClaimField 
+              />              <ClaimField 
                 label="Amount Paid" 
-                value={claim.paidAmount}
+                value={
+                  (claim.prim_chk_amt || 0) + 
+                  (claim.sec_chk_amt || 0) + 
+                  (claim.pat_amt || 0)
+                }
                 formatter={formatters.currency}
               />
             </div>
@@ -235,29 +276,63 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
               </button>
             )}
           </div>
-          
-          {isEditable ? (
-            <div className="flex gap-3">              <select
-                className="glass-input flex-grow bg-white/70 text-textDark px-4 py-2.5 rounded-lg border border-purple/20 focus:border-purple outline-none"
-                value={selectedStatus || ''}
-                onChange={handleStatusChange}
-              >
-                <option value="" className="bg-white text-textDark">Select a status</option>
-                {claimStatusOptions.map(status => (
-                  <option key={status} value={status} className="bg-white text-textDark">
-                    {status}
-                  </option>
-                ))}
-              </select>
-              <Button 
-                variant="primary" 
-                onClick={handleSaveStatus}
-                disabled={!selectedStatus}
-                className="px-6 bg-purple hover:bg-purple/90 text-white"
-                data-save-status
-              >
-                Save
-              </Button>
+            {isEditable ? (
+            <div className="space-y-4">
+              <div className="flex gap-3">              
+                <select
+                  className="glass-input flex-grow bg-white/70 text-textDark px-4 py-2.5 rounded-lg border border-purple/20 focus:border-purple outline-none"
+                  value={selectedStatus || ''}
+                  onChange={handleStatusChange}
+                >
+                  <option value="" className="bg-white text-textDark">Select a status</option>
+                  {claimStatusOptions.map(status => (
+                    <option key={status} value={status} className="bg-white text-textDark">
+                      {status}
+                    </option>
+                  ))}
+                </select>
+                <Button 
+                  variant="primary" 
+                  onClick={handleSaveStatus}
+                  disabled={!selectedStatus}
+                  className="px-6 bg-purple hover:bg-purple/90 text-white"
+                  data-save-status
+                >
+                  Save
+                </Button>
+              </div>
+              
+              <div className="mt-4 p-3 bg-white/50 rounded-lg border border-purple/10">
+                <div className="flex items-center mb-3">
+                  <input
+                    type="checkbox"
+                    id="claimClosure"
+                    checked={isClaimClosed}
+                    onChange={handleClaimClosureChange}
+                    className="w-4 h-4 text-purple bg-white/70 border-purple/30 rounded focus:ring-purple/50"
+                  />
+                  <label htmlFor="claimClosure" className="ml-2 text-sm font-medium text-textDark">
+                    Mark claim as closed
+                  </label>
+                </div>
+                
+                {isClaimClosed && (
+                  <div className="mt-2">
+                    <select
+                      className="w-full glass-input bg-white/70 text-textDark px-4 py-2.5 rounded-lg border border-purple/20 focus:border-purple outline-none"
+                      value={selectedClosureStatus}
+                      onChange={handleClosureStatusChange}
+                    >
+                      <option value="" className="bg-white text-textDark">Select closure reason</option>
+                      {claimClosureOptions.map(status => (
+                        <option key={status} value={status} className="bg-white text-textDark">
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="flex items-center flex-wrap gap-3">
@@ -280,6 +355,13 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                   <Lock size={14} />
                   <span>Locked</span>
                 </span>
+              )}
+              
+              {isClaimClosed && selectedClosureStatus && (
+                <div className="ml-2 px-4 py-2.5 rounded-lg flex items-center gap-2 bg-pink/20 text-pink border border-pink/30">
+                  <CheckCircle size={16} className="text-pink" />
+                  <span className="font-medium">{selectedClosureStatus}</span>
+                </div>
               )}
             </div>
           )}

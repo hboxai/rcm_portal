@@ -173,15 +173,22 @@ const VisitDetails: React.FC<VisitDetailsProps> = ({ claim }) => {
                 <p className="text-white/60 text-sm">Patient Name</p>
                 <p className="font-medium">{claim.patientName}</p>
               </div>
-              
-              <div className="mb-4">
+                <div className="mb-4">
                 <p className="text-white/60 text-sm">Date of Birth</p>
-                <p className="font-medium">{new Date(claim.dob).toLocaleDateString()}</p>
+                <p className="font-medium">{new Date(claim.dob).toLocaleDateString('en-US', {
+                  month: 'numeric',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}</p>
               </div>
               
               <div className="mb-4">
                 <p className="text-white/60 text-sm">Date of Service</p>
-                <p className="font-medium">{new Date(claim.dos).toLocaleDateString()}</p>
+                <p className="font-medium">{new Date(claim.dos).toLocaleDateString('en-US', {
+                  month: 'numeric',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}</p>
               </div>
               
               <div className="mb-4">

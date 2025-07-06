@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FF Mark Font Test</title>
+  <style>
+    /* FF Mark Font Test Styles */
+    body {
+      font-family: 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      padding: 2rem;
+      line-height: 1.5;
+      color: #2D1B69;
+      background: linear-gradient(135deg, #FFFFFF 0%, #F4EFFF 100%);
+      min-height: 100vh;
+    }
+
+    .font-test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(128, 41, 213, 0.1);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: #8029D5;
+    }
+
+    h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      color: #8029D5;
+    }
+
+    .font-sample {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .font-label {
+      font-size: 0.875rem;
+      color: #666;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .weight-300 { font-weight: 300; }
+    .weight-400 { font-weight: 400; }
+    .weight-500 { font-weight: 500; }
+    .weight-700 { font-weight: 700; }
+
+    .text-sample {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .pangram {
+      font-size: 1rem;
+      color: #444;
+    }
+
+    .buttons-sample {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .button {
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .button-primary {
+      background-color: #8029D5;
+      color: white;
+    }
+
+    .button-secondary {
+      background-color: #3B58F2;
+      color: white;
+    }
+
+    .button-accent {
+      background-color: #F44893;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="font-test-container">
+    <h1>FF Mark Font Test</h1>
+    <p>This page demonstrates the FF Mark font family across different weights and styles.</p>
+
+    <h2>Headings</h2>
+    <div class="font-sample">
+      <h1>Heading 1 with FF Mark</h1>
+      <h2>Heading 2 with FF Mark</h2>
+      <h3>Heading 3 with FF Mark</h3>
+      <h4>Heading 4 with FF Mark</h4>
+      <h5>Heading 5 with FF Mark</h5>
+      <h6>Heading 6 with FF Mark</h6>
+    </div>
+
+    <h2>Font Weights</h2>
+    
+    <div class="font-sample">
+      <div class="font-label">Light (300)</div>
+      <div class="text-sample weight-300">FF Mark Light Sample Text</div>
+      <div class="pangram weight-300">The quick brown fox jumps over the lazy dog.</div>
+    </div>
+    
+    <div class="font-sample">
+      <div class="font-label">Regular (400)</div>
+      <div class="text-sample weight-400">FF Mark Regular Sample Text</div>
+      <div class="pangram weight-400">The quick brown fox jumps over the lazy dog.</div>
+    </div>
+    
+    <div class="font-sample">
+      <div class="font-label">Medium (500)</div>
+      <div class="text-sample weight-500">FF Mark Medium Sample Text</div>
+      <div class="pangram weight-500">The quick brown fox jumps over the lazy dog.</div>
+    </div>
+    
+    <div class="font-sample">
+      <div class="font-label">Bold (700)</div>
+      <div class="text-sample weight-700">FF Mark Bold Sample Text</div>
+      <div class="pangram weight-700">The quick brown fox jumps over the lazy dog.</div>
+    </div>
+
+    <h2>UI Elements</h2>
+    <div class="font-sample">
+      <div class="font-label">Buttons</div>
+      <div class="buttons-sample">
+        <button class="button button-primary">Primary Button</button>
+        <button class="button button-secondary">Secondary Button</button>
+        <button class="button button-accent">Accent Button</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -18,8 +18,7 @@ export const fetchClaims = async (
   filters: Omit<SearchFilters, 'page' | 'limit'>,
   pageInput?: number,
   limitInput?: number
-): Promise<PaginatedClaimsResponse> => {
-  try {
+): Promise<PaginatedClaimsResponse> => {  try {
     const params = new URLSearchParams();
     // Correctly map frontend filter fields to backend parameter names
     if (filters.patientId) params.append('patient_id', filters.patientId);
@@ -30,6 +29,8 @@ export const fetchClaims = async (
     if (filters.payerName) params.append('prim_ins', filters.payerName);
     if (filters.dateOfBirth) params.append('date_of_birth', filters.dateOfBirth);
     if (filters.cptCode) params.append('cpt_code', filters.cptCode);
+    if (filters.clinicName) params.append('clinic_name', filters.clinicName);
+    if (filters.providerName) params.append('provider_name', filters.providerName);
 
     // Use the explicit page and limit arguments for pagination
     if (pageInput) params.append('page', pageInput.toString());

@@ -1,0 +1,115 @@
+/**
+ * FF Mark font styling
+ * 
+ * This file contains custom styling for the FF Mark font family
+ * used throughout the application.
+ */
+
+/* Headings with FF Mark */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: -0.02em; /* Slightly tighter tracking for headings */
+  font-weight: 700; /* Bold weight for headings */
+}
+
+h1 {
+  font-size: 2.5rem;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 2rem;
+  line-height: 1.25;
+}
+
+h3 {
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+
+h4 {
+  font-size: 1.5rem;
+  line-height: 1.35;
+}
+
+h5 {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+h6 {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+/* Body text with FF Mark */
+body, p, span, div, button, input, select, textarea {
+  font-family: 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: -0.01em; /* Slightly tighter tracking for body text */
+  font-weight: 400; /* Regular weight for body text */
+}
+
+/* Medium weight text */
+.font-medium, strong, b {
+  font-weight: 500;
+}
+
+/* Bold weight text */
+.font-bold {
+  font-weight: 700;
+}
+
+/* Light weight text */
+.font-light {
+  font-weight: 300;
+}
+
+/* Button text specific styling */
+button, 
+.button,
+[type='button'], 
+[type='reset'], 
+[type='submit'] {
+  font-weight: 500; /* Medium weight for buttons */
+  letter-spacing: 0; /* Normal tracking for buttons */
+}
+
+/* Form elements */
+input, 
+textarea, 
+select {
+  font-weight: 400; /* Regular weight for form elements */
+  letter-spacing: 0; /* Normal tracking for form elements */
+}
+
+/* Labels and form field captions */
+label, 
+.label, 
+.caption, 
+.hint {
+  font-weight: 500; /* Medium weight for labels */
+  letter-spacing: 0; /* Normal tracking for labels */
+}
+
+/* Mobile optimization */
+@media (max-width: 640px) {
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.75rem;
+  }
+
+  h3 {
+    font-size: 1.5rem;
+  }
+
+  h4 {
+    font-size: 1.25rem;
+  }
+
+  h5, h6 {
+    font-size: 1rem;
+  }
+}

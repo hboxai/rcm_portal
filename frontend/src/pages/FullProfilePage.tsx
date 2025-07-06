@@ -35,11 +35,10 @@ const FullProfilePage: React.FC = () => {
       typeof value === 'string' && 
       (value.match(/^\d{4}-\d{2}-\d{2}/) || value.match(/^\d{4}\/\d{2}\/\d{2}/))
     ) {
-      try {
-        const date = new Date(value);
+      try {        const date = new Date(value);
         // Check if date is valid before formatting
         if (!isNaN(date.getTime())) {
-          return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+          return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
         }
       } catch (e) {
         // If date parsing fails, return the original value

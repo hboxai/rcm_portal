@@ -21,11 +21,29 @@ const SearchResults: React.FC<SearchResultsProps> = ({
   currentPage,
   claimsPerPage,
   onPageChange
-}) => {
-  // Format date for display
+}) => {  // Format date for display in MM-DD-YYYY format
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn(`Invalid date: ${dateString}`);
+        return 'Invalid date';
+      }
+      
+      // Format to MM-DD-YYYY
+      return date.toLocaleDateString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.error(`Error formatting date ${dateString}:`, error);
+      return 'Error';
+    }
   };
 
   // Determine status display style based on the status
@@ -98,45 +116,63 @@ const SearchResults: React.FC<SearchResultsProps> = ({
       <div className="space-y-4">
         {results.map((claim) => (
           <div key={claim.id} className="glass-card rounded-xl overflow-hidden bg-white/60 border border-purple/10 hover:bg-white/80 transition-all duration-200">
-            <div className="p-4">
-              {/* Patient Name */}
-              <div className="mb-4">
-                <h3 className="text-xl font-medium text-textDark">{claim.patientName}</h3> {/* Changed from first_name and last_name to patientName */}
+            <div className="p-4">              {/* Patient Name with Provider Name beside it */}
+              <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-xl font-medium text-textDark">
+                  {claim.patientName} 
+                  {claim.providerName && (
+                    <span className="text-sm text-textDark/70 ml-2">
+                      | Provider: {claim.providerName}
+                    </span>
+                  )}
+                </h3>
               </div>
               
-              {/* Three columns of data */}
-              <div className="grid grid-cols-3 mb-3 gap-4">
-                <div>
-                  <div className="mb-2">
-                    <p className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Patient ID</p>
-                    <p className="text-textDark">{claim.memberId}</p> {/* Changed from patient_id to memberId */}
+              {/* New layout based on requirements */}
+              <div className="space-y-3">
+                {/* Line 1: Patient ID, Billing ID, CPT Code */}
+                <div className="flex flex-wrap gap-x-6 gap-y-2 p-2 bg-purple/5 rounded-lg">
+                  <div>
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Patient ID:</span>
+                    <span className="text-textDark ml-1 font-medium">{claim.memberId || claim.patientId || 'N/A'}</span>
                   </div>
                   <div>
-                    <p className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Date of Birth</p>
-                    <p className="text-textDark">{formatDate(claim.dateOfBirth)}</p> {/* Changed from dos to dateOfBirth */}
-                  </div>
-                </div>
-                  <div>
-                  <div className="mb-2">
-                    <p className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Billing ID</p>
-                    <p className="text-textDark">{claim.billing_id || claim.claimId || 'N/A'}</p> {/* Updated to use billing_id or fallback to claimId */}
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Billing ID:</span>
+                    <span className="text-textDark ml-1 font-medium">{claim.billing_id || claim.claimId || 'N/A'}</span>
                   </div>
                   <div>
-                    <p className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Date of Service</p>
-                    <p className="text-textDark">{formatDate(claim.dos)}</p> {/* Changed from service_end to dos */}
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">CPT Code:</span>
+                    <span className="text-pink ml-1 font-medium">{claim.cptCodes && claim.cptCodes.length > 0 ? claim.cptCodes.join(', ') : 'N/A'}</span>
                   </div>
                 </div>
                 
-                <div>
-                  <div className="mb-2">
-                    <p className="text-textDark/60 text-xs uppercase tracking-wider font-medium">CPT Code</p>
-                    <p className="text-pink font-medium">{claim.cptCodes && claim.cptCodes.length > 0 ? claim.cptCodes.join(', ') : 'N/A'}</p> {/* Changed to use pink color */}
+                {/* Line 2: DOB, DOS, Claim Status */}
+                <div className="flex flex-wrap gap-x-6 gap-y-2 p-2 bg-purple/5 rounded-lg">
+                  <div>
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Date of Birth:</span>
+                    <span className="text-textDark ml-1">{formatDate(claim.dateOfBirth)}</span>
                   </div>
                   <div>
-                    <p className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Claim Status</p>
-                    <span className={`inline-block px-2 py-0.5 rounded text-sm ${getStatusDisplayStyle(claim.status)}`}> {/* Changed from claim_status to status */}
-                      {claim.status || 'Not Set'} {/* Changed from claim_status to status */}
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Date of Service:</span>
+                    <span className="text-textDark ml-1">{formatDate(claim.dos)}</span>
+                  </div>
+                  <div>
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Claim Status:</span>
+                    <span className={`inline-block px-2 py-0.5 rounded text-sm ml-1 ${getStatusDisplayStyle(claim.status)}`}>
+                      {claim.status || 'Not Set'}
                     </span>
+                  </div>
+                </div>
+                
+                {/* Additional Information */}
+                <div className="flex flex-wrap gap-x-6 gap-y-2 p-2">
+                  <div>
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Payer Name:</span>
+                    <span className="text-textDark ml-1">{claim.payer || claim.prim_ins || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Clinic Name:</span>
+                    <span className="text-textDark ml-1">{claim.clinicName || 'N/A'}</span>
                   </div>
                 </div>
               </div>
