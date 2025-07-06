@@ -261,6 +261,7 @@ const LoginForm: React.FC = () => {
           clearIcon={<ClearLockIcon />}
           error={errors.password}
           autoComplete="current-password"
+          showPasswordToggle={true}
         />
         
         {loginResult?.success && (
