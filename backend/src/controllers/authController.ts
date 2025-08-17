@@ -29,9 +29,13 @@ interface UserFromDb {
  */
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    if (!email || !password) {
+  // Basic normalization
+  const normEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const normPassword = typeof password === 'string' ? password.trim() : '';
+
+  if (!normEmail || !normPassword) {
       return res.status(400).json({ 
         status: 'error', 
         message: 'Email and password are required' 
@@ -40,8 +44,8 @@ export const login = async (req: Request, res: Response) => {
 
     // Fetch user from the api_hboxuser table
     const userQuery = await pool.query(
-      'SELECT id, email, password, username, type FROM api_hboxuser WHERE LOWER(email) = LOWER($1)',
-      [email]
+      'SELECT id, email, password, username, type FROM api_hboxuser WHERE LOWER(email) = $1',
+      [normEmail]
     );
 
     if (userQuery.rows.length === 0) {
@@ -62,7 +66,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Compare provided password with the stored hash
-    const passwordIsValid = await bcrypt.compare(password, userFromDb.password);
+  const passwordIsValid = await bcrypt.compare(normPassword, userFromDb.password);
 
     if (!passwordIsValid) {
       return res.status(401).json({

@@ -1,4 +1,5 @@
 import pool from './db.js';
+const CLAIM_HISTORY_TABLE = process.env.CLAIM_HISTORY_TABLE || 'upl_change_logs';
 
 /**
  * Database initialization script
@@ -9,22 +10,22 @@ export const initializeDatabase = async () => {
   
   try {
     // Check if upl_change_logs table exists
-    const tableCheckQuery = `
+  const tableCheckQuery = `
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_schema = 'public'
-        AND table_name = 'upl_change_logs'
+    AND table_name = '${CLAIM_HISTORY_TABLE}'
       );
     `;
     
     const tableExists = await pool.query(tableCheckQuery);
     
     // If upl_change_logs table doesn't exist, create it
-    if (!tableExists.rows[0].exists) {
-      console.log('Creating upl_change_logs table...');
+    if (!tableExists.rows[0].exists && CLAIM_HISTORY_TABLE === 'upl_change_logs') {
+      console.log(`Creating ${CLAIM_HISTORY_TABLE} table...`);
       
       const createTableQuery = `
-        CREATE TABLE upl_change_logs (
+  CREATE TABLE ${CLAIM_HISTORY_TABLE} (
           id SERIAL PRIMARY KEY,
           claim_id INTEGER NOT NULL,
           user_id INTEGER,
@@ -39,9 +40,9 @@ export const initializeDatabase = async () => {
       `;
       
       await pool.query(createTableQuery);
-      console.log('upl_change_logs table created successfully');
+  console.log(`${CLAIM_HISTORY_TABLE} table created successfully`);
     } else {
-      console.log('upl_change_logs table already exists');
+  console.log(`${CLAIM_HISTORY_TABLE} table already exists (or using external history table)`);
     }
     
     return { success: true };

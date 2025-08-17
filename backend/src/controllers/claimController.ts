@@ -1,5 +1,13 @@
 import { Request, Response } from 'express';
 import pool, { query } from '../config/db.js';
+// Source claims table now restricted to api_bil_claim_reimburse (env override optional for future but no legacy fallback)
+const CLAIMS_TABLE = process.env.CLAIMS_TABLE || 'api_bil_claim_reimburse';
+const CLAIM_HISTORY_TABLE = process.env.CLAIM_HISTORY_TABLE || 'upl_change_logs';
+// NEW: Allow configurable primary key / unique identifier column for claims source table
+// Many legacy / external tables may not have a generic "id" column. Set CLAIMS_ID_COLUMN
+// (e.g. cpt_id, oa_claim_id, oa_visit_id, claim_number, etc.) and the code will alias it to id.
+// If not provided we assume an "id" column already exists.
+const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'id';
 import Claim from '../models/Claim.js';
 import ChangeLog from '../models/ChangeLog.js';
 import fs from 'fs';
@@ -58,20 +66,64 @@ export const getClaims = async (req: Request, res: Response) => {
       }    }
     
     // Build query components
+    // Build a projection joining reimburse (base) with submit for richer demographic/procedure data.
+    // Base CLAIMS_TABLE currently expected to be api_bil_claim_reimburse.
+    // We LEFT JOIN api_bil_claim_submit on patient_id and loose CPT correlation for enrichment.
+    const SUBMIT_TABLE = process.env.SUBMIT_TABLE || 'api_bil_claim_submit';
     let selectQuery = `
       SELECT
-        id, patient_id, patient_emr_no, cpt_id AS billing_id, cpt_code, 
-        first_name, last_name, date_of_birth, service_start, service_end,
-        icd_code, provider_name, units, oa_claim_id, oa_visit_id,
-        charge_dt, charge_amt, allowed_amt, allowed_add_amt, allowed_exp_amt,
-        total_amt, charges_adj_amt, write_off_amt, bal_amt, reimb_pct,
-        claim_status, claim_status_type, prim_ins, prim_amt, prim_post_dt,
-        prim_chk_det, prim_recv_dt, prim_chk_amt, prim_cmt, sec_ins,
-        sec_amt, sec_post_dt, sec_chk_det, sec_recv_dt, sec_chk_amt, sec_cmt,
-        pat_amt, pat_recv_dt
-      FROM upl_billing_reimburse`;
-    
-    const countQuery = `SELECT COUNT(*) FROM upl_billing_reimburse`;
+        r.${CLAIMS_ID_COLUMN} AS id,
+        r.patient_id,
+        s.patient_emr_no,
+        r.cpt_id AS billing_id,
+        COALESCE(s.cpt_code_id, s.cpt1::text, s.cpt2::text, s.cpt3::text, s.cpt4::text, s.cpt5::text, s.cpt6::text) AS cpt_code,
+        s.patientfirst AS first_name,
+        s.patientlast AS last_name,
+        s.patientdob AS date_of_birth,
+        -- Service start/end: choose earliest from-date and latest to-date among first two lines as heuristic
+        COALESCE(s.fromdateofservice1, s.fromdateofservice2, s.fromdateofservice3, s.fromdateofservice4, s.fromdateofservice5, s.fromdateofservice6) AS service_start,
+        COALESCE(s.todateofservice1, s.todateofservice2, s.todateofservice3, s.todateofservice4, s.todateofservice5, s.todateofservice6) AS service_end,
+        s.diagcode1 AS icd_code,
+        -- Provider name assembled from physician name columns if present
+        NULLIF(TRIM(CONCAT_WS(' ', s.physicianfirst, s.physicianlast)), '') AS provider_name,
+        -- Units: prefer units1 then fallback others
+        COALESCE(s.units1, s.units2, s.units3, s.units4, s.units5, s.units6) AS units,
+        -- oa_claim / visit: submit has oa_claimid; oa_visit_id not present, return NULL
+        s.oa_claimid AS oa_claim_id,
+        NULL AS oa_visit_id,
+        r.charge_dt,
+        r.charge_amt,
+        r.allowed_amt,
+        r.allowed_add_amt,
+        r.allowed_exp_amt,
+        r.total_amt,
+        r.charges_adjust AS charges_adj_amt,
+        r.write_off_amt,
+        r.bal_amt,
+        r.reimb_pct,
+        r.claim_status,
+        r.claim_status_type,
+        r.prim_ins,
+        r.prim_amt,
+        r.prim_post_dt,
+        r.prim_chk_det,
+        r.prim_recv_dt,
+        r.prim_chk_amt,
+        r.prim_cmt,
+        r.sec_ins,
+        r.sec_amt,
+        r.sec_post_dt,
+        r.sec_chk_det,
+        r.sec_recv_dt,
+        r.sec_chk_amt,
+        r.sec_cmt,
+        r.pat_amt,
+        r.pat_recv_dt
+      FROM ${CLAIMS_TABLE} r
+      LEFT JOIN ${SUBMIT_TABLE} s
+        ON s.patient_id = r.patient_id`;
+
+  const countQuery = `SELECT COUNT(*) FROM ${CLAIMS_TABLE} r`;
 
     const queryParams: any[] = [];
     const conditions: string[] = [];
@@ -266,16 +318,9 @@ export const getClaimById = async (req: Request, res: Response) => {
   try {
     requestCounter++;
     const requestId = requestCounter;
-    const id = parseInt(req.params.id);
-    
-    if (isNaN(id)) {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid ID format',
-        message: 'The ID must be a number'
-      });
-      return;
-    }
+  const rawId = req.params.id;
+  // Only coerce to number if underlying column is numeric 'id'
+  const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
     
     // Create cache key for this specific claim
     const cacheKey = `claim-${id}`;
@@ -287,19 +332,55 @@ export const getClaimById = async (req: Request, res: Response) => {
     }
     
     // Query to get full claim details by ID
+    const SUBMIT_TABLE = process.env.SUBMIT_TABLE || 'api_bil_claim_submit';
     const sqlQuery = `
       SELECT
-        id, patient_id, patient_emr_no, cpt_id AS billing_id, cpt_code, 
-        first_name, last_name, date_of_birth, service_start, service_end,
-        icd_code, provider_name, units, oa_claim_id, oa_visit_id,
-        charge_dt, charge_amt, allowed_amt, allowed_add_amt, allowed_exp_amt,
-        total_amt, charges_adj_amt, write_off_amt, bal_amt, reimb_pct,
-        claim_status, claim_status_type, prim_ins, prim_amt, prim_post_dt,
-        prim_chk_det, prim_recv_dt, prim_chk_amt, prim_cmt, sec_ins,
-        sec_amt, sec_post_dt, sec_chk_det, sec_recv_dt, sec_chk_amt, sec_cmt,
-        pat_amt, pat_recv_dt
-      FROM upl_billing_reimburse
-      WHERE id = $1`;
+        r.${CLAIMS_ID_COLUMN} AS id,
+        r.patient_id,
+        s.patient_emr_no,
+        r.cpt_id AS billing_id,
+        COALESCE(s.cpt_code_id, s.cpt1::text, s.cpt2::text, s.cpt3::text, s.cpt4::text, s.cpt5::text, s.cpt6::text) AS cpt_code,
+        s.patientfirst AS first_name,
+        s.patientlast AS last_name,
+        s.patientdob AS date_of_birth,
+        COALESCE(s.fromdateofservice1, s.fromdateofservice2, s.fromdateofservice3, s.fromdateofservice4, s.fromdateofservice5, s.fromdateofservice6) AS service_start,
+        COALESCE(s.todateofservice1, s.todateofservice2, s.todateofservice3, s.todateofservice4, s.todateofservice5, s.todateofservice6) AS service_end,
+        s.diagcode1 AS icd_code,
+        NULLIF(TRIM(CONCAT_WS(' ', s.physicianfirst, s.physicianlast)), '') AS provider_name,
+        COALESCE(s.units1, s.units2, s.units3, s.units4, s.units5, s.units6) AS units,
+        s.oa_claimid AS oa_claim_id,
+        NULL AS oa_visit_id,
+        r.charge_dt,
+        r.charge_amt,
+        r.allowed_amt,
+        r.allowed_add_amt,
+        r.allowed_exp_amt,
+        r.total_amt,
+        r.charges_adjust AS charges_adj_amt,
+        r.write_off_amt,
+        r.bal_amt,
+        r.reimb_pct,
+        r.claim_status,
+        r.claim_status_type,
+        r.prim_ins,
+        r.prim_amt,
+        r.prim_post_dt,
+        r.prim_chk_det,
+        r.prim_recv_dt,
+        r.prim_chk_amt,
+        r.prim_cmt,
+        r.sec_ins,
+        r.sec_amt,
+        r.sec_post_dt,
+        r.sec_chk_det,
+        r.sec_recv_dt,
+        r.sec_chk_amt,
+        r.sec_cmt,
+        r.pat_amt,
+        r.pat_recv_dt
+      FROM ${CLAIMS_TABLE} r
+      LEFT JOIN ${SUBMIT_TABLE} s ON s.patient_id = r.patient_id
+      WHERE r.${CLAIMS_ID_COLUMN} = $1`;
     
     // Use our optimized query function
     const { rows } = await query(sqlQuery, [id]);
@@ -346,30 +427,44 @@ export const updateClaim = async (req: Request, res: Response) => {
   try {
     requestCounter++;
     const requestId = requestCounter;
-    const id = parseInt(req.params.id);
-    
-    if (isNaN(id)) {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid ID format',
-        message: 'The ID must be a number'
-      });
-      return;
-    }
+  const rawId = req.params.id;
+  const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
 
     // Get the current claim to check if it exists and to compare old values
     const checkQuery = `
       SELECT 
-        id, patient_id, patient_emr_no, cpt_id AS billing_id, cpt_code, 
-        first_name, last_name, date_of_birth, service_start, service_end,
-        icd_code, provider_name, units, oa_claim_id, oa_visit_id,
-        charge_dt, charge_amt, allowed_amt, allowed_add_amt, allowed_exp_amt,
-        total_amt, charges_adj_amt, write_off_amt, bal_amt, reimb_pct,
-        claim_status, claim_status_type, prim_ins, prim_amt, prim_post_dt,
-        prim_chk_det, prim_recv_dt, prim_chk_amt, prim_cmt, sec_ins,
-        sec_amt, sec_post_dt, sec_chk_det, sec_recv_dt, sec_chk_amt, sec_cmt,
-        pat_amt, pat_recv_dt 
-      FROM upl_billing_reimburse WHERE id = $1`;
+        ${CLAIMS_ID_COLUMN} AS id,
+        patient_id,
+        cpt_id AS billing_id,
+        charge_dt,
+        charge_amt,
+        allowed_amt,
+        allowed_add_amt,
+        allowed_exp_amt,
+        total_amt,
+        charges_adjust AS charges_adj_amt,
+        write_off_amt,
+        bal_amt,
+        reimb_pct,
+        claim_status,
+        claim_status_type,
+        prim_ins,
+        prim_amt,
+        prim_post_dt,
+        prim_chk_det,
+        prim_recv_dt,
+        prim_chk_amt,
+        prim_cmt,
+        sec_ins,
+        sec_amt,
+        sec_post_dt,
+        sec_chk_det,
+        sec_recv_dt,
+        sec_chk_amt,
+        sec_cmt,
+        pat_amt,
+        pat_recv_dt 
+      FROM ${CLAIMS_TABLE} WHERE ${CLAIMS_ID_COLUMN} = $1`;
     const checkResult = await query(checkQuery, [id]);
     
     if (checkResult.rows.length === 0) {
@@ -518,10 +613,10 @@ export const updateClaim = async (req: Request, res: Response) => {
     
     // Construct the full query
     const updateQuery = `
-      UPDATE upl_billing_reimburse
+      UPDATE ${CLAIMS_TABLE}
       SET ${setClauses.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *`;
+      WHERE ${CLAIMS_ID_COLUMN} = $${paramIndex}
+      RETURNING ${CLAIMS_ID_COLUMN} AS id, *`;
     
     // Execute the query to update the claim using our optimized query function
     console.log('Executing update query:', updateQuery);
@@ -646,16 +741,8 @@ export const getClaimHistory = async (req: Request, res: Response) => {
   try {
     requestCounter++;
     const requestId = requestCounter;
-    const id = parseInt(req.params.id);
-    
-    if (isNaN(id)) {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid ID format',
-        message: 'The ID must be a number'
-      });
-      return;
-    }
+  const rawId = req.params.id;
+  const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
     
     // Create cache key for this specific claim's history
     const cacheKey = `claim-history-${id}`;
@@ -668,7 +755,7 @@ export const getClaimHistory = async (req: Request, res: Response) => {
     
     try {
       // Check if the claim exists
-      const claimCheckQuery = 'SELECT id, cpt_id AS billing_id, first_name, last_name FROM upl_billing_reimburse WHERE id = $1'; // Changed billing_id to cpt_id AS billing_id
+  const claimCheckQuery = `SELECT ${CLAIMS_ID_COLUMN} AS id, cpt_id AS billing_id FROM ${CLAIMS_TABLE} WHERE ${CLAIMS_ID_COLUMN} = $1`;
       
       // Use our optimized query function
       const claimCheck = await query(claimCheckQuery, [id]);
@@ -847,11 +934,9 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
       const historyQuery = `
         SELECT 
           cl.*,
-          ubr.cpt_code,
-          ubr.first_name,
-          ubr.last_name
+          ubr.cpt_id AS billing_id
         FROM upl_change_logs cl
-        LEFT JOIN upl_billing_reimburse ubr ON cl.claim_id = ubr.id
+        LEFT JOIN ${CLAIMS_TABLE} ubr ON cl.claim_id = ubr.${CLAIMS_ID_COLUMN}
         ${whereClause}
         ORDER BY cl.timestamp DESC
         LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
@@ -886,7 +971,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         console.log(`upl_change_logs table doesn't exist yet, returning mock history data`);
         
         // Get some claims to generate mock history using our optimized query
-        const claimsQuery = `SELECT id, cpt_id AS billing_id, first_name, last_name FROM upl_billing_reimburse LIMIT 5`;
+  const claimsQuery = `SELECT id, cpt_id AS billing_id, first_name, last_name FROM ${CLAIMS_TABLE} LIMIT 5`;
         const claimsResult = await query(claimsQuery, []);
         const claims = claimsResult.rows;
         

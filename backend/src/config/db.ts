@@ -34,13 +34,20 @@ const DB_USER = process.env.DB_USER || '';
 const DB_PASSWORD = process.env.DB_PASSWORD || '';
 
 // Create a single database pool for the entire application
+let sslEnabled = process.env.DB_SSL_ENABLED === 'true';
+// Auto-enable SSL for Aptible tunnels if not explicitly disabled
+if (!sslEnabled && DB_HOST.endsWith('.aptible.in')) {
+  console.log('Auto-enabling SSL because host appears to be an Aptible tunnel.');
+  sslEnabled = true;
+}
 const pool = new Pool({  host: DB_HOST,
   port: DB_PORT,
   database: DB_NAME,
   user: DB_USER,
   password: DB_PASSWORD,
-  ssl: process.env.DB_SSL_ENABLED === 'true' ? { 
-    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' 
+  ssl: sslEnabled ? {
+    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
+    require: true
   } : false,
   connectionTimeoutMillis: 15000,    // 15 second timeout
   idleTimeoutMillis: 30000,          // 30 second idle timeout (reduced from 5 min)
@@ -48,6 +55,13 @@ const pool = new Pool({  host: DB_HOST,
   allowExitOnIdle: true,             // Allow pool to clean up idle connections
   application_name: 'project-bolt'   // Identify connections in pg_stat_activity
 });
+
+console.log(`DB connection config: host=${DB_HOST} port=${DB_PORT} db=${DB_NAME} user=${DB_USER} sslEnabled=${sslEnabled}`);
+if (!sslEnabled) {
+  console.warn('WARNING: DB_SSL_ENABLED is not true; connection will be non-SSL. This may be rejected by the server.');
+} else {
+  console.log('PostgreSQL SSL enabled (require=true, rejectUnauthorized=' + (process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false') + ')');
+}
 
 // Suppress TS7006 errors for implicit 'any' types
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

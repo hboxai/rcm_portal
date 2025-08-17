@@ -1,14 +1,14 @@
 import pool from '../config/db.js';
 
-// Script to check the schema of upl_billing_reimburse table
+// Script to check the schema of api_bil_claim_reimburse table (legacy upl_billing_reimburse removed)
 async function checkTableSchema() {
   try {
-    console.log('Checking schema for upl_billing_reimburse table...');
+    console.log('Checking schema for api_bil_claim_reimburse table...');
     
     const query = `
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns
-      WHERE table_name = 'upl_billing_reimburse'
+      WHERE table_name = 'api_bil_claim_reimburse'
       ORDER BY ordinal_position;
     `;
     

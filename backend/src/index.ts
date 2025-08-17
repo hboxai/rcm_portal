@@ -38,8 +38,17 @@ app.use(
 );
 
 // Standard middleware
+const extraOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', process.env.CORS_ORIGIN].filter(Boolean) as string[],
+  origin: [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    ...extraOrigins
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Origin', 'Accept'],
   credentials: true

@@ -23,7 +23,9 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "backend": "^0.0.0",
     "bcrypt": "^6.0.0",
+    "cd": "^0.3.3",
     "multer": "^2.0.0"
   }
 }

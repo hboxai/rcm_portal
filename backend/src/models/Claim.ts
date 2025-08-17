@@ -1,5 +1,6 @@
 /**
- * Claim model representing the upl_billing_reimburse table structure
+ * Claim model representing the claims table structure.
+ * Active source tables: api_bil_claim_reimburse (primary) enriched via api_bil_claim_submit.
  */
 interface Claim {
   id: number;
