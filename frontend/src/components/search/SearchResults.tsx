@@ -2,6 +2,8 @@ import React from 'react';
 import { AlertCircle, Search } from 'lucide-react'; // Added Search
 import { VisitClaim } from '../../types/claim';
 import { Link } from 'react-router-dom';
+import { formatDateString } from '../../utils/format';
+import { getClaimStatusStyle } from '../../constants/claimStatus';
 
 interface SearchResultsProps {
   results: VisitClaim[];
@@ -21,54 +23,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({
   currentPage,
   claimsPerPage,
   onPageChange
-}) => {  // Format date for display in MM-DD-YYYY format
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
-    
-    try {
-      const date = new Date(dateString);
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.warn(`Invalid date: ${dateString}`);
-        return 'Invalid date';
-      }
-      
-      // Format to MM-DD-YYYY
-      return date.toLocaleDateString('en-US', {
-        month: 'numeric',
-        day: 'numeric',
-        year: 'numeric'
-      });
-    } catch (error) {
-      console.error(`Error formatting date ${dateString}:`, error);
-      return 'Error';
-    }
-  };
-
-  // Determine status display style based on the status
-  const getStatusDisplayStyle = (status: string | undefined) => {
-    if (!status) return 'bg-gray-600/30 text-white/70';
-    
-    switch (status) {      case 'Insurance Paid':
-      case 'Claim not filed':
-      case 'Posted':
-        return 'bg-green/20 text-green';
-      case 'Prim Denied':
-      case 'Sec Denied. Prim Paid more than Allowed amt':
-      case 'Patient Deceased':
-      case 'Rejected':
-        return 'bg-red/20 text-red';
-      case 'Prim Pymt Pending':
-      case 'Sec Pymt Pending':
-      case 'Claim not received from HBox':
-      case 'Pending':
-        return 'bg-yellow/20 text-yellow';
-      default:
-        return 'bg-blue/20 text-blue';
-    }
-  };
-
+}) => {  
   const totalPages = Math.ceil(totalCount / claimsPerPage);
 
   const handlePageChange = (newPage: number) => {
@@ -150,15 +105,15 @@ const SearchResults: React.FC<SearchResultsProps> = ({
                 <div className="flex flex-wrap gap-x-6 gap-y-2 p-2 bg-purple/5 rounded-lg">
                   <div>
                     <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Date of Birth:</span>
-                    <span className="text-textDark ml-1">{formatDate(claim.dateOfBirth)}</span>
+                    <span className="text-textDark ml-1">{formatDateString(claim.dateOfBirth)}</span>
                   </div>
                   <div>
                     <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Date of Service:</span>
-                    <span className="text-textDark ml-1">{formatDate(claim.dos)}</span>
+                    <span className="text-textDark ml-1">{formatDateString(claim.dos)}</span>
                   </div>
                   <div>
                     <span className="text-textDark/60 text-xs uppercase tracking-wider font-medium">Claim Status:</span>
-                    <span className={`inline-block px-2 py-0.5 rounded text-sm ml-1 ${getStatusDisplayStyle(claim.status)}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded text-sm ml-1 ${getClaimStatusStyle(claim.status)}`}>
                       {claim.status || 'Not Set'}
                     </span>
                   </div>

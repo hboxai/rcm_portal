@@ -5,41 +5,13 @@ import Button from '../ui/Button';
 import ClaimField, { formatters } from '../ui/ClaimField';
 import { VisitClaim } from '../../types/claim';
 import { useClaims } from '../../contexts/ClaimContext';
+import { CLAIM_STATUS_OPTIONS, CLAIM_CLOSURE_OPTIONS } from '../../constants/claimStatus';
 
 interface SummaryCardProps {
   claim: VisitClaim;
   onToggleDetails: () => void;
   isExpanded: boolean;
 }
-
-const claimStatusOptions = [
-  'Claim not filed',
-  'Claim not received from HBox',
-  'Deductible Applied',
-  'High Copay Writeoff',
-  'Inpatient for DOS',
-  'Insurance Paid',
-  'Multiple Provider enrollment',
-  'No Sec Ins',
-  'Patient Deceased',
-  'Policy Inactive',
-  'Prim Denied',
-  'Prim Pymt Pending',
-  'Program not covered',
-  'Sec Denied. Prim Paid more than Allowed amt',
-  'Sec not paying',
-  'Sec Pymt Pending'
-];
-
-const claimClosureOptions = [
-  'Completed - Payment Received',
-  'Closed - Denied with no appeal',
-  'Closed - Write-off',
-  'Closed - Patient Responsibility',
-  'Closed - Timely Filing',
-  'Closed - Non-covered Service',
-  'Closed - Duplicate Claim'
-];
 
 const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExpanded }) => {
   const { updateClaim } = useClaims();
@@ -285,7 +257,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                   onChange={handleStatusChange}
                 >
                   <option value="" className="bg-white text-textDark">Select a status</option>
-                  {claimStatusOptions.map(status => (
+                  {CLAIM_STATUS_OPTIONS.map(status => (
                     <option key={status} value={status} className="bg-white text-textDark">
                       {status}
                     </option>
@@ -324,7 +296,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
                       onChange={handleClosureStatusChange}
                     >
                       <option value="" className="bg-white text-textDark">Select closure reason</option>
-                      {claimClosureOptions.map(status => (
+                      {CLAIM_CLOSURE_OPTIONS.map(status => (
                         <option key={status} value={status} className="bg-white text-textDark">
                           {status}
                         </option>
