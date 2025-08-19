@@ -4,10 +4,27 @@ import pool from '../config/db.js';
 
 interface SeedUser { email: string; username: string; password: string; role: 'Admin'|'User'; }
 
-const users: SeedUser[] = [
-  { email: 'HBilling_RCM@hbox.ai', username: 'hbilling_rcm', password: 'Admin@2025', role: 'Admin' },
-  { email: 'Syed.a@hbox.ai', username: 'syed.a', password: 'User@2025', role: 'User' }
-];
+// NOTE: Do NOT hardcode real passwords here. Provide via environment variables.
+// For local/dev seeding you can set PORTAL_SEED_USERS as a JSON string, e.g.
+// PORTAL_SEED_USERS='[{"email":"admin@example.com","username":"portal_admin","password":"DevOnly!ChangeMe1","role":"Admin"}]'
+// Each user object requires: email, username, password, role ('Admin'|'User')
+// In production environments, skip this script or supply secure random passwords which are rotated immediately.
+const rawSeedUsers = process.env.PORTAL_SEED_USERS;
+let users: SeedUser[] = [];
+if (rawSeedUsers) {
+  try {
+    const parsed = JSON.parse(rawSeedUsers);
+    if (Array.isArray(parsed)) {
+      users = parsed.filter(u => u && u.email && u.username && u.password && (u.role === 'Admin' || u.role === 'User'));
+    }
+  } catch (e) {
+    console.error('Failed to parse PORTAL_SEED_USERS JSON:', (e as any)?.message || e);
+  }
+}
+if (!users.length) {
+  console.log('No users supplied via PORTAL_SEED_USERS. Nothing to seed.');
+  process.exit(0);
+}
 
 async function upsertUser(u: SeedUser) {
   const normEmail = u.email.trim().toLowerCase();

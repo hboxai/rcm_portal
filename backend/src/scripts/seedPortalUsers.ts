@@ -22,10 +22,23 @@ async function ensureUser({username,email,password,role}:{username:string;email:
 }
 
 async function main(){
-  console.log('Seeding basic portal users (dev only)...');
-  await ensureUser({username:'portal_admin', email:'portal_admin@example.com', password:'Admin123!', role:'Admin'});
-  await ensureUser({username:'portal_user', email:'portal_user@example.com', password:'User123!', role:'User'});
-  console.log('Done. IMPORTANT: Change these passwords in production.');
+  // Users provided via PORTAL_SEED_USERS JSON (same structure as in seedPortalAuthUsers)
+  const raw = process.env.PORTAL_SEED_USERS;
+  if (!raw) {
+    console.log('PORTAL_SEED_USERS not set. Skipping portal user seeding.');
+    process.exit(0);
+  }
+  let parsed: any;
+  try { parsed = JSON.parse(raw); } catch (e) { console.error('Invalid PORTAL_SEED_USERS JSON:', (e as any)?.message||e); process.exit(1); }
+  if (!Array.isArray(parsed) || !parsed.length) { console.log('No users in PORTAL_SEED_USERS.'); process.exit(0); }
+  for (const u of parsed) {
+    if (!u?.username || !u?.email || !u?.password || !['Admin','User'].includes(u.role)) {
+      console.warn('Skipping invalid user entry', u);
+      continue;
+    }
+    await ensureUser({username:u.username, email:u.email, password:u.password, role:u.role});
+  }
+  console.log('Portal user seeding complete. Ensure any dev passwords are rotated in production.');
   process.exit(0);
 }
 
