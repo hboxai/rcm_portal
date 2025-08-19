@@ -67,3 +67,6 @@ backend/build/
 # Sensitive data
 *credentials.json
 *secrets.*
+backend/uploads/
+uploads/
+excel_schema_report.md

@@ -12,5 +12,6 @@ const loginLimiter = rateLimit({ windowMs: 5 * 60 * 1000, max: 10, standardHeade
  */
 router.post('/login', loginLimiter, authController.login);
 router.post('/verify', authController.verifyToken);
+router.get('/verify', authController.verifyToken);
 
 export default router;
