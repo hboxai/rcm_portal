@@ -64,13 +64,8 @@ const Header: React.FC = () => {
           ? 'bg-purple/90 backdrop-blur-md shadow-lg shadow-purple/20' 
           : 'bg-purple/85 backdrop-blur-sm'
       }`}
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ 
-        type: "spring",
-        stiffness: 300,
-        damping: 20
-      }}
+      initial={false}
+      animate={false}
     >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between">

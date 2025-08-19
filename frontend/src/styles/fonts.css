@@ -1,13 +1,16 @@
 /**
- * FF Mark font styling
+ * Font styling with Inter fallback
  * 
- * This file contains custom styling for the FF Mark font family
+ * This file contains custom styling for the font family
  * used throughout the application.
  */
 
-/* Headings with FF Mark */
+/* Import Inter font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Headings with Inter */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   letter-spacing: -0.02em; /* Slightly tighter tracking for headings */
   font-weight: 700; /* Bold weight for headings */
 }
@@ -42,9 +45,9 @@ h6 {
   line-height: 1.45;
 }
 
-/* Body text with FF Mark */
+/* Body text with Inter */
 body, p, span, div, button, input, select, textarea {
-  font-family: 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   letter-spacing: -0.01em; /* Slightly tighter tracking for body text */
   font-weight: 400; /* Regular weight for body text */
 }

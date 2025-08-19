@@ -11,7 +11,6 @@ import {
   Filter, 
   FileSearch
 } from 'lucide-react';
-import Header from '../components/layout/Header';
 import GlassCard from '../components/ui/GlassCard';
 import Button from '../components/ui/Button';
 import GlassInput from '../components/ui/GlassInput';
@@ -228,7 +227,7 @@ const HistoryPage: React.FC = () => {
   
   // Generate page numbers for pagination
   const pageNumbers = () => {
-    const pages = [];
+  const pages: number[] = [];
     const maxPagesToShow = 5;
     let startPage = Math.max(1, pagination.page - Math.floor(maxPagesToShow / 2));
     const endPage = Math.min(pagination.totalPages, startPage + maxPagesToShow - 1);
@@ -251,10 +250,8 @@ const HistoryPage: React.FC = () => {
     return `${oldVal} → ${newVal}`;
   };
     return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white text-textDark">
-      <Header />
-      
-      <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
+    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white text-textDark pt-24">
+      <div className="container mx-auto pb-12 px-4 md:px-6">
         <div
           className="mb-8"
         >

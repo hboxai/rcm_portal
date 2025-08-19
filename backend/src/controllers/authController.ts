@@ -8,122 +8,60 @@ import pool from '../config/db.js';
  * Handles login, registration, and user verification
  */
 
-interface User {
-  id: number;
-  email: string;
-  password: string;
-  name: string;
-  role: string;
-}
-
-interface UserFromDb {
-  id: number;
-  email: string;
-  password?: string; // Password hash from DB
-  username: string;
-  type: string; // e.g., 'BA', 'BU'
-}
+// Detached portal auth now uses rcm_portal_auth_users exclusively.
 
 /**
  * Login user and generate JWT token
  */
 export const login = async (req: Request, res: Response) => {
   try {
-  const { email, password } = req.body;
-
-  // Basic normalization
-  const normEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-  const normPassword = typeof password === 'string' ? password.trim() : '';
-
-  if (!normEmail || !normPassword) {
-      return res.status(400).json({ 
-        status: 'error', 
-        message: 'Email and password are required' 
-      });
+    const { email, password } = req.body;
+    const normEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normPassword = typeof password === 'string' ? password.trim() : '';
+    if (!normEmail || !normPassword) {
+      return res.status(400).json({ status: 'error', message: 'Email and password are required' });
     }
 
-    // Fetch user from the api_hboxuser table
-    const userQuery = await pool.query(
-      'SELECT id, email, password, username, type FROM api_hboxuser WHERE LOWER(email) = $1',
+    const authRes = await pool.query(
+      `SELECT id, email, username, password_hash, role, status FROM rcm_portal_auth_users WHERE LOWER(email)=$1 AND status='active'`,
       [normEmail]
     );
-
-    if (userQuery.rows.length === 0) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid email or password'
-      });
+    if (!authRes.rowCount) {
+      return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
+    }
+    const authRow = authRes.rows[0];
+    const passwordOk = await bcrypt.compare(normPassword, authRow.password_hash);
+    if (!passwordOk) {
+      return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
     }
 
-    const userFromDb: UserFromDb = userQuery.rows[0];
+    const role = authRow.role === 'Admin' ? 'Admin' : 'User';
 
-    if (!userFromDb.password) {
-      // User exists but has no password set in DB
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Compare provided password with the stored hash
-  const passwordIsValid = await bcrypt.compare(normPassword, userFromDb.password);
-
-    if (!passwordIsValid) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Determine role from type
-    let role = 'User'; // Default role
-    if (userFromDb.type === 'BA') {
-      role = 'Admin';
-    }
-    // Add other type-to-role mappings if necessary
-
-    // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || '';
     if (!jwtSecret) {
       console.error('JWT_SECRET environment variable is not set');
-      return res.status(500).json({
-        status: 'error',
-        message: 'Internal server error'
-      });
+      return res.status(500).json({ status: 'error', message: 'Internal server error' });
     }
 
     const token = jwt.sign(
-      { 
-        id: userFromDb.id, 
-        email: userFromDb.email,
-        role: role // Use determined role
-      },
+      { id: authRow.id, email: authRow.email, role, username: authRow.username },
       jwtSecret as Secret,
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN || '24h'
-      } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
     );
 
-    // Send response with token
-    res.status(200).json({
+    // Update last_login_at (ignore errors)
+    pool.query('UPDATE rcm_portal_auth_users SET last_login_at = NOW() WHERE id=$1', [authRow.id]).catch(()=>{});
+
+    return res.status(200).json({
       status: 'success',
       data: {
-        user: {
-          id: userFromDb.id,
-          name: userFromDb.username, // Use username from DB
-          email: userFromDb.email,
-          role: role // Use determined role
-        },
+        user: { id: authRow.id, name: authRow.username, email: authRow.email, role },
         token
       }
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : String(error)
-    });
+    return res.status(500).json({ status: 'error', message: 'Internal server error', error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -132,26 +70,33 @@ export const login = async (req: Request, res: Response) => {
  */
 export const verifyToken = async (req: Request, res: Response) => {
   try {
-    const { token } = req.body;
-
+    // Support both POST with body.token and GET with Authorization header
+    let token: string | undefined = req.body?.token;
     if (!token) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Token is required'
-      });
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      }
+    }
+    if (!token) {
+      return res.status(400).json({ status: 'error', message: 'Token is required' });
     }
 
     const jwtSecret = process.env.JWT_SECRET || '';
     if (!jwtSecret) {
       console.error('JWT_SECRET environment variable is not set');
-      return res.status(500).json({
-        status: 'error',
-        message: 'Internal server error'
-      });
+      return res.status(500).json({ status: 'error', message: 'Internal server error' });
     }
 
     try {
-      const decoded = jwt.verify(token, jwtSecret as Secret);
+      const decoded = jwt.verify(token, jwtSecret as Secret) as any;
+      const user = {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
+        name: decoded.name || decoded.username || (decoded.email ? decoded.email.split('@')[0] : 'user'),
+        username: decoded.username || decoded.name || (decoded.email ? decoded.email.split('@')[0] : 'user')
+      };
       
       // In a real implementation, you would verify the user still exists in the database
       // const userQuery = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
@@ -165,7 +110,7 @@ export const verifyToken = async (req: Request, res: Response) => {
       res.status(200).json({
         status: 'success',
         data: { 
-          user: decoded,
+          user,
           valid: true
         }
       });

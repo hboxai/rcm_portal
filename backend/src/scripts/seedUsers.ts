@@ -6,26 +6,17 @@ const saltRounds = 10; // Standard for bcrypt
 async function seedUsers() {
   console.log('Starting user seeding...');
 
-  const usersToSeed = [
-    {
-      username: 'hbilling_rcm',
-      email: 'HBilling_RCM@hbox.ai',
-      password: 'Admin@2025', // Plain text password to be hashed
-      type: 'BA', // Admin
-      firstName: 'HBilling',
-      lastName: 'RCM',
-      phoneNumber: '0000000000', // Placeholder
-    },
-    {
-      username: 'syed.a',
-      email: 'syed.a@hbox.ai',
-      password: 'User@2025', // Plain text password to be hashed
-      type: 'BU', // User
-      firstName: 'Syed',
-      lastName: 'A',
-      phoneNumber: '0000000001', // Placeholder
-    },
-  ];
+  // Users are supplied via SEED_USERS JSON array env var to avoid hardcoding.
+  // Example (dev only):
+  // SEED_USERS='[{"username":"dev_admin","email":"dev_admin@example.com","password":"DevOnly!Change1","type":"BA","firstName":"Dev","lastName":"Admin","phoneNumber":"0000000000"}]'
+  const raw = process.env.SEED_USERS;
+  if (!raw) {
+    console.log('SEED_USERS env var not set. Nothing to seed.');
+    return;
+  }
+  let usersToSeed: any[] = [];
+  try { usersToSeed = JSON.parse(raw); } catch (e) { console.error('Invalid SEED_USERS JSON:', (e as any)?.message||e); return; }
+  if (!Array.isArray(usersToSeed) || !usersToSeed.length) { console.log('SEED_USERS contains no user objects.'); return; }
 
   for (const userData of usersToSeed) {
     try {

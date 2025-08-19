@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import LoginForm from '../components/auth/LoginForm';
 import { useNavigate } from 'react-router-dom';
@@ -6,14 +6,20 @@ import { useAuth } from '../contexts/AuthContext';
 import iconImage from '../assets/icons/image.png';
 
 const LoginPage: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, justLoggedIn, clearJustLoggedIn } = useAuth();
+  const [redirecting, setRedirecting] = useState(false);
   const navigate = useNavigate();
   
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/search');
+    if (isAuthenticated && justLoggedIn && !redirecting) {
+      setRedirecting(true);
+      const t = setTimeout(() => {
+        clearJustLoggedIn();
+        navigate('/search');
+      }, 1200);
+      return () => clearTimeout(t);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, justLoggedIn, redirecting, navigate, clearJustLoggedIn]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
@@ -115,7 +121,15 @@ const LoginPage: React.FC = () => {
       
       {/* Right side - login form */}
       <div className="flex-1 flex items-center justify-center p-6 md:p-12 bg-background">
-        <LoginForm />
+        <div className="w-full max-w-md relative">
+          {redirecting && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-white/80 backdrop-blur-sm border border-purple/20">
+              <div className="w-12 h-12 border-4 border-transparent border-t-purple border-r-pink rounded-full animate-spin" />
+              <p className="mt-4 text-sm font-medium text-primary-700">Signing you in...</p>
+            </div>
+          )}
+          <LoginForm />
+        </div>
       </div>
     </div>
   );

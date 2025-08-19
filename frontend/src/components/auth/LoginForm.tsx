@@ -88,6 +88,7 @@ const LoginForm: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginResult, setLoginResult] = useState<{success: boolean; error?: string} | null>(null);
+  // Removed secondary showLoginError to avoid duplicate messages; use errors.form only
   
   // Navigate when authenticated and not in controlled loading state
   useEffect(() => {
@@ -125,6 +126,8 @@ const LoginForm: React.FC = () => {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(credentials.email)) {
       newErrors.email = 'Invalid email format';
+    } else if (!credentials.email.endsWith('@hbox.ai')) {
+      newErrors.email = 'Only @hbox.ai email addresses are allowed';
     }
     
     if (!credentials.password) {
@@ -139,70 +142,53 @@ const LoginForm: React.FC = () => {
     // Prevent default form submission behavior that would cause page reload
     e.preventDefault();
     
-    if (!validate()) return;
+    if (!validate()) {
+      // Add shake animation for validation errors
+      const form = e.target as HTMLFormElement;
+      form.classList.add('animate-shake');
+      setTimeout(() => form.classList.remove('animate-shake'), 500);
+      return;
+    }
     
     try {
       console.log('Submitting login form with:', credentials.email);
       
-      // Set logging in state to true to show loading UI
-      setIsLoggingIn(true);
-      setLoginResult(null);
-      // Clear any previous form errors
-      setErrors(prev => {
-        const newErrors = {...prev};
-        delete newErrors.form;
-        return newErrors;
-      });
+  // Clear any previous form-level error
+  if (errors.form) setErrors(prev => { const ne={...prev}; delete ne.form; return ne; });
       
-      // Record the start time
-      const startTime = Date.now();
-      
-      // Try to login with the provided credentials
+      // Try to login with the provided credentials (no loading state shown)
       const loginSuccess = await login({
         email: credentials.email,
         password: credentials.password
       });
       
-      // Calculate how much time has elapsed
-      const elapsedTime = Date.now() - startTime;
-      
-      // Calculate remaining time to ensure EXACTLY 1.5 seconds (1500ms) of loading
-      const remainingDelay = Math.max(0, 1500 - elapsedTime);
-      
-      // Use setTimeout to ensure consistent timing regardless of success or failure
-      setTimeout(() => {
-        if (loginSuccess) {
-          // Login successful - will navigate after delay via useEffect
-          setLoginResult({ success: true });
-          console.log("Login successful, preparing to navigate");
-        } else {
-          // Login failed
-          console.log("Login failed, showing error message");
-          setLoginResult({ 
-            success: false, 
-            error: 'Invalid email or password. Please try again.' 
-          });
-          setErrors({ form: 'Invalid email or password. Please try again.' });
-        }
-        // Turn off loading state after consistent delay
-        setIsLoggingIn(false);
-      }, remainingDelay);
+      if (loginSuccess) {
+        // Only show loading state AFTER successful login
+        setIsLoggingIn(true);
+        // Clear any previous errors on successful login
+        setErrors({});
+        setLoginResult({ success: true });
+        console.log("Login successful, showing loading state and preparing to navigate");
+      } else {
+        // Login failed - show error immediately, stay on same screen
+        console.log("Login failed, showing error message - staying on login screen");
+        const form = e.target as HTMLFormElement;
+        form.classList.add('animate-shake');
+        setTimeout(() => form.classList.remove('animate-shake'), 500);
+        
+  setErrors({ form: 'Invalid password. Please try again.' });
+      }
       
     } catch (error) {
       console.error('Login form submission error:', error);
       
-      // For errors, always wait the full 1.5 seconds before showing error
-      const remainingDelay = 1500; // Always wait full 1.5 seconds for errors
+      // Show error immediately, stay on same screen
+      console.log("Login error occurred - staying on login screen");
+      const form = e.target as HTMLFormElement;
+      form.classList.add('animate-shake');
+      setTimeout(() => form.classList.remove('animate-shake'), 500);
       
-      // Wait for the minimum delay before showing error
-      setTimeout(() => {
-        setLoginResult({ 
-          success: false, 
-          error: 'An error occurred during login. Please try again.' 
-        });
-        setErrors({ form: 'An error occurred during login. Please try again.' });
-        setIsLoggingIn(false);
-      }, remainingDelay);
+  setErrors({ form: 'An error occurred during login. Please try again.' });
     }
   };
 
@@ -268,7 +254,7 @@ const LoginForm: React.FC = () => {
           <motion.p 
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-success-500 text-sm font-medium mt-2"
+            className="text-green text-sm font-medium mt-2"
             data-testid="login-success"
           >
             Login successful! Redirecting...
@@ -278,7 +264,7 @@ const LoginForm: React.FC = () => {
           <motion.p 
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-error-500 text-sm font-medium mt-2"
+            className="text-red text-sm font-medium mt-2"
             data-testid="login-error"
           >
             {errors.form}

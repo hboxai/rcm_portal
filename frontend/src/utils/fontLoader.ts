@@ -1,93 +1,38 @@
 /**
- * Font loader utility for the RCM Portal application
+ * Font loading utility for the RCM Portal application
  * 
- * This utility loads the FF Mark font family from a CDN or local source.
- * If FF Mark is not available, it falls back to a system font stack.
+ * This module handles the loading and configuration of fonts,
+ * with fallbacks to ensure robust typography across the application.
  */
 
+// Preload Inter font from Google Fonts
 export const loadFonts = () => {
-  // Create a new style element
-  const style = document.createElement('style');
-  
-  // Define the font-face rules with a CDN source or with system font fallbacks
-  style.textContent = `
-    /* FF Mark Font with Fallbacks */
-    @font-face {
-      font-family: 'FF Mark';
-      src: local('FF Mark Medium'),
-           local('FFMark-Medium');
-      font-weight: 500;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'FF Mark';
-      src: local('FF Mark Bold'),
-           local('FFMark-Bold');
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'FF Mark';
-      src: local('FF Mark'),
-           local('FFMark-Regular');
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'FF Mark';
-      src: local('FF Mark Light'),
-           local('FFMark-Light');
-      font-weight: 300;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    /* System font fallback stack */
-    body {
-      font-family: 'FF Mark', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-  `;
-
-  // Append the style element to the head
-  document.head.appendChild(style);
-
-  // Optional: Log to console that fonts were initialized
-  console.log('FF Mark font family initialized with fallbacks');
+  try {
+    // Create link element for Inter font preload
+    const linkElement = document.createElement('link');
+    linkElement.rel = 'preload';
+    linkElement.as = 'style';
+    linkElement.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap';
+    linkElement.crossOrigin = 'anonymous';
+    
+    // Add to document head
+    document.head.appendChild(linkElement);
+    
+    // Load the actual stylesheet
+    const styleElement = document.createElement('link');
+    styleElement.rel = 'stylesheet';
+    styleElement.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap';
+    styleElement.crossOrigin = 'anonymous';
+    
+    document.head.appendChild(styleElement);
+    
+    console.log('Inter font loading initiated');
+    return true;
+  } catch (error) {
+    console.warn('Font loading failed, falling back to system fonts:', error);
+    return false;
+  }
 };
 
-/**
- * Utility to check if a font is loaded and available
- * @param fontFamily The font family name to check
- * @returns boolean indicating if the font is loaded
- */
-export const isFontLoaded = (fontFamily: string): boolean => {
-  const testString = 'abcdefghijklmnopqrstuvwxyz';
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  
-  if (!context) return false;
-  
-  const baselineFont = '16px sans-serif';
-  const testFont = `16px ${fontFamily}, sans-serif`;
-  
-  context.font = baselineFont;
-  const baselineWidth = context.measureText(testString).width;
-  
-  context.font = testFont;
-  const testWidth = context.measureText(testString).width;
-  
-  return baselineWidth !== testWidth;
-};
-
-export default {
-  loadFonts,
-  isFontLoaded
-};
+// Export default
+export default { loadFonts };

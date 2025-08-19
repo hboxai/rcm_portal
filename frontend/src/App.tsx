@@ -1,8 +1,9 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ClaimProvider } from './contexts/ClaimContext';
 import './index.css';
+import Header from './components/layout/Header';
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -43,34 +44,51 @@ const ProtectedRoute = ({ element }: { element: JSX.Element }) => {
 };
 
 // Route to redirect authenticated users away from login
+// Component to show a brief loading spinner after successful auth before redirect
+const PostLoginRedirect = () => {
+  const navigate = useNavigate();
+  const { clearJustLoggedIn } = useAuth();
+  useEffect(() => {
+    const t = setTimeout(() => {
+      clearJustLoggedIn();
+      navigate('/search', { replace: true });
+    }, 1100); // ~1.1s visual feedback
+    return () => clearTimeout(t);
+  }, [navigate, clearJustLoggedIn]);
+  return <LoadingFallback />;
+};
+
 const AuthRoute = ({ element }: { element: JSX.Element }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return <LoadingFallback />;
-  }
-  
+  const { isAuthenticated, isLoading, justLoggedIn } = useAuth();
+
+  if (isLoading) return <LoadingFallback />;
   if (isAuthenticated) {
+    if (justLoggedIn) return <PostLoginRedirect />;
     return <Navigate to="/search" replace />;
   }
-  
   return element;
 };
 
 function AppRoutes() {
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const showHeader = isAuthenticated && location.pathname !== '/login';
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <Routes>
-        <Route path="/login" element={<AuthRoute element={<LoginPage />} />} />
-        <Route path="/search" element={<ProtectedRoute element={<SearchPage />} />} />
-        <Route path="/profile/:id" element={<ProtectedRoute element={<ProfilePage />} />} />
-        <Route path="/full-profile/:id" element={<ProtectedRoute element={<FullProfilePage />} />} />
-        <Route path="/user-management" element={<ProtectedRoute element={<UserManagementPage />} />} />
-        <Route path="/history" element={<ProtectedRoute element={<HistoryPage />} />} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
+    <>
+      {showHeader && <Header />}
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/login" element={<AuthRoute element={<LoginPage />} />} />
+          <Route path="/search" element={<ProtectedRoute element={<SearchPage />} />} />
+          <Route path="/profile/:id" element={<ProtectedRoute element={<ProfilePage />} />} />
+            <Route path="/full-profile/:id" element={<ProtectedRoute element={<FullProfilePage />} />} />
+          <Route path="/user-management" element={<ProtectedRoute element={<UserManagementPage />} />} />
+          <Route path="/history" element={<ProtectedRoute element={<HistoryPage />} />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 }
 

@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronLeft, User, DollarSign, Shield } from 'lucide-react';
-import Header from '../components/layout/Header';
 import GlassCard from '../components/ui/GlassCard';
 import { useClaims } from '../contexts/ClaimContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,10 +84,8 @@ const FullProfilePage: React.FC = () => {
     </div>
   );
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white text-textDark">
-      <Header />
-      
-      <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
+    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white text-textDark pt-24">
+      <div className="container mx-auto pb-12 px-4 md:px-6">
         <div className="mb-8 p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
           <div className="flex items-center gap-2 mb-2">
             <Link 

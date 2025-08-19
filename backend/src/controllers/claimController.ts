@@ -7,7 +7,8 @@ const CLAIM_HISTORY_TABLE = process.env.CLAIM_HISTORY_TABLE || 'upl_change_logs'
 // Many legacy / external tables may not have a generic "id" column. Set CLAIMS_ID_COLUMN
 // (e.g. cpt_id, oa_claim_id, oa_visit_id, claim_number, etc.) and the code will alias it to id.
 // If not provided we assume an "id" column already exists.
-const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'id';
+// Default to cpt_id because api_bil_claim_reimburse lacks a plain 'id'
+const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'cpt_id';
 import Claim from '../models/Claim.js';
 import ChangeLog from '../models/ChangeLog.js';
 import fs from 'fs';
@@ -66,30 +67,23 @@ export const getClaims = async (req: Request, res: Response) => {
       }    }
     
     // Build query components
-    // Build a projection joining reimburse (base) with submit for richer demographic/procedure data.
-    // Base CLAIMS_TABLE currently expected to be api_bil_claim_reimburse.
-    // We LEFT JOIN api_bil_claim_submit on patient_id and loose CPT correlation for enrichment.
-    const SUBMIT_TABLE = process.env.SUBMIT_TABLE || 'api_bil_claim_submit';
+    // Projection from reimburse table only (submit detached)
     let selectQuery = `
       SELECT
         r.${CLAIMS_ID_COLUMN} AS id,
         r.patient_id,
-        s.patient_emr_no,
+        NULL AS patient_emr_no,
         r.cpt_id AS billing_id,
-        COALESCE(s.cpt_code_id, s.cpt1::text, s.cpt2::text, s.cpt3::text, s.cpt4::text, s.cpt5::text, s.cpt6::text) AS cpt_code,
-        s.patientfirst AS first_name,
-        s.patientlast AS last_name,
-        s.patientdob AS date_of_birth,
-        -- Service start/end: choose earliest from-date and latest to-date among first two lines as heuristic
-        COALESCE(s.fromdateofservice1, s.fromdateofservice2, s.fromdateofservice3, s.fromdateofservice4, s.fromdateofservice5, s.fromdateofservice6) AS service_start,
-        COALESCE(s.todateofservice1, s.todateofservice2, s.todateofservice3, s.todateofservice4, s.todateofservice5, s.todateofservice6) AS service_end,
-        s.diagcode1 AS icd_code,
-        -- Provider name assembled from physician name columns if present
-        NULLIF(TRIM(CONCAT_WS(' ', s.physicianfirst, s.physicianlast)), '') AS provider_name,
-        -- Units: prefer units1 then fallback others
-        COALESCE(s.units1, s.units2, s.units3, s.units4, s.units5, s.units6) AS units,
-        -- oa_claim / visit: submit has oa_claimid; oa_visit_id not present, return NULL
-        s.oa_claimid AS oa_claim_id,
+        NULL AS cpt_code,
+        NULL AS first_name,
+        NULL AS last_name,
+        NULL AS date_of_birth,
+        r.charge_dt AS service_start,
+        r.charge_dt AS service_end,
+        NULL AS icd_code,
+        NULL AS provider_name,
+        NULL AS units,
+        NULL AS oa_claim_id,
         NULL AS oa_visit_id,
         r.charge_dt,
         r.charge_amt,
@@ -117,11 +111,10 @@ export const getClaims = async (req: Request, res: Response) => {
         r.sec_recv_dt,
         r.sec_chk_amt,
         r.sec_cmt,
+        r.sec_denial_code,
         r.pat_amt,
         r.pat_recv_dt
-      FROM ${CLAIMS_TABLE} r
-      LEFT JOIN ${SUBMIT_TABLE} s
-        ON s.patient_id = r.patient_id`;
+      FROM ${CLAIMS_TABLE} r`;
 
   const countQuery = `SELECT COUNT(*) FROM ${CLAIMS_TABLE} r`;
 
@@ -332,23 +325,22 @@ export const getClaimById = async (req: Request, res: Response) => {
     }
     
     // Query to get full claim details by ID
-    const SUBMIT_TABLE = process.env.SUBMIT_TABLE || 'api_bil_claim_submit';
     const sqlQuery = `
       SELECT
         r.${CLAIMS_ID_COLUMN} AS id,
         r.patient_id,
-        s.patient_emr_no,
+        NULL AS patient_emr_no,
         r.cpt_id AS billing_id,
-        COALESCE(s.cpt_code_id, s.cpt1::text, s.cpt2::text, s.cpt3::text, s.cpt4::text, s.cpt5::text, s.cpt6::text) AS cpt_code,
-        s.patientfirst AS first_name,
-        s.patientlast AS last_name,
-        s.patientdob AS date_of_birth,
-        COALESCE(s.fromdateofservice1, s.fromdateofservice2, s.fromdateofservice3, s.fromdateofservice4, s.fromdateofservice5, s.fromdateofservice6) AS service_start,
-        COALESCE(s.todateofservice1, s.todateofservice2, s.todateofservice3, s.todateofservice4, s.todateofservice5, s.todateofservice6) AS service_end,
-        s.diagcode1 AS icd_code,
-        NULLIF(TRIM(CONCAT_WS(' ', s.physicianfirst, s.physicianlast)), '') AS provider_name,
-        COALESCE(s.units1, s.units2, s.units3, s.units4, s.units5, s.units6) AS units,
-        s.oa_claimid AS oa_claim_id,
+        NULL AS cpt_code,
+        NULL AS first_name,
+        NULL AS last_name,
+        NULL AS date_of_birth,
+        r.charge_dt AS service_start,
+        r.charge_dt AS service_end,
+        NULL AS icd_code,
+        NULL AS provider_name,
+        NULL AS units,
+        NULL AS oa_claim_id,
         NULL AS oa_visit_id,
         r.charge_dt,
         r.charge_amt,
@@ -376,10 +368,10 @@ export const getClaimById = async (req: Request, res: Response) => {
         r.sec_recv_dt,
         r.sec_chk_amt,
         r.sec_cmt,
+        r.sec_denial_code,
         r.pat_amt,
         r.pat_recv_dt
       FROM ${CLAIMS_TABLE} r
-      LEFT JOIN ${SUBMIT_TABLE} s ON s.patient_id = r.patient_id
       WHERE r.${CLAIMS_ID_COLUMN} = $1`;
     
     // Use our optimized query function
@@ -602,7 +594,9 @@ export const updateClaim = async (req: Request, res: Response) => {
     let paramIndex = 1;
     
     for (const [key, value] of Object.entries(updates)) {
-      const dbColumn = key === 'billing_id' ? 'cpt_id' : key;
+      let dbColumn = key;
+      if (key === 'billing_id') dbColumn = 'cpt_id';
+      else if (key === 'charges_adj_amt') dbColumn = 'charges_adjust';
       setClauses.push(`${dbColumn} = $${paramIndex}`);
       queryParams.push(value);
       paramIndex++;

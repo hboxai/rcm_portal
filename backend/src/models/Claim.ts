@@ -1,6 +1,6 @@
 /**
  * Claim model representing the claims table structure.
- * Active source tables: api_bil_claim_reimburse (primary) enriched via api_bil_claim_submit.
+ * Active source table: api_bil_claim_reimburse (only; submit table detached).
  */
 interface Claim {
   id: number;

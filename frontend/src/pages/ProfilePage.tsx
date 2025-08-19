@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronLeft, FileText } from 'lucide-react';
-import Header from '../components/layout/Header';
 import SummaryCard from '../components/profile/SummaryCard';
 import ClaimTabs from '../components/profile/ClaimTabs';
 import HistorySection from '../components/profile/HistorySection';
@@ -50,9 +49,8 @@ const ProfilePage: React.FC = () => {
   if (!currentClaim) return <div className="text-center text-red py-12">Claim not found.</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-light-100 text-textDark">
-      <Header />
-        <div className="container mx-auto pt-24 pb-12 px-4 md:px-6">
+  <div className="min-h-screen bg-gradient-to-br from-white to-light-100 text-textDark pt-24">
+    <div className="container mx-auto pb-12 px-4 md:px-6">
         {/* Light header to match search page */}
         <div className="mb-8 p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
           <div className="flex items-center gap-2 mb-2">

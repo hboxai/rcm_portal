@@ -7,6 +7,8 @@ interface AuthContextType extends AuthState {
   logout: () => void;
   isAdmin: boolean;
   token: string | null; // Add token to the context type
+  justLoggedIn: boolean;
+  clearJustLoggedIn: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,6 +22,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Add state for the token itself to be passed in context
   const [token, setToken] = useState<string | null>(authService.getToken());
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
 
   // Check for existing token on mount
   useEffect(() => {
@@ -66,8 +69,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isAdmin = authState.user?.role === 'Admin';
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
-    setAuthState(prev => ({ ...prev, isLoading: true }));
-    
     try {
       const { user, token: newToken } = await authService.login(credentials); // Get token from login response
       setToken(newToken); // Set token state
@@ -75,12 +76,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setAuthState({
         user,
         isAuthenticated: true,
+        // Keep isLoading false so UI stays on page; component can show its own success animation
         isLoading: false,
       });
+  setJustLoggedIn(true);
       
       return true;
     } catch (error) {
       console.error('Login error:', error);
+      // Ensure we do NOT trigger a loading state on error; leave other auth data untouched
       setAuthState(prev => ({ ...prev, isLoading: false }));
       return false;
     }
@@ -105,6 +109,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         logout,
         isAdmin,
         token, // Provide token in the context value
+  justLoggedIn,
+  clearJustLoggedIn: () => setJustLoggedIn(false),
       }}
     >
       {children}
