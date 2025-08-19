@@ -11,12 +11,10 @@ import { loadFonts } from './utils/fontLoader';
 
 // Preload important resources
 const preloadResources = () => {
-  // Preload key images, fonts or other resources for faster initial load
+  // Preload Google Fonts for better performance
   const preloadLinks = [
-    // FF Mark font preloading
-    { rel: 'preload', href: '/fonts/FFMark-Regular.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
-    { rel: 'preload', href: '/fonts/FFMark-Medium.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' },
-    { rel: 'preload', href: '/fonts/FFMark-Bold.woff2', as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' }
+    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' }
   ];
   
   preloadLinks.forEach(linkProps => {

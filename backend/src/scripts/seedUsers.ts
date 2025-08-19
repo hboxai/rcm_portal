@@ -25,6 +25,15 @@ async function seedUsers() {
       lastName: 'A',
       phoneNumber: '0000000001', // Placeholder
     },
+    {
+      username: 'test',
+      email: 'test@hbox.ai',
+      password: 'User@2025', // Plain text password to be hashed
+      type: 'BU', // User
+      firstName: 'Test',
+      lastName: 'User',
+      phoneNumber: '0000000002', // Placeholder
+    },
   ];
 
   for (const userData of usersToSeed) {

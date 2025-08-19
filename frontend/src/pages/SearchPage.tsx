@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import Header from '../components/layout/Header';
 import SearchForm from '../components/search/SearchForm';
 import SearchResults from '../components/search/SearchResults';
 import { useClaims } from '../contexts/ClaimContext';
@@ -83,8 +82,7 @@ const SearchPage: React.FC = () => {
   if (!isAuthenticated) return null;
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white">
-      <Header />
+    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white pt-24">
       <div className="p-4 md:p-8">
         <div className="mb-8">          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
             Claim Search

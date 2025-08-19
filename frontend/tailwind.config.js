@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        'ff-mark': ['FF Mark', 'Inter', 'sans-serif'],
-        sans: ['FF Mark', 'Inter', 'sans-serif'],
+        'ff-mark': ['Inter', 'FF Mark', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'FF Mark', 'system-ui', 'sans-serif'],
       },      colors: {
         // New Color Palette
         'purple': '#8029D5',

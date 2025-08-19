@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ClaimProvider } from './contexts/ClaimContext';
 import './index.css';
+import Header from './components/layout/Header';
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -69,19 +70,25 @@ const AuthRoute = ({ element }: { element: JSX.Element }) => {
 };
 
 function AppRoutes() {
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const showHeader = isAuthenticated && location.pathname !== '/login';
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <Routes>
-        <Route path="/login" element={<AuthRoute element={<LoginPage />} />} />
-        <Route path="/search" element={<ProtectedRoute element={<SearchPage />} />} />
-        <Route path="/profile/:id" element={<ProtectedRoute element={<ProfilePage />} />} />
-        <Route path="/full-profile/:id" element={<ProtectedRoute element={<FullProfilePage />} />} />
-        <Route path="/user-management" element={<ProtectedRoute element={<UserManagementPage />} />} />
-        <Route path="/history" element={<ProtectedRoute element={<HistoryPage />} />} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
+    <>
+      {showHeader && <Header />}
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/login" element={<AuthRoute element={<LoginPage />} />} />
+          <Route path="/search" element={<ProtectedRoute element={<SearchPage />} />} />
+          <Route path="/profile/:id" element={<ProtectedRoute element={<ProfilePage />} />} />
+            <Route path="/full-profile/:id" element={<ProtectedRoute element={<FullProfilePage />} />} />
+          <Route path="/user-management" element={<ProtectedRoute element={<UserManagementPage />} />} />
+          <Route path="/history" element={<ProtectedRoute element={<HistoryPage />} />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 }
 
