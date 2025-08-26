@@ -57,6 +57,101 @@ interface UserFormData {
   role: string;
 }
 
+// Move UserFormModal outside of the main component to prevent recreation
+const UserFormModal = memo(({ isOpen, user, onClose, onSave, errors, onChange }: {
+  isOpen: boolean;
+  user: UserFormData | null;
+  onClose: () => void;
+  onSave: () => void;
+  errors: Record<string, string>;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+}) => {
+  if (!user) return null;
+  
+  return (
+    <>
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 rounded-xl shadow-xl w-full max-w-md p-6 border border-purple/20">
+            <h2 className="text-2xl font-bold text-pink mb-4">
+              {user.id ? 'Edit User' : 'Create New User'}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <GlassInput
+                  label="Username"
+                  name="username"
+                  placeholder="Enter full username"
+                  value={user.username || ''}
+                  onChange={onChange}
+                  error={errors.username}
+                  labelClassName="text-textDark/80"
+                  inputClassName="text-textDark placeholder:text-textDark/60"
+                  className="border-purple/30 focus:border-purple"
+                />
+              </div>
+              <div>
+                <GlassInput
+                  label="Email"
+                  name="email"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={user.email || ''}
+                  onChange={onChange}
+                  error={errors.email}
+                  labelClassName="text-textDark/80"
+                  inputClassName="text-textDark placeholder:text-textDark/60"
+                  className="border-purple/30 focus:border-purple"
+                />
+              </div>
+              <div>
+                <GlassInput
+                  label={`Password ${user.id ? '(Leave blank to keep current)' : ''}`}
+                  name="password"
+                  type="password"
+                  placeholder={user.id ? "••••••••" : "Enter password"}
+                  value={user.password || ''}
+                  onChange={onChange}
+                  error={errors.password}
+                  labelClassName="text-textDark/80"
+                  inputClassName="text-textDark placeholder:text-textDark/60"
+                  className="border-purple/30 focus:border-purple"
+                />
+              </div>
+              <div>
+                <label className="block text-textDark/80 mb-2 font-medium">Role</label>
+                <select
+                  name="role"
+                  value={user.role || 'User'}
+                  onChange={onChange}
+                  className="glass-input w-full bg-white/50 text-textDark rounded-lg px-4 py-2.5 border border-purple/30 outline-none focus:ring-2 focus:ring-purple/50 focus:border-purple"
+                >
+                  <option value="User" className="bg-white text-textDark">User</option>
+                  <option value="Admin" className="bg-white text-textDark">Admin</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <Button
+                  variant="secondary"
+                  onClick={onClose}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="accent"
+                  onClick={onSave}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+});
+
 const UserManagement: React.FC = () => {
   const { user: currentLoggedInUser, token } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -278,21 +373,24 @@ const UserManagement: React.FC = () => {
   const handleFormChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
-    if (currentUser) {
-      setCurrentUser(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          [name]: value
-        };
-      });
-    }
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        [name]: value
+      };
+    });
 
     // Clear error when user types
-    if (formErrors[name]) {
-      setFormErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  }, [currentUser, formErrors]);
+    setFormErrors(prev => {
+      if (prev[name]) {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      }
+      return prev;
+    });
+  }, []); // Remove dependencies that cause re-renders
     // Generate background color based on username for avatar
   const getAvatarColor = useCallback((username: string) => {
     const colors = [
@@ -309,100 +407,7 @@ const UserManagement: React.FC = () => {
     return colors[Math.abs(hash) % colors.length];
   }, []);
 
-  // Modal components
-  const UserFormModal = memo(({ isOpen, user, onClose, onSave, errors, onChange }: {
-    isOpen: boolean;
-    user: UserFormData | null;
-    onClose: () => void;
-    onSave: () => void;
-    errors: Record<string, string>;
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  }) => {
-    if (!user) return null;
-    
-    return (        <>
-        {isOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white/95 rounded-xl shadow-xl w-full max-w-md p-6 border border-purple/20">
-              <h2 className="text-2xl font-bold text-pink mb-4">
-                {user.id ? 'Edit User' : 'Create New User'}
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <GlassInput
-                    label="Username"
-                    name="username"
-                    placeholder="Enter full username"
-                    value={user.username}
-                    onChange={onChange}
-                    error={errors.username}
-                    labelClassName="text-textDark/80"
-                    inputClassName="text-textDark placeholder:text-textDark/60"
-                    className="border-purple/30 focus:border-purple"
-                  />
-                </div>
-                <div>
-                  <GlassInput
-                    label="Email"
-                    name="email"
-                    type="email"
-                    placeholder="Enter email address"
-                    value={user.email}
-                    onChange={onChange}
-                    error={errors.email}
-                    labelClassName="text-textDark/80"
-                    inputClassName="text-textDark placeholder:text-textDark/60"
-                    className="border-purple/30 focus:border-purple"
-                  />
-                </div>
-                <div>
-                  <GlassInput
-                    label={`Password ${user.id ? '(Leave blank to keep current)' : ''}`}
-                    name="password"
-                    type="password"
-                    placeholder={user.id ? "••••••••" : "Enter password"}
-                    value={user.password}
-                    onChange={onChange}
-                    error={errors.password}
-                    labelClassName="text-textDark/80"
-                    inputClassName="text-textDark placeholder:text-textDark/60"
-                    className="border-purple/30 focus:border-purple"
-                  />
-                </div>
-                <div>
-                  <label className="block text-textDark/80 mb-2 font-medium">Role</label>
-                  <select
-                    name="role"
-                    value={user.role}
-                    onChange={onChange}
-                    className="glass-input w-full bg-white/50 text-textDark rounded-lg px-4 py-2.5 border border-purple/30 outline-none focus:ring-2 focus:ring-purple/50 focus:border-purple"
-                  >
-                    <option value="User" className="bg-white text-textDark">User</option>
-                    <option value="Admin" className="bg-white text-textDark">Admin</option>
-                  </select>
-                </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <Button
-                    variant="secondary"
-                    onClick={onClose}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="accent"
-                    onClick={onSave}
-                  >
-                    Save
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  });
-
+  // Delete Modal component
   const DeleteUserModal = memo(({ isOpen, user, onClose, onDelete }: {
     isOpen: boolean;
     user: User | null;

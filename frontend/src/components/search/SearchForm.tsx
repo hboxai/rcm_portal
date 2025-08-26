@@ -1,5 +1,6 @@
 import React from 'react';
 import { SearchFilters } from '../../types/claim';
+import GlassDateInput from '../ui/GlassDateInput';
 
 // Updated icons to match login page style with white color and glow
 const PatientIdIcon = () => (
@@ -187,29 +188,13 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
               />
             </div>          </div>
 
-          <div>
-            <label className="block text-textDark mb-2 font-medium">
-              Date of Birth (DOB)
-            </label>
-            <div className="relative">
-               <div 
-                className="absolute left-3 top-1/2 z-10" 
-                style={{
-                  transform: 'translateY(-50%)',
-                }}
-              >
-                <CalendarIcon /> 
-              </div>
-              <input
-                type="date"
-                name="dateOfBirth"
-                placeholder="Select Date of Birth"
-                value={filters.dateOfBirth}
-                onChange={handleChange}
-                className={inputClass}
-              />
-            </div>
-          </div>
+          <GlassDateInput
+            label="Date of Birth (DOB)"
+            name="dateOfBirth"
+            value={filters.dateOfBirth || ''}
+            onChange={handleChange}
+            placeholder="Select Date of Birth"
+          />
 
           <div>
             <label className="block text-textDark mb-2 font-medium">
@@ -265,29 +250,13 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
             </div>
           </div>
           
-          <div>
-            <label className="block text-textDark mb-2 font-medium">
-              Date of Service (DOS)
-            </label>
-            <div className="relative">
-              <div 
-                className="absolute left-3 top-1/2 z-10" 
-                style={{
-                  transform: 'translateY(-50%)',
-                }}
-              >
-                <CalendarIcon />
-              </div>
-              <input
-                type="date"
-                name="dos"
-                placeholder="Select a date"
-                value={filters.dos}
-                onChange={handleChange}
-                className={inputClass}
-              />
-            </div>
-          </div>
+          <GlassDateInput
+            label="Date of Service (DOS)"
+            name="dos"
+            value={filters.dos || ''}
+            onChange={handleChange}
+            placeholder="Select a date"
+          />
           
           <div>
             <label className="block text-textDark mb-2 font-medium">

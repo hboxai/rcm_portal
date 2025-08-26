@@ -8,12 +8,21 @@ import { existsSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// We're now exclusively using the root .env file
-const rootEnvPath = join(__dirname, '../../../.env');
+// We need to go back 4 levels: config -> src -> backend -> rcm_portal -> root
+const rootEnvPath = join(__dirname, '../../../../.env');
 
 // Load the environment variables from the root .env file
 console.log(`Loading .env from: ${rootEnvPath}`);
+console.log(`File exists: ${existsSync(rootEnvPath)}`);
 dotenv.config({ path: rootEnvPath });
+
+// Debug: Print all environment variables to see what's loaded
+console.log('Environment variables loaded:');
+console.log(`DB_HOST: "${process.env.DB_HOST}"`);
+console.log(`DB_PORT: "${process.env.DB_PORT}"`);
+console.log(`DB_NAME: "${process.env.DB_NAME}"`);
+console.log(`DB_USER: "${process.env.DB_USER}"`);
+console.log(`DB_PASSWORD: "${process.env.DB_PASSWORD ? '[SET]' : '[NOT SET]'}"`);
 
 // Check for required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];

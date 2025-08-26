@@ -7,8 +7,8 @@ const CLAIM_HISTORY_TABLE = process.env.CLAIM_HISTORY_TABLE || 'upl_change_logs'
 // Many legacy / external tables may not have a generic "id" column. Set CLAIMS_ID_COLUMN
 // (e.g. cpt_id, oa_claim_id, oa_visit_id, claim_number, etc.) and the code will alias it to id.
 // If not provided we assume an "id" column already exists.
-// Default to cpt_id because api_bil_claim_reimburse lacks a plain 'id'
-const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'cpt_id';
+// Default to bil_claim_reimburse because that's the primary key
+const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'bil_claim_reimburse';
 import Claim from '../models/Claim.js';
 import ChangeLog from '../models/ChangeLog.js';
 import fs from 'fs';
@@ -67,24 +67,24 @@ export const getClaims = async (req: Request, res: Response) => {
       }    }
     
     // Build query components
-    // Projection from reimburse table only (submit detached)
+    // Projection from api_bil_claim_reimburse table
     let selectQuery = `
       SELECT
-        r.${CLAIMS_ID_COLUMN} AS id,
+        r.bil_claim_reimburse AS id,
         r.patient_id,
-        NULL AS patient_emr_no,
+        r.patient_id AS patient_emr_no,
         r.cpt_id AS billing_id,
-        NULL AS cpt_code,
-        NULL AS first_name,
-        NULL AS last_name,
+        r.cpt_id AS cpt_code,
+        CONCAT('Patient ', r.patient_id) AS first_name,
+        '' AS last_name,
         NULL AS date_of_birth,
         r.charge_dt AS service_start,
         r.charge_dt AS service_end,
         NULL AS icd_code,
         NULL AS provider_name,
-        NULL AS units,
-        NULL AS oa_claim_id,
-        NULL AS oa_visit_id,
+        1 AS units,
+        r.claim_id AS oa_claim_id,
+        r.cpt_id AS oa_visit_id,
         r.charge_dt,
         r.charge_amt,
         r.allowed_amt,
@@ -129,13 +129,13 @@ export const getClaims = async (req: Request, res: Response) => {
     }
 
     if (billingId) {
-      // Search in multiple possible ID fields to be flexible
+      // Search in cpt_id and claim_id fields from api_bil_claim_reimburse
       conditions.push(`(
-        oa_visit_id::text LIKE $${paramIndex} OR 
-        cpt_id::text LIKE $${paramIndex} OR 
-        oa_claim_id::text LIKE $${paramIndex}
+        r.cpt_id::text LIKE $${paramIndex} OR 
+        r.claim_id::text LIKE $${paramIndex}
       )`);
-      queryParams.push(`%${billingId}%`);      paramIndex++;
+      queryParams.push(`%${billingId}%`);
+      paramIndex++;
     }
     
     if (dos) {
@@ -145,31 +145,19 @@ export const getClaims = async (req: Request, res: Response) => {
         if (!isNaN(dateObj.getTime())) {
           // Format date consistently for database comparison (YYYY-MM-DD)
           const formattedDate = dateObj.toISOString().split('T')[0];
-          // Match exact date in any of the service date fields
-          conditions.push(`(
-            service_start::date = $${paramIndex} OR
-            service_end::date = $${paramIndex} OR
-            charge_dt::date = $${paramIndex}
-          )`);
+          // Match exact date in charge_dt field
+          conditions.push(`r.charge_dt::date = $${paramIndex}`);
           queryParams.push(formattedDate);
           paramIndex++;
         } else {
           // Fallback to partial text matching
-          conditions.push(`(
-            service_start::text LIKE $${paramIndex} OR 
-            service_end::text LIKE $${paramIndex} OR
-            charge_dt::text LIKE $${paramIndex}
-          )`);
+          conditions.push(`r.charge_dt::text LIKE $${paramIndex}`);
           queryParams.push(`%${dos}%`);
           paramIndex++;
         }
       } catch (e) {
         // Fallback to partial text matching if date parsing fails
-        conditions.push(`(
-          service_start::text LIKE $${paramIndex} OR 
-          service_end::text LIKE $${paramIndex} OR
-          charge_dt::text LIKE $${paramIndex}
-        )`);
+        conditions.push(`r.charge_dt::text LIKE $${paramIndex}`);
         queryParams.push(`%${dos}%`);
         paramIndex++;
       }
