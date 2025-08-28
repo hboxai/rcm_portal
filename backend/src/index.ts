@@ -4,10 +4,12 @@ import dotenv from 'dotenv';
 import pool from './config/db.js';
 import initializeDatabase from './config/initDb.js';
 import claimRoutes from './routes/claims.js';
+import uploadsRouter from './routes/uploads.js'; // Import the uploads router
 import authRoutes from './routes/auth.js';
 import historyRoutes from './routes/history.js'; // Import the new history routes
 import userRoutes from './routes/users.js'; // Import the new user routes
 import { authMiddleware } from './middleware/auth.js';
+import auditRouter from './routes/audit.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path'; // Added for static file serving
@@ -26,7 +28,7 @@ const app = express();
 // Trust proxy headers - important for rate limiting and correct IP identification when behind a proxy like Nginx
 app.set('trust proxy', 1); // Trusts the first hop (nginx)
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 60172;
 
 // Security middleware
 app.use(helmet()); // Adds various HTTP headers for security
@@ -96,9 +98,11 @@ app.get('/api/db-test', async (req, res) => {
 
 // Authentication routes (no auth required)
 app.use('/api/auth', authRoutes);
+app.use('/api/audit', auditRouter);
 
 // Protected routes (auth required)
 app.use('/api/claims', authMiddleware, claimRoutes);
+app.use('/api/uploads', uploadsRouter); // Mount the uploads router
 app.use('/api/history', authMiddleware, historyRoutes); // Add the history routes to the app
 app.use('/api/users', authMiddleware, userRoutes); // Add the user routes to the app
 

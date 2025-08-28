@@ -24,6 +24,9 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const FullProfilePage = lazy(() => import('./pages/FullProfilePage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
+const SubmitFilesPage = lazy(() => import('./pages/SubmitFilesPage'));
+const UploadPage = lazy(() => import('./pages/UploadPage'));
+const PreviewPage = lazy(() => import('./pages/PreviewPage'));
 
 // Protected route component
 const ProtectedRoute = ({ element }: { element: JSX.Element }) => {
@@ -79,6 +82,9 @@ function AppRoutes() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="/login" element={<AuthRoute element={<LoginPage />} />} />
+          <Route path="/submit-files" element={<ProtectedRoute element={<SubmitFilesPage />} />} />
+          <Route path="/upload" element={<ProtectedRoute element={<UploadPage />} />} />
+          <Route path="/preview/:fileId" element={<ProtectedRoute element={<PreviewPage />} />} />
           <Route path="/search" element={<ProtectedRoute element={<SearchPage />} />} />
           <Route path="/profile/:id" element={<ProtectedRoute element={<ProfilePage />} />} />
             <Route path="/full-profile/:id" element={<ProtectedRoute element={<FullProfilePage />} />} />

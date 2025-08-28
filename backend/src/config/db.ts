@@ -58,9 +58,9 @@ const pool = new Pool({  host: DB_HOST,
     rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
     require: true
   } : false,
-  connectionTimeoutMillis: 15000,    // 15 second timeout
-  idleTimeoutMillis: 30000,          // 30 second idle timeout (reduced from 5 min)
-  max: 1,                           // Maximum 1 client in the pool
+  connectionTimeoutMillis: 30000,    // 30 second connect timeout
+  idleTimeoutMillis: 30000,          // 30 second idle timeout
+  max: 5,                            // Allow a few concurrent DB ops
   allowExitOnIdle: true,             // Allow pool to clean up idle connections
   application_name: 'project-bolt'   // Identify connections in pg_stat_activity
 });
@@ -91,6 +91,9 @@ pool.on('connect', (client: any) => {
     console.log(`DB pool connection (total: ${connectionCount})`);
     logThrottleTime = Date.now();
   }
+  // Set per-session safety timeouts
+  client.query("SET statement_timeout TO '60s'").catch(()=>{});
+  client.query("SET idle_in_transaction_session_timeout TO '60s'").catch(()=>{});
 });
 
 // Handle connection errors
@@ -99,17 +102,35 @@ pool.on('error', (err: any, client: any) => {
 });
 
 // Create a wrapper around the pool query with proper error handling
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
 const query = async (text: string, params: any[] = []) => {
-  let client;
-  try {
-    client = await pool.connect();
-    return await client.query(text, params);
-  } catch (error: any) {
-    console.error('Database query error:', error.message);
-    throw error;
-  } finally {
-    if (client) client.release();
+  let attempt = 0;
+  let lastErr: any;
+  while (attempt < 3) {
+    let client;
+    try {
+      client = await pool.connect();
+      const result = await client.query(text, params);
+      client.release();
+      return result;
+    } catch (error: any) {
+      lastErr = error;
+      console.error('Database query error:', error.message);
+      // Retry on connect timeouts or transient errors
+      const msg = (error?.message || '').toLowerCase();
+      if (msg.includes('timeout') || msg.includes('etimedout') || msg.includes('econnreset')) {
+        attempt++;
+        await sleep(500 * attempt);
+        continue;
+      }
+      throw error;
+    } finally {
+      // Ensure client is released if acquired
+      try { /* @ts-ignore */ if (client) client.release(); } catch {}
+    }
   }
+  throw lastErr;
 };
 
 // Export both the pool and the optimized query function

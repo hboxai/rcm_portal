@@ -3,6 +3,7 @@ import { motion, useScroll, useMotionValueEvent, AnimatePresence } from 'framer-
 import { Menu, X, History, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import LogoutConfirmModal from '../ui/LogoutConfirmModal';
 
 const menuItemVariants = {
   hidden: { opacity: 0, y: -10 },
@@ -21,6 +22,7 @@ const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { scrollY } = useScroll();
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,23 +52,34 @@ const Header: React.FC = () => {
   }, [isMobileMenuOpen]);
 
   const handleLogout = useCallback(() => {
+    setShowLogoutConfirm(true);
+  }, []);
+
+  const confirmLogout = useCallback(() => {
+    setShowLogoutConfirm(false);
     logout();
     navigate('/login');
   }, [logout, navigate]);
+
+  const cancelLogout = useCallback(() => {
+    setShowLogoutConfirm(false);
+  }, []);
 
   if (!user) return null;
   
   const isActive = (path: string) => location.pathname === path;
   
-  return (    <motion.header 
-      className={`fixed top-0 left-0 right-0 z-50 py-4 transition-all duration-300 ease-in-out ${
-        isScrolled 
-          ? 'bg-purple/90 backdrop-blur-md shadow-lg shadow-purple/20' 
-          : 'bg-purple/85 backdrop-blur-sm'
-      }`}
-      initial={false}
-      animate={false}
-    >
+  return (
+    <>
+      <motion.header 
+        className={`fixed top-0 left-0 right-0 z-50 py-4 transition-all duration-300 ease-in-out ${
+          isScrolled 
+            ? 'bg-purple/90 backdrop-blur-md shadow-lg shadow-purple/20' 
+            : 'bg-purple/85 backdrop-blur-sm'
+        }`}
+        initial={false}
+        animate={false}
+      >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between">
           {/* Site Name - Left */}
@@ -96,6 +109,26 @@ const Header: React.FC = () => {
               whileHover="hover"
               custom={0}
               transition={{ delay: 0.1 }}
+            >
+              <Link 
+                to="/submit-files" 
+                className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 ${
+                  isActive('/submit-files') 
+                    ? 'text-white bg-white/20 shadow-sm shadow-white/10' 
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Submit Files
+              </Link>
+            </motion.div>
+
+            <motion.div
+              variants={menuItemVariants}
+              initial="hidden"
+              animate="visible"
+              whileHover="hover"
+              custom={1}
+              transition={{ delay: 0.15 }}
             >              <Link 
                 to="/search" 
                 className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 ${
@@ -113,7 +146,7 @@ const Header: React.FC = () => {
               initial="hidden"
               animate="visible"
               whileHover="hover"
-              custom={1}
+              custom={2}
               transition={{ delay: 0.2 }}
             >              <Link 
                 to="/history" 
@@ -134,8 +167,8 @@ const Header: React.FC = () => {
                 initial="hidden"
                 animate="visible"
                 whileHover="hover"
-                custom={2}
-                transition={{ delay: 0.3 }}
+                custom={3}
+                transition={{ delay: 0.25 }}
               >
                 <Link 
                   to="/user-management" 
@@ -196,6 +229,24 @@ const Header: React.FC = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
+              >
+                <Link 
+                  to="/submit-files" 
+                  className={`py-3 px-4 rounded-md ${
+                    isActive('/submit-files') 
+                      ? 'text-textLight bg-white/10' 
+                      : 'text-textLight/70 hover:text-textLight hover:bg-white/5'
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Submit Files
+                </Link>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
               >
                 <Link 
                   to="/search" 
@@ -266,7 +317,15 @@ const Header: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.header>
+      </motion.header>
+      
+      {/* Logout Confirmation Modal - Rendered as Portal */}
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onConfirm={confirmLogout}
+        onCancel={cancelLogout}
+      />
+    </>
   );
 };
 

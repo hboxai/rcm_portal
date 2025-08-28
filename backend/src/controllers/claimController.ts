@@ -34,685 +34,80 @@ const queryCache: Record<string, {
  */
 export const getClaims = async (req: Request, res: Response) => {
   try {
-    requestCounter++;
-    const requestId = requestCounter;
-
-    const shouldLog = requestId % 5 === 0;
-    if (shouldLog) {
-      console.log(`[Request #${requestId}] GET /api/claims received with query params:`, req.query);
-    }    // Extract query parameters
-    const patientId = req.query.patient_id ? String(req.query.patient_id) : undefined;
-    const billingId = req.query.billingId ? String(req.query.billingId) : undefined;
-    const dos = req.query.dos ? String(req.query.dos) : undefined;
-    const firstName = req.query.first_name as string | undefined;
-    const lastName = req.query.last_name as string | undefined;
-    const payerName = req.query.prim_ins as string | undefined;
-    const dateOfBirth = req.query.date_of_birth as string | undefined;
-    const cptCode = req.query.cpt_code as string | undefined;
-    const clinicName = req.query.clinic_name as string | undefined;
-    const providerName = req.query.provider_name as string | undefined;
-
-    // Pagination parameters
-    const page = parseInt(req.query.page as string || '1');
-    const limit = parseInt(req.query.limit as string || '10'); // Default limit to 10 if not provided
-    const offset = (page - 1) * limit;
-
-    if (shouldLog) {
-      console.log(`[Request #${requestId}] Query params received:`, req.query);
-      if (cptCode) {
-        console.log(`[Request #${requestId}] CPT code filter received:`, cptCode);
-      }
-      if (billingId) {
-        console.log(`[Request #${requestId}] Billing ID filter received:`, billingId);
-      }    }
-    
-    // Build query components
-    // Projection from api_bil_claim_reimburse table
-    let selectQuery = `
-      SELECT
-        r.bil_claim_reimburse AS id,
-        r.patient_id,
-        r.patient_id AS patient_emr_no,
-        r.cpt_id AS billing_id,
-        r.cpt_id AS cpt_code,
-        CONCAT('Patient ', r.patient_id) AS first_name,
-        '' AS last_name,
-        NULL AS date_of_birth,
-        r.charge_dt AS service_start,
-        r.charge_dt AS service_end,
-        NULL AS icd_code,
-        NULL AS provider_name,
-        1 AS units,
-        r.claim_id AS oa_claim_id,
-        r.cpt_id AS oa_visit_id,
-        r.charge_dt,
-        r.charge_amt,
-        r.allowed_amt,
-        r.allowed_add_amt,
-        r.allowed_exp_amt,
-        r.total_amt,
-        r.charges_adjust AS charges_adj_amt,
-        r.write_off_amt,
-        r.bal_amt,
-        r.reimb_pct,
-        r.claim_status,
-        r.claim_status_type,
-        r.prim_ins,
-        r.prim_amt,
-        r.prim_post_dt,
-        r.prim_chk_det,
-        r.prim_recv_dt,
-        r.prim_chk_amt,
-        r.prim_cmt,
-        r.sec_ins,
-        r.sec_amt,
-        r.sec_post_dt,
-        r.sec_chk_det,
-        r.sec_recv_dt,
-        r.sec_chk_amt,
-        r.sec_cmt,
-        r.sec_denial_code,
-        r.pat_amt,
-        r.pat_recv_dt
-      FROM ${CLAIMS_TABLE} r`;
-
-  const countQuery = `SELECT COUNT(*) FROM ${CLAIMS_TABLE} r`;
-
-    const queryParams: any[] = [];
-    const conditions: string[] = [];
-    let paramIndex = 1;
-
-    // Add filters if provided
-    if (patientId) {
-      conditions.push(`patient_id::text LIKE $${paramIndex++}`);
-      queryParams.push(`%${patientId}%`);
-    }
-
-    if (billingId) {
-      // Search in cpt_id and claim_id fields from api_bil_claim_reimburse
-      conditions.push(`(
-        r.cpt_id::text LIKE $${paramIndex} OR 
-        r.claim_id::text LIKE $${paramIndex}
-      )`);
-      queryParams.push(`%${billingId}%`);
-      paramIndex++;
-    }
-    
-    if (dos) {
-      try {
-        // Try to handle the date as a proper date
-        const dateObj = new Date(dos);
-        if (!isNaN(dateObj.getTime())) {
-          // Format date consistently for database comparison (YYYY-MM-DD)
-          const formattedDate = dateObj.toISOString().split('T')[0];
-          // Match exact date in charge_dt field
-          conditions.push(`r.charge_dt::date = $${paramIndex}`);
-          queryParams.push(formattedDate);
-          paramIndex++;
-        } else {
-          // Fallback to partial text matching
-          conditions.push(`r.charge_dt::text LIKE $${paramIndex}`);
-          queryParams.push(`%${dos}%`);
-          paramIndex++;
-        }
-      } catch (e) {
-        // Fallback to partial text matching if date parsing fails
-        conditions.push(`r.charge_dt::text LIKE $${paramIndex}`);
-        queryParams.push(`%${dos}%`);
-        paramIndex++;
-      }
-    }
-
-    if (firstName) {
-      conditions.push(`LOWER(first_name) LIKE LOWER($${paramIndex++})`);
-      queryParams.push(`%${firstName}%`);
-    }
-
-    if (lastName) {
-      conditions.push(`LOWER(last_name) LIKE LOWER($${paramIndex++})`);
-      queryParams.push(`%${lastName}%`);
-    }
-
-    if (payerName) {
-      conditions.push(`LOWER(prim_ins) LIKE LOWER($${paramIndex++})`);      queryParams.push(`%${payerName}%`);
-    }
-    
-    if (dateOfBirth) {
-      try {
-        // Try to handle the date as a proper date
-        const dateObj = new Date(dateOfBirth);
-        if (!isNaN(dateObj.getTime())) {
-          // Format date consistently for database comparison (YYYY-MM-DD)
-          const formattedDate = dateObj.toISOString().split('T')[0];
-          // Match exact date in the date_of_birth field
-          conditions.push(`date_of_birth::date = $${paramIndex++}`);
-          queryParams.push(formattedDate);
-        } else {
-          // Fallback to partial text matching
-          conditions.push(`date_of_birth::text LIKE $${paramIndex++}`);
-          queryParams.push(`%${dateOfBirth}%`);
-        }
-      } catch (e) {
-        // Fallback to partial text matching if date parsing fails
-        conditions.push(`date_of_birth::text LIKE $${paramIndex++}`);      queryParams.push(`%${dateOfBirth}%`);
-      }
-    }
-    
-    if (cptCode) {
-      conditions.push(`cpt_code::text LIKE $${paramIndex++}`); // Remove LOWER(), cast to text      queryParams.push(`%${cptCode}%`);
-    }
-    
-    // Map clinicName to cpt_code as facility_name column doesn't exist in the database
-    if (clinicName) {
-      conditions.push(`cpt_code::text LIKE $${paramIndex++}`);
-      queryParams.push(`%${clinicName}%`);
-    }
-
-    // Map providerName to provider_name which exists in the database
-    if (providerName) {
-      conditions.push(`LOWER(provider_name) LIKE LOWER($${paramIndex++})`);
-      queryParams.push(`%${providerName}%`);
-    }
-
-    let whereClause = '';
-    if (conditions.length > 0) {
-      whereClause = ' WHERE ' + conditions.join(' AND ');
-    }
-
-    const fullCountQuery = countQuery + whereClause;
-    let fullSelectQuery = selectQuery + whereClause;
-
-    // Sort by most recent service date with nulls last
-    fullSelectQuery += ' ORDER BY service_end DESC NULLS LAST';
-
-    // Add LIMIT and OFFSET for pagination
-    fullSelectQuery += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-    const selectQueryParams = [...queryParams, limit, offset];
-
-    // Create a cache key based on the query and params
-    const cacheKey = JSON.stringify({ sql: fullSelectQuery, params: selectQueryParams, countSql: fullCountQuery, countParams: queryParams });
-    const now = Date.now();
-    
-    if (queryCache[cacheKey] && now - queryCache[cacheKey].timestamp < queryCache[cacheKey].ttl) {
-      if (shouldLog) console.log(`[Request #${requestId}] Using cached result for claims query`);
-      return res.status(200).json(queryCache[cacheKey].data);
-    }
-
-    if (shouldLog) {
-      console.log(`[Request #${requestId}] Executing SQL query:`, fullSelectQuery.replace(/\s+/g, ' '));
-      console.log(`[Request #${requestId}] With parameters:`, selectQueryParams);
-      console.log(`[Request #${requestId}] Executing count query:`, fullCountQuery.replace(/\s+/g, ' '));
-      console.log(`[Request #${requestId}] With parameters:`, queryParams);
-    }
-
-    try {
-      // Execute count query
-      const countResult = await query(fullCountQuery, queryParams);
-      const totalCount = parseInt(countResult.rows[0].count);
-
-      // Execute select query for paginated data
-      const { rows } = await query(fullSelectQuery, selectQueryParams);
-      
-      if (shouldLog) console.log(`[Request #${requestId}] Query returned ${rows.length} claims out of ${totalCount} total`);
-      
-      const result = {
-        success: true,
-        totalCount,
-        page,
-        limit,
-        totalPages: Math.ceil(totalCount / limit),
-        data: rows
-      };
-      
-      queryCache[cacheKey] = {
-        data: result,
-        timestamp: now,
-        ttl: 30000 // 30 seconds
-      };
-      
-      return res.status(200).json(result);
-    } catch (dbError) {
-      console.error(`[Request #${requestId}] Database query error:`, dbError);
-      
-      // Return a detailed error for debugging
-      return res.status(500).json({
-        success: false,
-        error: 'Database query failed',
-        message: dbError instanceof Error ? dbError.message : 'Unknown database error'
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching claims:', error);
+    // Database tables unlinked - return empty results
+    console.log('Claims search disabled: Database tables unlinked');
+    return res.json({
+      success: true,
+      data: [],
+      totalCount: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+      message: 'Search functionality disabled: Database tables unlinked'
+    });
+  } catch (error: any) {
+    console.error('Error in getClaims:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to retrieve claims',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Database tables unlinked',
+      error: error.message
     });
   }
 };
 
 /**
- * Get claim by ID
+ * Get claim by ID - Database tables unlinked
  * @route GET /api/claims/:id
  */
 export const getClaimById = async (req: Request, res: Response) => {
   try {
-    requestCounter++;
-    const requestId = requestCounter;
-  const rawId = req.params.id;
-  // Only coerce to number if underlying column is numeric 'id'
-  const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
-    
-    // Create cache key for this specific claim
-    const cacheKey = `claim-${id}`;
-    const now = Date.now();
-    
-    // Check if we have cached data for this claim (cache for 60 seconds)
-    if (queryCache[cacheKey] && now - queryCache[cacheKey].timestamp < queryCache[cacheKey].ttl) {
-      return res.status(200).json(queryCache[cacheKey].data);
-    }
-    
-    // Query to get full claim details by ID
-    const sqlQuery = `
-      SELECT
-        r.${CLAIMS_ID_COLUMN} AS id,
-        r.patient_id,
-        NULL AS patient_emr_no,
-        r.cpt_id AS billing_id,
-        NULL AS cpt_code,
-        NULL AS first_name,
-        NULL AS last_name,
-        NULL AS date_of_birth,
-        r.charge_dt AS service_start,
-        r.charge_dt AS service_end,
-        NULL AS icd_code,
-        NULL AS provider_name,
-        NULL AS units,
-        NULL AS oa_claim_id,
-        NULL AS oa_visit_id,
-        r.charge_dt,
-        r.charge_amt,
-        r.allowed_amt,
-        r.allowed_add_amt,
-        r.allowed_exp_amt,
-        r.total_amt,
-        r.charges_adjust AS charges_adj_amt,
-        r.write_off_amt,
-        r.bal_amt,
-        r.reimb_pct,
-        r.claim_status,
-        r.claim_status_type,
-        r.prim_ins,
-        r.prim_amt,
-        r.prim_post_dt,
-        r.prim_chk_det,
-        r.prim_recv_dt,
-        r.prim_chk_amt,
-        r.prim_cmt,
-        r.sec_ins,
-        r.sec_amt,
-        r.sec_post_dt,
-        r.sec_chk_det,
-        r.sec_recv_dt,
-        r.sec_chk_amt,
-        r.sec_cmt,
-        r.sec_denial_code,
-        r.pat_amt,
-        r.pat_recv_dt
-      FROM ${CLAIMS_TABLE} r
-      WHERE r.${CLAIMS_ID_COLUMN} = $1`;
-    
-    // Use our optimized query function
-    const { rows } = await query(sqlQuery, [id]);
-    
-    if (rows.length === 0) {
-      res.status(404).json({
-        success: false,
-        error: 'Claim not found',
-        message: `No claim found with ID: ${id}`
-      });
-      return;
-    }
-    
-    // Prepare response
-    const result = {
-      success: true,
-      data: rows[0]
-    };
-    
-    // Cache the result with a TTL of 60 seconds
-    queryCache[cacheKey] = {
-      data: result,
-      timestamp: now,
-      ttl: 60000 // 60 seconds
-    };
-    
-    // Return the claim
-    res.status(200).json(result);
-  } catch (error) {
-    console.error(`Error fetching claim with ID ${req.params.id}:`, error);
-    res.status(500).json({
+    console.log('Claim details disabled: Database tables unlinked');
+    return res.json({
       success: false,
-      error: 'Failed to retrieve claim',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Claim details disabled: Database tables unlinked',
+      data: null
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: 'Database tables unlinked',
+      error: error.message
     });
   }
 };
 
 /**
- * Update claim by ID
+ * Update claim by ID - Database tables unlinked
  * @route PUT /api/claims/:id
  */
 export const updateClaim = async (req: Request, res: Response) => {
   try {
-    requestCounter++;
-    const requestId = requestCounter;
-  const rawId = req.params.id;
-  const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
-
-    // Get the current claim to check if it exists and to compare old values
-    const checkQuery = `
-      SELECT 
-        ${CLAIMS_ID_COLUMN} AS id,
-        patient_id,
-        cpt_id AS billing_id,
-        charge_dt,
-        charge_amt,
-        allowed_amt,
-        allowed_add_amt,
-        allowed_exp_amt,
-        total_amt,
-        charges_adjust AS charges_adj_amt,
-        write_off_amt,
-        bal_amt,
-        reimb_pct,
-        claim_status,
-        claim_status_type,
-        prim_ins,
-        prim_amt,
-        prim_post_dt,
-        prim_chk_det,
-        prim_recv_dt,
-        prim_chk_amt,
-        prim_cmt,
-        sec_ins,
-        sec_amt,
-        sec_post_dt,
-        sec_chk_det,
-        sec_recv_dt,
-        sec_chk_amt,
-        sec_cmt,
-        pat_amt,
-        pat_recv_dt 
-      FROM ${CLAIMS_TABLE} WHERE ${CLAIMS_ID_COLUMN} = $1`;
-    const checkResult = await query(checkQuery, [id]);
-    
-    if (checkResult.rows.length === 0) {
-      res.status(404).json({
-        success: false,
-        error: 'Claim not found',
-        message: `No claim found with ID: ${id}`
-      });
-      return;
-    }
-
-    const oldClaim = checkResult.rows[0];
-
-    // Get the request body
-    const updateData = req.body;
-    
-    // Build the SET part of the query dynamically
-    const allowedFields = [
-      'oa_claim_id', 'oa_visit_id', 'charge_dt', 
-      'charge_amt', 'allowed_amt', 'allowed_add_amt', 'allowed_exp_amt',
-      'prim_ins', 'prim_amt', 'prim_post_dt', 'prim_chk_det', 'prim_recv_dt', 'prim_chk_amt', 'prim_cmt',
-      'sec_ins', 'sec_amt', 'sec_post_dt', 'sec_chk_det', 'sec_recv_dt', 'sec_chk_amt', 'sec_cmt', 'sec_denial_code',
-      'pat_amt', 'pat_recv_dt', 'total_amt', 'charges_adj_amt', 'write_off_amt', 
-      'bal_amt', 'reimb_pct', 'claim_status', 'claim_status_type'
-    ];
-
-    // Define numeric fields that need special handling
-    const numericFields = [
-      'charge_amt', 'allowed_amt', 'allowed_add_amt', 'allowed_exp_amt',
-      'prim_amt', 'prim_chk_amt', 'sec_amt', 'sec_chk_amt', 'pat_amt',
-      'total_amt', 'charges_adj_amt', 'write_off_amt', 'bal_amt', 'reimb_pct'
-    ];
-
-    // Filter only allowed fields from request body and handle type conversions
-    const updates: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (field in updateData) {
-        let value = updateData[field];
-        
-        // Special handling for numeric fields
-        if (numericFields.includes(field)) {
-          // Convert empty strings to null
-          if (value === '' || value === undefined) {
-            value = null;
-          } 
-          // Convert string numbers to actual numbers, or null if invalid
-          else if (value !== null) {
-            // Try to parse as number
-            const parsedNum = parseFloat(String(value).replace(/,/g, ''));
-            if (isNaN(parsedNum)) {
-              value = null;
-            } else {
-              value = parsedNum;
-            }
-          }
-        } else if (field === 'claim_status_type') {
-          // Special handling for claim_status_type - always store as null if empty
-          if (value === '' || value === undefined) {
-            value = null;
-          }
-          console.log(`claim_status_type value: "${value}", type: ${typeof value}`);
-        }
-        
-        updates[field] = value;
-      }
-    }
-    
-    // If there's nothing to update, return early
-    if (Object.keys(updates).length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'No valid fields to update',
-        message: 'Request must include at least one valid field to update'
-      });
-      return;
-    }
-
-    // Track changes for history
-    const changesForHistory: Array<{
-      field_name: string;
-      old_value: string | null;
-      new_value: string | null;
-    }> = [];
-
-    // Collect fields that changed for history tracking
-    for (const [key, newValue] of Object.entries(updates)) {
-      const oldValue = oldClaim[key as keyof Claim];
-      
-      // Convert values for comparison to handle all edge cases
-      const oldValueStr = oldValue === null || oldValue === undefined 
-        ? '' 
-        : String(oldValue).trim();
-      
-      const newValueStr = newValue === null || newValue === undefined 
-        ? '' 
-        : String(newValue).trim();
-      
-      // Check if values are different for tracking purposes
-      // For numeric fields, compare the actual values to prevent insignificant differences
-      if (numericFields.includes(key)) {
-        // For numeric fields, convert to numbers for comparison
-        const oldNum = oldValue === null || oldValue === undefined || oldValue === '' 
-          ? null 
-          : parseFloat(String(oldValue));
-        
-        const newNum = newValue === null || newValue === undefined || newValue === '' 
-          ? null 
-          : parseFloat(String(newValue));
-        
-        // Check if numbers are different
-        if ((oldNum === null && newNum !== null) || 
-            (oldNum !== null && newNum === null) ||
-            (oldNum !== null && newNum !== null && oldNum !== newNum)) {
-          changesForHistory.push({
-            field_name: key,
-            old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
-            new_value: newValue !== null && newValue !== undefined ? String(newValue) : null
-          });
-        }
-      } else {
-        // For non-numeric fields, compare the string values
-        if (oldValueStr !== newValueStr) {
-          changesForHistory.push({
-            field_name: key,
-            old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
-            new_value: newValue !== null && newValue !== undefined ? String(newValue) : null
-          });
-        }
-      }
-    }
-    
-    // Construct the SET clause and parameters
-    const setClauses: string[] = [];
-    const queryParams: any[] = [];
-    let paramIndex = 1;
-    
-    for (const [key, value] of Object.entries(updates)) {
-      let dbColumn = key;
-      if (key === 'billing_id') dbColumn = 'cpt_id';
-      else if (key === 'charges_adj_amt') dbColumn = 'charges_adjust';
-      setClauses.push(`${dbColumn} = $${paramIndex}`);
-      queryParams.push(value);
-      paramIndex++;
-    }
-    
-    // Add the ID as the last parameter
-    queryParams.push(id);
-    
-    // Construct the full query
-    const updateQuery = `
-      UPDATE ${CLAIMS_TABLE}
-      SET ${setClauses.join(', ')}
-      WHERE ${CLAIMS_ID_COLUMN} = $${paramIndex}
-      RETURNING ${CLAIMS_ID_COLUMN} AS id, *`;
-    
-    // Execute the query to update the claim using our optimized query function
-    console.log('Executing update query:', updateQuery);
-    console.log('With parameters:', queryParams);
-    
-    const updateResult = await query(updateQuery, queryParams);
-    
-    if (updateResult.rows.length === 0) {
-      console.error('Update query did not return any rows.');
-      res.status(500).json({
-        success: false,
-        error: 'Failed to update claim',
-        message: 'Update operation succeeded but no rows were returned'
-      });
-      return;
-    }
-    
-    const updatedClaim = updateResult.rows[0];
-    console.log('Claim updated successfully:', updatedClaim);
-
-    // After successful update, invalidate any cached entries for this claim
-    Object.keys(queryCache).forEach(key => {
-      if (key === `claim-${id}` || key === `claim-history-${id}` || key.includes('claims')) {
-        delete queryCache[key];
-      }
-    });
-
-    // Only try to log changes if there are changes to log
-    if (changesForHistory.length > 0) {
-      // Ensure we properly extract user information with proper fallbacks
-      // Make sure we prioritize user_id and username from the request body
-      const userId = req.body.user_id !== undefined ? req.body.user_id : 1;
-      let username = req.body.username;
-      // If username is not provided, try to extract from email if available
-      if (!username && req.body.email && typeof req.body.email === 'string') {
-        username = req.body.email.split('@')[0];
-      }
-      // Fallbacks for admin/system
-      if (!username) {
-        username = userId !== 1 ? 'Admin' : 'System';
-      }
-      // Always ensure username is just the part before @ if it looks like an email
-      if (username && username.includes('@')) {
-        username = username.split('@')[0];
-      }
-      console.log('Logging changes with user info:', { userId, username, changesCount: changesForHistory.length });
-      console.log('Changes being logged:', changesForHistory);
-      
-      try {
-        // Create a single batch insert statement for all changes
-        if (changesForHistory.length > 0) {
-          const valuesSql = changesForHistory.map((_, index) => {
-            const offset = index * 8;
-            return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, NOW(), $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`;
-          }).join(', ');
-          
-          const logQuery = `
-            INSERT INTO upl_change_logs (
-              claim_id, user_id, username, cpt_id, 
-              timestamp, field_name, old_value, new_value, action_type
-            ) VALUES ${valuesSql}
-            RETURNING id`;
-          
-          const logParams: any[] = [];
-          changesForHistory.forEach(change => {
-            logParams.push(
-              id,
-              userId,
-              username,
-              oldClaim.billing_id || null, // Renamed from cpt_id
-              change.field_name,
-              change.old_value,
-              change.new_value,
-              'updated'
-            );
-          });
-          
-          // Use a single query for all log entries
-          try {
-            await query(logQuery, logParams);
-            console.log(`Created ${changesForHistory.length} change log entries for user ${username} (ID: ${userId})`);
-          } catch (innerError: any) {
-            // Handle errors at each stage
-            console.error('Error executing log query:', innerError);
-            // Continue with the response even if logging fails
-          }
-        }
-      } catch (logError: any) {
-        // If the error is because the upl_change_logs table doesn't exist, just continue
-        if (logError.code === '42P01') { // PostgreSQL code for "relation does not exist"
-          console.log('upl_change_logs table does not exist, skipping history tracking');
-        } else {
-          // Log other errors but don't fail the operation
-          console.error('Failed to create change logs:', logError);
-        }
-        // Continue with the response even if logging fails
-      }
-    }
-    
-    // Return the updated claim
-    res.status(200).json({
-      success: true,
-      message: 'Claim updated successfully',
-      data: updatedClaim
-    });
-    
-  } catch (error) {
-    console.error('Error updating claim:', error);
-    res.status(500).json({
+    console.log('Claim updates disabled: Database tables unlinked');
+    return res.json({
       success: false,
-      error: 'Failed to update claim',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Claim updates disabled: Database tables unlinked',
+      data: null
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: 'Database tables unlinked',
+      error: error.message
     });
   }
+};
+
+/**
+ * Delete claim by ID - Database tables unlinked
+ * @route DELETE /api/claims/:id
+ */
+export const deleteClaim = async (req: Request, res: Response) => {
+    // Database tables unlinked - claim deletion is disabled
+    res.status(501).json({
+        success: false,
+        error: 'Claim deletion is disabled',
+        message: 'Database tables have been unlinked from the search and submit files pages'
+    });
 };
 
 /**
@@ -723,8 +118,8 @@ export const getClaimHistory = async (req: Request, res: Response) => {
   try {
     requestCounter++;
     const requestId = requestCounter;
-  const rawId = req.params.id;
-  const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
+    const rawId = req.params.id;
+    const id = (CLAIMS_ID_COLUMN === 'id' && /^\d+$/.test(rawId)) ? Number(rawId) : rawId;
     
     // Create cache key for this specific claim's history
     const cacheKey = `claim-history-${id}`;
@@ -737,7 +132,7 @@ export const getClaimHistory = async (req: Request, res: Response) => {
     
     try {
       // Check if the claim exists
-  const claimCheckQuery = `SELECT ${CLAIMS_ID_COLUMN} AS id, cpt_id AS billing_id FROM ${CLAIMS_TABLE} WHERE ${CLAIMS_ID_COLUMN} = $1`;
+      const claimCheckQuery = `SELECT ${CLAIMS_ID_COLUMN} AS id, cpt_id AS billing_id FROM ${CLAIMS_TABLE} WHERE ${CLAIMS_ID_COLUMN} = $1`;
       
       // Use our optimized query function
       const claimCheck = await query(claimCheckQuery, [id]);
@@ -818,6 +213,7 @@ export const getClaimHistory = async (req: Request, res: Response) => {
           
           res.status(200).json(result);
         } else {
+          throw dbError;
         }
       }
     } catch (error) {
@@ -953,7 +349,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         console.log(`upl_change_logs table doesn't exist yet, returning mock history data`);
         
         // Get some claims to generate mock history using our optimized query
-  const claimsQuery = `SELECT id, cpt_id AS billing_id, first_name, last_name FROM ${CLAIMS_TABLE} LIMIT 5`;
+        const claimsQuery = `SELECT id, cpt_id AS billing_id, first_name, last_name FROM ${CLAIMS_TABLE} LIMIT 5`;
         const claimsResult = await query(claimsQuery, []);
         const claims = claimsResult.rows;
         

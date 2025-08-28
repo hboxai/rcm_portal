@@ -254,213 +254,41 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Debounce search function to prevent rapid consecutive API calls
   const searchClaims = useCallback(async (filtersArg: SearchFilters, pageArg?: number, limitArg?: number) => {
-    if (!user) {
-      setError("User not authenticated");
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    setHasSearched(true); // Set hasSearched to true when a search is performed
-
-    // Determine the page and limit to use.
-    // Prioritize explicit pageArg/limitArg if provided.
-    // Otherwise, use page/limit from filtersArg.
-    // Fallback to defaults if not found anywhere.
-    const pageToUse = pageArg !== undefined ? pageArg : (filtersArg.page !== undefined ? filtersArg.page : 1);
-    const limitToUse = limitArg !== undefined ? limitArg : (filtersArg.limit !== undefined ? filtersArg.limit : claimsPerPage);
-
-    // Prepare filters for the API call, excluding page/limit as they are passed as separate params to fetchClaims.
-    const { page, limit, ...apiFilters } = filtersArg;
-
-    try {
-      console.log(`Searching claims with filters:`, apiFilters, `page: ${pageToUse}, limit: ${limitToUse}`);
-      // Pass apiFilters (without page/limit from the object) and pageToUse/limitToUse separately
-      const response = await fetchClaims(apiFilters, pageToUse, limitToUse);
-      
-      console.log('Search response from API:', response);
-
-      // MODIFIED: Check for response.data instead of response.claims
-      if (response && response.success && Array.isArray(response.data)) {
-        const mappedResults = response.data.map(mapApiClaimToVisitClaim);
-        setSearchResults(mappedResults);
-        setTotalClaimCount(response.totalCount || 0);
-        // Use pageToUse for setCurrentPage if API doesn't return currentPage
-        setCurrentPage(response.page || pageToUse);
-        // Use limitToUse for totalPages calculation
-        setTotalPages(response.totalPages || Math.ceil((response.totalCount || 0) / limitToUse));
-        console.log('Mapped search results:', mappedResults);
-        console.log('Total claims found:', response.totalCount);
-      } else {
-        console.warn('Search response is not in the expected format or data array is missing:', response); // MODIFIED: Updated log message
-        setSearchResults([]);
-        setTotalClaimCount(0);
-        setTotalPages(0);
-        // MODIFIED: Check for explicit success: false or if response.data is not an array when success is true
-        if (!response || (response && !response.success) || (response && response.success && !Array.isArray(response.data))) { 
-             setError(response?.message || 'Failed to fetch claims data. The data format was not as expected.');
-        }
-      }
-    } catch (err: any) {
-      console.error("Error searching claims:", err);
-      setError(err.message || 'Failed to search claims');
-      setSearchResults([]);
-      setTotalClaimCount(0);
-      setTotalPages(0);
-    } finally {
-      setIsLoading(false);
-    }
+    // Search page database tables are unlinked - no database queries allowed
+    console.log('Search functionality disabled: Database tables unlinked');
+    setIsLoading(false);
+    setSearchResults([]);
+    setTotalClaimCount(0);
+    setCurrentPage(1);
+    setTotalPages(1);
+    setHasSearched(true);
+    setError("Search functionality disabled: Database tables unlinked");
+    return;
   }, [user, claimsPerPage]); // Dependencies remain user and claimsPerPage, setters are stable
 
   // Use local cache for claim fetching when possible
   const getClaim = useCallback(async (id: string): Promise<VisitClaim | null> => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Attempt to find the claim in existing searchResults or claims state first
-      const existingClaim = searchResults.find(claim => claim.id?.toString() === id) || claims.find(claim => claim.id?.toString() === id);
-      if (existingClaim) {
-        setCurrentClaim(existingClaim);
-        setIsLoading(false);
-        return existingClaim;
-      }
-
-      // If not found, fetch from API
-      const data = await fetchClaimById(id);
-      if (data) {
-        const mappedClaim = mapApiClaimToVisitClaim(data);
-        setCurrentClaim(mappedClaim);
-        return mappedClaim;
-      } else {
-        setError(`Claim with ID ${id} not found.`);
-        return null;
-      }
-    } catch (err: any) {
-      console.error(`Error fetching claim ${id}:`, err);
-      setError(err.message || 'Failed to fetch claim');
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [claims, searchResults]);
+    // Database tables unlinked - claim fetching is disabled
+    console.log('Claim fetching disabled: Database tables unlinked');
+    setIsLoading(false);
+    setError("Claim fetching disabled: Database tables unlinked");
+    return null;
+  }, []);
 
   // Helper function to ensure dates are properly formatted before sending to API
   const formatDateFields = useCallback((data: any) => {
-    const dateFields = ['charge_dt', 'prim_post_dt', 'prim_recv_dt', 'sec_post_dt', 'sec_recv_dt', 'pat_recv_dt'];
-    const formattedData = { ...data };
-    
-    dateFields.forEach(field => {
-      // Check if the field exists and is not empty
-      if (formattedData[field]) {
-        // Ensure it's in YYYY-MM-DD format
-        try {
-          const date = new Date(formattedData[field]);
-          if (!isNaN(date.getTime())) {
-            formattedData[field] = date.toISOString().split('T')[0];
-          }
-        } catch (e) {
-          console.warn(`Could not format date field ${field}:`, e);
-        }
-      }
-    });
-    
-    return formattedData;
+    // Database tables unlinked - date formatting is disabled
+    return data;
   }, []);
 
   // Optimized update function with improved error handling to ensure edits are saved
   const updateClaim = useCallback(async (updatedClaimData: Partial<VisitClaim>): Promise<VisitClaim | null> => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      if (!currentClaim || typeof currentClaim.id === 'undefined') { // Check if currentClaim or its id is undefined
-        throw new Error('No current claim selected or claim ID is missing');
-      }
-      
-      console.log('Updating claim with data:', updatedClaimData);
-      
-      const formattedData = formatDateFields(updatedClaimData);
-      
-      const claimWithUserInfo = {
-        ...formattedData,
-        user_id: user?.id || 1,
-        username: user?.name || 'Unknown User'
-      };
-      
-      console.log('About to call updateClaimAPI with data:', claimWithUserInfo);
-      
-      const optimisticClaim = {
-        ...currentClaim,
-        ...formattedData,
-        updatedAt: new Date().toISOString()
-      };
-      
-      setCurrentClaim(optimisticClaim);
-      
-      setClaims(prevClaims => 
-        prevClaims.map(c => c.id === currentClaim.id ? optimisticClaim : c)
-      );
-      
-      setSearchResults(prevResults => 
-        prevResults.map(c => c.id === currentClaim.id ? optimisticClaim : c)
-      );
-      
-      let retryCount = 0;
-      let response: { success: boolean; data?: any; message?: string; error?: any } | null = null; // Define response type explicitly
-      
-      while (retryCount < 3) { // Removed !response from condition as it's handled inside
-        try {
-          // Ensure currentClaim.id is treated as a string for the API call
-          response = await updateClaimAPI(String(currentClaim.id), claimWithUserInfo, 3);
-          break; 
-        } catch (err) {
-          retryCount++;
-          console.log(`API attempt ${retryCount} failed. Retrying...`);
-          if (retryCount < 3) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            // If all retries fail, set response to an error structure
-            response = { success: false, message: 'All API update attempts failed.', error: err };
-          }
-        }
-      }
-      
-      if (!response) { // Should ideally not be hit if the loop logic is correct
-        console.error('No response received from updateClaimAPI after multiple attempts and loop completion.');
-        setError('Changes saved locally but server sync failed. Please try again later.');
-        return optimisticClaim; // Return optimistic data
-      }
-      
-      console.log('API response received:', response);
-      
-      if (response.success && response.data) {
-        console.log('Claim updated successfully in database:', response.data);
-        const mappedClaim = mapApiClaimToVisitClaim(response.data);
-        setCurrentClaim(mappedClaim);
-        setClaims(prevClaims => 
-          prevClaims.map(c => c.id === currentClaim.id ? mappedClaim : c)
-        );
-        setSearchResults(prevResults => 
-          prevResults.map(c => c.id === currentClaim.id ? mappedClaim : c)
-        );
-        setIsLoading(false);
-        return mappedClaim;
-      } else {
-        // If API call was not successful or data is missing, revert to pre-optimistic state or handle error
-        console.error('Failed to update claim on server:', response.message || response.error);
-        // Potentially revert optimistic update here if needed, or keep it and show error
-        // For now, we keep the optimistic update and show an error.
-        setError(response.message || `Failed to update claim on server. Error: ${response.error || 'Unknown'}`);
-        setIsLoading(false); // Ensure loading is set to false
-        return optimisticClaim; // Return optimistic data as a fallback
-      }
-    } catch (error) {
-      console.error('Error updating claim:', error);
-      setError(`Failed to update claim: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setIsLoading(false);
-      // Attempt to return currentClaim if it exists, otherwise null
-      return currentClaim || null; 
-    }
-  }, [currentClaim, user, formatDateFields, setCurrentClaim, setClaims, setSearchResults, setIsLoading, setError]);
+    // Database tables unlinked - claim updates are disabled
+    console.log('Claim updates disabled: Database tables unlinked');
+    setIsLoading(false);
+    setError("Claim updates disabled: Database tables unlinked");
+    return null;
+  }, []);
 
   const addNote = useCallback((claimId: string, note: string) => {
     // Ensure currentClaim and its id are defined and match claimId before proceeding
