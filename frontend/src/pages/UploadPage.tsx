@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X } from 'lucide-react';
-import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport } from '../services/uploadService';
+import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
+import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl } from '../services/uploadService';
+import type { SubmitUploadListItem } from '../services/uploadService';
 import { UploadedFile } from '../types/file';
 import { trackEvent } from '../utils/audit';
+import * as XLSX from 'xlsx';
 
 const UploadPage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +23,32 @@ const UploadPage: React.FC = () => {
   const [showValidation, setShowValidation] = useState(false);
   const [validationLines, setValidationLines] = useState<string[]>([]);
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  // Delete confirmation state
+  const [confirmDelete, setConfirmDelete] = useState<null | { id: string; filename: string }>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Quick Submit preview/commit state
+  const [quickClinic, setQuickClinic] = useState('default');
+  const [quickPreview, setQuickPreview] = useState<null | {
+    upload_id: string;
+    columns_found: string[];
+    missing_required: string[];
+    sample_rows: any[];
+    row_count: number;
+    original_filename?: string;
+    duplicate_of?: string | null;
+    can_commit: boolean;
+    s3_url?: string;
+  }>(null);
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+  const [quickProgress, setQuickProgress] = useState(0);
+  const [commitWarnings, setCommitWarnings] = useState<string[]>([]);
+  const progressTimerRef = useRef<number | null>(null);
+  // (Removed submit uploads list state)
+  // Submit uploads list & preview state
+  const [submitUploads, setSubmitUploads] = useState<SubmitUploadListItem[]>([]);
+  const [loadingSubmitUploads, setLoadingSubmitUploads] = useState(false);
+  const [suError, setSuError] = useState<string | null>(null);
+  // (Removed modal-based submit preview state)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -37,8 +65,22 @@ const UploadPage: React.FC = () => {
     }
   }, []);
 
+  // (Removed refreshSubmitUploads)
+  const refreshSubmitUploads = useCallback(async () => {
+    setLoadingSubmitUploads(true); setSuError(null);
+    try {
+      const { items } = await listSubmitUploads({ limit: 50 });
+      setSubmitUploads(items);
+    } catch (e: any) {
+      setSuError(e?.message || 'Failed to load submit uploads');
+    } finally {
+      setLoadingSubmitUploads(false);
+    }
+  }, []);
+
   useEffect(() => {
     refreshUploads();
+  void refreshSubmitUploads();
   }, [refreshUploads]);
 
   // Handle ESC key to close modals
@@ -101,9 +143,85 @@ const UploadPage: React.FC = () => {
     }
   };
 
+  // Quick Submit flow: run submit preview immediately when user selects a single file with Alt held or when clicking special button
+  const handleQuickSelect = () => fileInputRef.current?.click();
+  const onQuickFileChange = async (files?: FileList | null) => {
+    const f = files && files[0];
+    if (!f) return;
+    if (!/\.(csv|xlsx|xls)$/i.test(f.name)) { setError('Only .csv, .xlsx and .xls files are accepted.'); return; }
+    setError(null); setSuccess(null);
+    setQuickPreview(null);
+    setQuickSubmitting(true);
+    setQuickProgress(0);
+    try {
+      const prev = await submitUploadPreview(f, quickClinic, (pct) => {
+        // Show true upload progress directly
+        setQuickProgress(Math.max(0, Math.min(100, pct)));
+      });
+      if (!prev.can_commit) {
+        setError(prev.errors?.join('\n') || `Missing required headers: ${prev.missing_required.join(', ')}`);
+      }
+      setQuickPreview({
+        upload_id: prev.upload_id,
+        columns_found: prev.columns_found || [],
+        missing_required: prev.missing_required || [],
+        sample_rows: prev.sample_rows || [],
+        row_count: prev.row_count || 0,
+        original_filename: prev.original_filename,
+        duplicate_of: prev.duplicate_of ?? null,
+        can_commit: !!prev.can_commit,
+        s3_url: prev.s3_url,
+      });
+      trackEvent('submit:preview', { id: prev.upload_id, can_commit: prev.can_commit });
+    } catch (e: any) {
+      setError(e?.message || 'Quick preview failed');
+    } finally {
+  // Ensure 100% completion is visible briefly
+  setQuickProgress(100);
+  setTimeout(() => setQuickSubmitting(false), 150);
+    }
+  };
+
+  const runQuickCommit = async () => {
+    if (!quickPreview) return;
+    setQuickSubmitting(true);
+    setQuickProgress(0);
+    // Simulate progress during commit until API returns
+    if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
+    progressTimerRef.current = window.setInterval(() => {
+      setQuickProgress(p => (p < 97 ? p + Math.max(1, Math.round((100 - p) * 0.02)) : p));
+    }, 200);
+    try {
+  const r = await submitUploadCommit(quickPreview.upload_id);
+  setCommitWarnings(r.warnings || []);
+  setSuccess(`Committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
+      setQuickPreview(null);
+      await refreshUploads();
+      trackEvent('submit:commit', { id: r.upload_id, inserted: r.inserted_count, updated: r.updated_count });
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || 'Commit failed');
+    } finally {
+      setQuickProgress(100);
+      if (progressTimerRef.current) { window.clearInterval(progressTimerRef.current); progressTimerRef.current = null; }
+      setTimeout(() => setQuickSubmitting(false), 200);
+    }
+  };
+
+  // (Removed submit uploads actions)
+  // Submit uploads actions
+  const onSubmitDownload = async (upload_id: string, filename: string) => {
+    try {
+      const url = await getSubmitUploadDownloadUrl(upload_id);
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.rel='noopener'; a.click();
+      trackEvent('submit:download', { id: upload_id });
+    } catch (e: any) {
+      setSuError(e?.response?.status === 410 ? 'File missing from S3.' : 'Download failed');
+    }
+  };
+
   const handleDelete = async (fileId: string, filename: string) => {
-    if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
-    
+    // Called after user confirms in modal
+    setDeletingId(fileId);
     try {
       const result = await deleteUpload(fileId);
       if (result.success) {
@@ -115,6 +233,9 @@ const UploadPage: React.FC = () => {
       }
     } catch (e: any) {
       setError('Failed to delete file');
+    } finally {
+      setDeletingId(null);
+      setConfirmDelete(null);
     }
   };
 
@@ -171,6 +292,16 @@ const UploadPage: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
+  // Submit uploads status chip styles
+  const submitStatusClasses = (status: string) => {
+    switch (status) {
+      case 'FAILED': return { text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-600' };
+      case 'COMMITTED': return { text: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200', dot: 'bg-green-600' };
+      case 'COMPLETED': return { text: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-600' };
+      default: return { text: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-200', dot: 'bg-gray-600' };
+    }
+  };
+
   return (
     <div className="container mx-auto px-6 pt-28 pb-12 min-h-screen">
       <div className="flex items-center justify-between mb-8">
@@ -209,6 +340,7 @@ const UploadPage: React.FC = () => {
         )}
       </AnimatePresence>
 
+
       {/* Upload Area */}
       <div className="mb-8">
         <div
@@ -222,9 +354,8 @@ const UploadPage: React.FC = () => {
           <input
             ref={fileInputRef}
             type="file"
-            multiple
             accept=".csv,.xlsx,.xls"
-            onChange={(e) => e.target.files && handleUpload(Array.from(e.target.files))}
+            onChange={(e) => onQuickFileChange(e.target.files)}
             className="hidden"
           />
           
@@ -247,9 +378,9 @@ const UploadPage: React.FC = () => {
               <UploadCloud className="mx-auto text-purple" size={64} />
               <div>
                 <p className="text-xl text-textDark mb-3">
-                  Drop your Excel files here or{' '}
-                  <button 
-                    onClick={handleFileSelect}
+                  Quick Submit: choose an Excel/CSV and we'll preview it automatically.{' '}
+                  <button
+                    onClick={handleQuickSelect}
                     className="text-purple hover:text-purple/80 underline font-medium"
                   >
                     browse
@@ -258,100 +389,199 @@ const UploadPage: React.FC = () => {
                 <p className="text-base text-textDark/60">
                   Supports .csv, .xlsx, and .xls files
                 </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Files List */}
-      <div className="rounded-lg border border-purple/20 bg-white shadow-sm">
-        <div className="p-6 border-b border-purple/20">
-          <h2 className="text-xl font-semibold text-textDark flex items-center gap-2">
-            <FileText size={24} />
-            Uploaded Files ({files.length})
-          </h2>
-        </div>
-
-        <div className="divide-y divide-purple/10">
-          {loading ? (
-            <div className="p-12 text-center">
-              <Loader2 className="mx-auto animate-spin text-purple mb-3" size={32} />
-              <p className="text-textDark/60 text-lg">Loading files...</p>
-            </div>
-          ) : files.length === 0 ? (
-            <div className="p-12 text-center text-textDark/60 text-lg">
-              No files uploaded yet
-            </div>
-          ) : (
-            files.map((file) => (
-              <div key={file.id} className="p-6 hover:bg-purple/5 transition-colors">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-4 mb-3">
-                      <FileText className="text-purple flex-shrink-0" size={24} />
-                      <h3 className="font-semibold text-textDark text-lg">{file.filename}</h3>
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-md text-sm font-medium border ${getStatusColor(file.status)}`}>
-                        {getStatusIcon(file.status)}
-                        {file.status}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-8 text-textDark/60">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={16} />
-                        <span>{formatDate(file.uploadedAt)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Hash size={16} />
-                        <span>{file.claimsCount} claims processed</span>
-                      </div>
-                      <div className="text-sm font-mono bg-gray-100 px-3 py-1 rounded">
-                        ID: {file.id}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <button
-                      onClick={() => handlePreview(file)}
-                      className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
-                      title="Preview file"
-                    >
-                      <FileText size={16} />
-                      Preview
-                    </button>
-                    <button
-                      onClick={() => handleDownload(file.id, file.filename)}
-                      className="flex items-center gap-2 px-4 py-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-md transition-colors border border-green-200"
-                      title="Download file"
-                    >
-                      <Download size={16} />
-                      Download
-                    </button>
-                    <button
-                      onClick={() => handleValidation(file.id)}
-                      className="flex items-center gap-2 px-4 py-2 text-purple hover:text-purple/80 hover:bg-purple/10 rounded-md transition-colors border border-purple/20"
-                      title="View validation report"
-                    >
-                      <AlertCircle size={16} />
-                      Validate
-                    </button>
-                    <button
-                      onClick={() => handleDelete(file.id, file.filename)}
-                      className="flex items-center gap-2 px-4 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors border border-red-200"
-                      title="Delete file"
-                    >
-                      <Trash2 size={16} />
-                      Delete
-                    </button>
-                  </div>
+                <div className="mt-3 flex items-center gap-2 text-sm">
+                  <label className="text-textDark/70">Clinic:</label>
+                  <input
+                    value={quickClinic}
+                    onChange={(e)=>setQuickClinic(e.target.value)}
+                    className="px-2 py-1 border rounded w-48"
+                    placeholder="clinic id/name"
+                  />
                 </div>
               </div>
-            ))
+            </div>
           )}
         </div>
       </div>
+
+      {/* Quick Submit Preview / Progress */}
+      {quickSubmitting && !quickPreview && (
+        <div className="mb-8 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+          <div className="flex items-center gap-3 mb-2"><Loader2 className="animate-spin text-blue-600" size={18}/> <div className="font-medium text-textDark">Uploading & analyzing…</div></div>
+          <div className="w-full max-w-xl">
+            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+              <div className="bg-blue-600 h-3 rounded-full transition-all" style={{ width: `${quickProgress}%` }} />
+            </div>
+            <div className="text-xs mt-1 text-textDark/70">{quickProgress}%</div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Submit Preview Card */}
+      {quickPreview && (
+        <div className="mb-8 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="font-semibold text-textDark">Submit Preview</div>
+              <div className="text-sm text-textDark/70">{quickPreview.original_filename || 'Selected file'} · Rows: {quickPreview.row_count}</div>
+              {quickPreview.duplicate_of && (
+                <div className="text-xs text-textDark/60 mt-1">Duplicate of upload {quickPreview.duplicate_of}</div>
+              )}
+              <div className="mt-3">
+                <div className="text-sm font-medium text-textDark">Missing headers:</div>
+                {quickPreview.missing_required.length ? (
+                  <div className="text-sm text-red-700">
+                    {quickPreview.missing_required.join(', ')}
+                  </div>
+                ) : (
+                  <div className="text-sm text-green-700">None</div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setQuickPreview(null)}
+                className="px-4 py-2 rounded-md border border-gray-300 text-textDark hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <div className="flex flex-col items-stretch gap-2 min-w-[220px]">
+                <button
+                  onClick={runQuickCommit}
+                  disabled={!quickPreview.can_commit || quickSubmitting}
+                  className="px-4 py-2 rounded-md bg-purple text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {quickSubmitting ? 'Committing…' : 'Commit'}
+                </button>
+                {quickSubmitting && (
+                  <div>
+                    <div className="w-56 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div className="bg-purple h-2 rounded-full transition-all" style={{ width: `${quickProgress}%` }} />
+                    </div>
+                    <div className="text-[10px] mt-1 text-textDark/70 text-right">{quickProgress}%</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          {quickPreview.sample_rows?.length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    {Object.keys(quickPreview.sample_rows[0]).map((h) => (
+                      <th key={h} className="px-2 py-1 text-left border-b text-textDark/80">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {quickPreview.sample_rows.slice(0,5).map((r, i) => (
+                    <tr key={i} className="odd:bg-white even:bg-white/60">
+                      {Object.keys(quickPreview.sample_rows[0]).map((h) => (
+                        <td key={h} className="px-2 py-1 border-b text-textDark/80">{String((r as any)[h] ?? '')}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Commit warnings */}
+      {commitWarnings.length > 0 && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="font-semibold text-yellow-800 mb-2">Commit Warnings</div>
+          <ul className="text-sm text-yellow-800 list-disc pl-5 space-y-1">
+            {commitWarnings.slice(0, 10).map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+          {commitWarnings.length > 10 && (
+            <div className="text-xs text-yellow-700 mt-2">…and {commitWarnings.length - 10} more</div>
+          )}
+        </div>
+      )}
+
+      {/* Files List (shows Submit Uploads) */}
+      <div className="rounded-lg border border-purple/20 bg-white shadow-sm">
+        <div className="p-5 border-b border-purple/20 flex items-center justify-between bg-gradient-to-r from-white to-purple/5 rounded-t-lg">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-purple/10 text-purple border border-purple/20"><FileText size={18} /></div>
+            <div>
+              <div className="text-lg font-semibold text-textDark">Submit Uploads</div>
+              <div className="text-xs text-textDark/60">Recently uploaded submit files</div>
+            </div>
+            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple/10 text-purple border border-purple/20">
+              {submitUploads.length} items
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="px-3 py-1.5 rounded-md border border-purple/30 text-purple hover:bg-purple/10 text-sm" onClick={refreshSubmitUploads}>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {suError && <div className="px-5 py-2 text-sm text-red-700">{suError}</div>}
+        <div className="overflow-x-auto px-5 pb-5">
+          <div className="rounded-lg border border-purple/10 overflow-hidden">
+          <table className="min-w-full text-sm">
+            <thead className="bg-purple/10 text-textDark/80 text-xs uppercase tracking-wide">
+              <tr>
+                <th className="px-4 py-3 text-left">Upload ID</th>
+                <th className="px-4 py-3 text-left">Filename</th>
+                <th className="px-4 py-3 text-left">Clinic</th>
+                <th className="px-4 py-3 text-left">Rows</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Created</th>
+                <th className="px-4 py-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingSubmitUploads ? (
+                <tr><td colSpan={7} className="px-6 py-6 text-center text-textDark/60"><Loader2 className="inline animate-spin mr-2"/>Loading…</td></tr>
+              ) : submitUploads.length === 0 ? (
+                <tr><td colSpan={7} className="px-6 py-10 text-center text-textDark/60">No submit uploads found.</td></tr>
+              ) : submitUploads.map(u => (
+                <tr className="border-t border-textDark/10 hover:bg-purple/5 transition-colors" key={u.upload_id}>
+                  <td className="px-4 py-3 align-top font-mono text-xs text-textDark/80">{u.upload_id}</td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="text-textDark font-medium truncate max-w-[32ch]" title={u.original_filename}>{u.original_filename}</div>
+                    <div className="text-xs text-textDark/60">SUBMIT_EXCEL</div>
+                  </td>
+                  <td className="px-4 py-3 align-top"><span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200">{u.clinic}</span></td>
+                  <td className="px-4 py-3 align-top">{u.row_count ?? '—'}</td>
+                  <td className="px-4 py-3 align-top">
+                    {(() => { const s = submitStatusClasses(u.status); return (
+                      <span className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-medium border ${s.bg} ${s.text} ${s.border}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+                        {u.status}
+                      </span>
+                    ); })()}
+                  </td>
+                  <td className="px-4 py-3 align-top text-textDark/80">{new Date(u.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex flex-wrap gap-2">
+                      <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs" onClick={()=>navigate(`/submit-preview/${u.upload_id}`)}>
+                        <Eye size={14} /> Preview
+                      </button>
+                      <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-green-200 text-green-700 hover:bg-green-50 text-xs" onClick={()=>onSubmitDownload(u.upload_id, u.original_filename)}>
+                        <Download size={14} /> Download
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+
+  {/* (Removed Submit file in-app preview modal) */}
+  {/* (Removed modal-based submit preview) */}
 
       {/* Validation Modal */}
       <AnimatePresence>
@@ -386,6 +616,56 @@ const UploadPage: React.FC = () => {
                 <pre className="text-sm text-textDark bg-gray-50 p-4 rounded whitespace-pre-wrap">
                   {validationLines.join('\n')}
                 </pre>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50"
+            onClick={() => (deletingId ? null : setConfirmDelete(null))}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b">
+                <h3 className="text-xl font-semibold text-textDark flex items-center gap-3">
+                  <Trash2 size={20} className="text-red-600" />
+                  Delete file?
+                </h3>
+              </div>
+              <div className="p-6 space-y-3">
+                <p className="text-textDark">You're about to delete:</p>
+                <p className="text-textDark font-medium break-all">{confirmDelete.filename}</p>
+                <p className="text-textDark/70 text-sm">This action cannot be undone.</p>
+              </div>
+              <div className="px-6 py-4 border-t flex items-center justify-end gap-3 bg-gray-50">
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  disabled={!!deletingId}
+                  className="px-4 py-2 rounded-md border border-gray-300 text-textDark hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDelete(confirmDelete.id, confirmDelete.filename)}
+                  disabled={!!deletingId}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {deletingId ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  {deletingId ? 'Deleting…' : 'Delete'}
+                </button>
               </div>
             </motion.div>
           </motion.div>

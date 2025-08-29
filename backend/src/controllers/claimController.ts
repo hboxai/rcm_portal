@@ -34,16 +34,114 @@ const queryCache: Record<string, {
  */
 export const getClaims = async (req: Request, res: Response) => {
   try {
-    // Database tables unlinked - return empty results
-    console.log('Claims search disabled: Database tables unlinked');
+    // Return two mock claims so the UI can render sample rows
+    const mockClaims = [
+      {
+        // Row identity
+        claimId: 'CLAIM-1001',
+        id: 'CLAIM-1001',
+        oa_claim_id: 'OA-CLM-1001',
+        oa_visit_id: 'VIS-5001',
+        claim_status: 'Pending',
+        payor_status: 'Pending Review',
+        payor_reference_id: 'PR-789001',
+
+        // Patient
+        patient_id: 'P-001',
+        patient_emr_no: 'EMR-001',
+        patientfirst: 'John',
+        patientlast: 'Doe',
+        first_name: 'John',
+        last_name: 'Doe',
+        date_of_birth: '1985-03-14',
+
+        // Facility / provider
+        facilityname: 'Downtown Health Clinic',
+        renderingprovidername: 'Dr. Alice Carter, MD',
+
+        // Dates / service
+        charge_dt: '2025-08-01',
+        service_start: '2025-08-01',
+        service_end: '2025-08-01',
+        dos: '2025-08-01',
+
+        // Insurance
+        prim_ins: 'Medicare',
+        prim_amt: 120.0,
+        prim_post_dt: '2025-08-05',
+        sec_ins: 'Blue Cross',
+        sec_amt: 30.0,
+
+        // Billing
+        cpt_code: '99213',
+        cpt_id: 99213,
+        units: 1,
+        total_amt: 250.0,
+        charge_amt: 250.0,
+        allowed_amt: 200.0,
+        allowed_add_amt: 0.0,
+        allowed_exp_amt: 0.0,
+        sec_denial_code: null,
+        prim_chk_det: 'CHK-1001-ABC'
+      },
+      {
+        // Row identity
+        claimId: 'CLAIM-1002',
+        id: 'CLAIM-1002',
+        oa_claim_id: 'OA-CLM-1002',
+        oa_visit_id: 'VIS-5002',
+        claim_status: 'Paid',
+        payor_status: 'Paid',
+        payor_reference_id: 'PR-789002',
+
+        // Patient
+        patient_id: 'P-002',
+        patient_emr_no: 'EMR-002',
+        patientfirst: 'Jane',
+        patientlast: 'Smith',
+        first_name: 'Jane',
+        last_name: 'Smith',
+        date_of_birth: '1990-11-02',
+
+        // Facility / provider
+        facilityname: 'Lakeside Medical Center',
+        renderingprovidername: 'Dr. Brian Lee, DO',
+
+        // Dates / service
+        charge_dt: '2025-08-03',
+        service_start: '2025-08-03',
+        service_end: '2025-08-03',
+        dos: '2025-08-03',
+
+        // Insurance
+        prim_ins: 'Aetna',
+        prim_amt: 180.0,
+        prim_post_dt: '2025-08-07',
+        sec_ins: 'None',
+        sec_amt: 0.0,
+
+        // Billing
+        cpt_code: '97014',
+        cpt_id: 97014,
+        units: 2,
+        total_amt: 320.0,
+        charge_amt: 320.0,
+        allowed_amt: 300.0,
+        allowed_add_amt: 10.0,
+        allowed_exp_amt: 0.0,
+        sec_denial_code: null,
+        prim_chk_det: 'CHK-1002-XYZ'
+      }
+    ];
+
     return res.json({
       success: true,
-      data: [],
-      totalCount: 0,
+      data: mockClaims,
+      totalCount: mockClaims.length,
       page: 1,
-      limit: 10,
-      totalPages: 0,
-      message: 'Search functionality disabled: Database tables unlinked'
+      limit: mockClaims.length,
+      totalPages: 1,
+      message: 'Mock claims'
     });
   } catch (error: any) {
     console.error('Error in getClaims:', error);

@@ -236,14 +236,35 @@ export async function uploadFile(req: Request, res: Response) {
 
 export async function listUploads(req: Request, res: Response) {
   try {
-    console.log('Upload listing disabled: Database tables unlinked');
-    return res.json({ 
-      status: 'success', 
-      data: [],
-      message: 'Upload listing disabled: Database tables unlinked'
-    });
+    // Ensure table exists (idempotent)
+    await ensureUploadsTable();
+
+    const fileId = (req.query.fileId as string | undefined)?.trim();
+    let rows;
+    if (fileId) {
+      rows = (await query(
+        `SELECT id, filename, uploaded_at, COALESCE(claims_count,0) AS claims_count, COALESCE(status,'Processed') AS status
+         FROM rcm_uploads WHERE id = $1 LIMIT 1`,
+        [fileId]
+      )).rows;
+    } else {
+      rows = (await query(
+        `SELECT id, filename, uploaded_at, COALESCE(claims_count,0) AS claims_count, COALESCE(status,'Processed') AS status
+         FROM rcm_uploads ORDER BY uploaded_at DESC`)).rows;
+    }
+
+    const data = rows.map((r: any) => ({
+      id: String(r.id),
+      filename: r.filename,
+      uploadedAt: (r.uploaded_at instanceof Date ? r.uploaded_at.toISOString() : String(r.uploaded_at)),
+      claimsCount: Number(r.claims_count || 0),
+      status: String(r.status || 'Processed'),
+    }));
+
+    return res.json({ status: 'success', data });
   } catch (e: any) {
-    return res.status(500).json({ status: 'error', message: 'Database tables unlinked' });
+    console.error('listUploads error:', e);
+    return res.status(500).json({ status: 'error', message: e?.message || 'Failed to list uploads' });
   }
 }
 

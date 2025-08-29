@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, UploadCloud, Loader2, ChevronDown, ChevronRight, Download, Trash2, CheckSquare, Square } from 'lucide-react';
+import { Search, X, UploadCloud, Loader2, ChevronDown, ChevronRight, Download, Trash2, CheckSquare, Square, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { downloadUpload, getClaimsByUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, getAllClaims } from '../services/uploadService';
+import { downloadUpload, getClaimsByUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, getAllSubmitClaims } from '../services/uploadService';
+import * as XLSX from 'xlsx';
 import { UploadedFile } from '../types/file';
 import { VisitClaim } from '../types/claim';
 import { trackEvent } from '../utils/audit';
@@ -44,10 +45,13 @@ const SubmitFilesPage: React.FC = () => {
   const [loadingClaims, setLoadingClaims] = useState(false);
   const [rowOpen, setRowOpen] = useState<RowState>({});
 
-  // Claim filters
-  const [claimIdFilter, setClaimIdFilter] = useState('');
-  const [patientFilter, setPatientFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  // (Removed Submit Uploads list and preview state)
+
+  // Claim filters (UI)
+  const [claimIdFilter, setClaimIdFilter] = useState(''); // OA Claim ID
+  const [patientFilter, setPatientFilter] = useState(''); // Patient Name
+  const [facilityFilter, setFacilityFilter] = useState(''); // Facility Name
+  const [statusFilter, setStatusFilter] = useState(''); // Payor Status
   const [fileIdFilter, setFileIdFilter] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -67,6 +71,10 @@ const SubmitFilesPage: React.FC = () => {
   useEffect(() => {
     refreshUploads();
   }, [refreshUploads]);
+
+  // (Removed refreshSubmitUploads)
+
+  // (Removed reloadSubmitUploads)
 
   // When File ID filter matches an upload, select it
   useEffect(() => {
@@ -93,30 +101,34 @@ const SubmitFilesPage: React.FC = () => {
         setClaims(res.data || []);
         setTotalCount(res.totalCount || 0);
       } else {
-        const allowedStatuses = ['Pending','Paid','Denied','Appealed',''] as const;
-        const statusParam = (allowedStatuses as readonly string[]).includes(statusFilter) ? (statusFilter as any) : undefined;
-  const res = await getAllClaims({
+        const res = await getAllSubmitClaims({
           page,
           limit,
-          // Map filters; backend supports: billingId, dos, prim_ins (payer), status, patient_id, cpt_code
-          billingId: claimIdFilter || undefined,
-          status: statusParam,
-          patientId: patientFilter || undefined,
+          claimId: claimIdFilter || undefined,
+          patientName: patientFilter || undefined,
+          status: statusFilter || undefined,
         });
-        // Map backend rows to VisitClaim minimal fields used by table
+        // Data already shaped similarly by backend, but ensure minimal fields
         const rows: VisitClaim[] = (res.data || []).map((r: any) => ({
-          // Required fields per VisitClaim
-          claimId: String(r.oa_claim_id || r.claim_id || r.id || ''),
-          memberId: String(r.patient_id || r.patient_emr_no || ''),
-          patientName: r.first_name ? `${r.first_name} ${r.last_name || ''}`.trim() : String(r.patient_emr_no || r.patient_id || ''),
+          claimId: String(r.claimId || r.bil_claim_submit_id || r.oa_claim_id || ''),
+          memberId: String(r.patient_id || ''),
+          patientName: r.patientfirst ? `${r.patientfirst} ${r.patientlast || ''}`.trim() : '',
           payer: String(r.prim_ins || ''),
-          billedAmount: Number(r.total_amt ?? r.charge_amt ?? 0),
-          status: String(r.claim_status || r.claim_status_type || ''),
-          // Optional fields used in UI
-          dateOfBirth: r.date_of_birth || undefined,
-          prim_ins: r.prim_ins || undefined,
-          total_amt: r.total_amt ?? r.charge_amt ?? undefined,
-          oa_claim_id: r.oa_claim_id || undefined,
+          billedAmount: Number(r.total_amt ?? 0),
+          status: String(r.claim_status || ''),
+          // pass through fields used by table rendering
+          patientfirst: r.patientfirst,
+          patientlast: r.patientlast,
+          facilityname: r.facilityname,
+          facility_name: r.facility_name,
+          renderingprovidername: r.renderingprovidername,
+          payor_status: r.payor_status,
+          oa_claim_id: r.oa_claim_id || r.oa_claimid,
+          oaclaimid: r.oa_claimid,
+          payor_reference_id: r.payor_reference_id,
+          prim_chk_det: r.prim_chk_det,
+          cpt_code: r.cpt_code,
+          total_amt: r.total_amt,
         }));
         setClaims(rows);
         setTotalCount(res.totalCount || 0);
@@ -182,6 +194,8 @@ const SubmitFilesPage: React.FC = () => {
     }
   };
 
+  // (Removed submit upload preview handler)
+
   const onBulkDownload = async () => {
     const ids = Object.entries(selectedFileIds).filter(([, v]) => v).map(([k]) => k);
     for (const id of ids) {
@@ -200,6 +214,8 @@ const SubmitFilesPage: React.FC = () => {
     setSelectedFileIds({});
     await refreshUploads();
   };
+
+  // (Removed Submit preview/download handlers)
 
   const toggleSelectAll = (checked: boolean) => {
     const map: Record<string, boolean> = {};
@@ -244,6 +260,7 @@ const SubmitFilesPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 pt-28 pb-12">
+  {/* (Removed Uploaded Files list) */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-semibold text-textDark">Submit Files</h1>
         <button
@@ -254,24 +271,79 @@ const SubmitFilesPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Claims filters - Removed filter inputs */}
-      <div className="rounded-lg border border-purple/20 bg-white/80 backdrop-blur p-4 mb-4">
-        <div className="flex items-end justify-between gap-2">
-          <div className="text-sm text-textDark/60 flex items-center gap-2">
-            {selectedFileId ? (
-              <>
-                <span>Showing claims for File ID {selectedFileId}</span>
-                <button className="text-xs px-2 py-1 rounded border" onClick={()=>{ setSelectedFileId(null); setPage(1); }}>Clear</button>
-              </>
-            ) : (
-              <span>Showing all claims</span>
-            )}
+      {/* Search + Filter Bar */}
+      <div className="rounded-lg border border-purple/20 bg-white/90 backdrop-blur p-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs text-textDark/60 mb-1">Patient Name</label>
+            <div className="flex items-center gap-2">
+              <Search size={14} className="text-textDark/40" />
+              <input
+                type="text"
+                value={patientFilter}
+                onChange={(e)=>{ setPatientFilter(e.target.value); setPage(1); }}
+                className="w-full bg-transparent border-b border-textDark/20 focus:border-purple outline-none text-sm py-1"
+                placeholder="e.g., John Doe"
+              />
+            </div>
           </div>
-          <button onClick={exportClaimsCsv} disabled={!claims.length} className="px-3 py-2 rounded-md border border-textDark/20 disabled:opacity-50">Export CSV</button>
+          <div>
+            <label className="block text-xs text-textDark/60 mb-1">Facility Name</label>
+            <div className="flex items-center gap-2">
+              <Search size={14} className="text-textDark/40" />
+              <input
+                type="text"
+                value={facilityFilter}
+                onChange={(e)=>{ setFacilityFilter(e.target.value); setPage(1); }}
+                className="w-full bg-transparent border-b border-textDark/20 focus:border-purple outline-none text-sm py-1"
+                placeholder="e.g., City Clinic"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-textDark/60 mb-1">Payor Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e)=>{ setStatusFilter(e.target.value); setPage(1); }}
+              className="w-full bg-white border border-textDark/20 rounded-md text-sm py-1 px-2"
+            >
+              <option value="">All</option>
+              <option value="Accepted">Accepted</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Pending">Pending</option>
+              <option value="Submitted">Submitted</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-textDark/60 mb-1">OA Claim ID</label>
+            <div className="flex items-center gap-2">
+              <Search size={14} className="text-textDark/40" />
+              <input
+                type="text"
+                value={claimIdFilter}
+                onChange={(e)=>{ setClaimIdFilter(e.target.value); setPage(1); }}
+                className="w-full bg-transparent border-b border-textDark/20 focus:border-purple outline-none text-sm py-1"
+                placeholder="e.g., 123456"
+              />
+            </div>
+          </div>
+          <div className="flex items-end justify-end gap-2">
+            <button onClick={exportClaimsCsv} disabled={!claims.length} className="px-3 py-2 h-9 rounded-md border border-textDark/20 disabled:opacity-50">Export CSV</button>
+          </div>
+        </div>
+        <div className="mt-2 text-xs text-textDark/60 flex items-center gap-2">
+          {selectedFileId ? (
+            <>
+              <span>Showing claims for File ID {selectedFileId}</span>
+              <button className="text-xs px-2 py-0.5 rounded border" onClick={()=>{ setSelectedFileId(null); setPage(1); }}>Clear File</button>
+            </>
+          ) : (
+            <span>Showing all claims</span>
+          )}
         </div>
       </div>
 
-      {/* Claims table */}
+  {/* Claims table (read-only) */}
       <div className="rounded-lg border border-purple/20 bg-white/80 backdrop-blur">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm whitespace-nowrap">
@@ -280,10 +352,10 @@ const SubmitFilesPage: React.FC = () => {
                 <th className="px-4 py-2"> </th>
                 <th className="px-4 py-2">First Name</th>
                 <th className="px-4 py-2">Last Name</th>
-                <th className="px-4 py-2">Facility Name</th>
-                <th className="px-4 py-2">Payor Status</th>
+                <th className="px-4 py-2">Insurance Plan</th>
                 <th className="px-4 py-2">OA Claim ID</th>
                 <th className="px-4 py-2">Payor Ref ID</th>
+                <th className="px-4 py-2">CPT / Total</th>
               </tr>
             </thead>
             <tbody>
@@ -299,15 +371,30 @@ const SubmitFilesPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                claims.map((c) => {
+                claims
+                  .filter((c) => {
+                    // Client-side filter helpers
+                    const firstName = ((c as any).patientfirst || (c as any).patient_first || '').toString();
+                    const lastName = ((c as any).patientlast || (c as any).patient_last || '').toString();
+                    const fullName = `${firstName} ${lastName}`.trim();
+                    const insurancePlan = ((c as any).prim_ins || (c as any).insuranceplanname || '').toString();
+                    const oaClaimId = ((c as any).oa_claim_id || (c as any).oaclaimid || '').toString();
+                    const patientOk = !patientFilter || fullName.toLowerCase().includes(patientFilter.toLowerCase());
+                    const facilityOk = !facilityFilter || insurancePlan.toLowerCase().includes(facilityFilter.toLowerCase());
+                    const statusOk = true; // submit table has no unified status
+                    const claimOk = !claimIdFilter || oaClaimId.toLowerCase().includes(claimIdFilter.toLowerCase());
+                    return patientOk && facilityOk && statusOk && claimOk;
+                  })
+                  .map((c) => {
                   const open = !!rowOpen[c.claimId || c.id || ''];
                   const key = c.claimId || c.id || Math.random().toString();
                   const firstName = (c as any).patientfirst || (c as any).patient_first || '';
                   const lastName = (c as any).patientlast || (c as any).patient_last || '';
-                  const facilityName = (c as any).facilityname || (c as any).facility_name || (c as any).renderingprovidername || '';
-                  const payorStatus = (c as any).payor_status || '';
+                  const insurancePlan = (c as any).prim_ins || (c as any).insuranceplanname || '';
                   const oaClaimId = (c as any).oa_claim_id || (c as any).oaclaimid || '';
                   const payorRefId = (c as any).payor_reference_id || (c as any).prim_chk_det || '';
+                  const cpt = (c as any).cpt_code || (c as any).cpt1 || '';
+                  const total = (c as any).total_amt ?? (c as any).totalcharges ?? (c as any).charge_amt ?? '';
                   return (
                     <React.Fragment key={key}>
                       <tr className="border-t border-textDark/10">
@@ -321,10 +408,10 @@ const SubmitFilesPage: React.FC = () => {
                         </td>
                         <td className="px-4 py-2 align-top">{firstName || '—'}</td>
                         <td className="px-4 py-2 align-top">{lastName || '—'}</td>
-                        <td className="px-4 py-2 align-top">{facilityName || '—'}</td>
-                        <td className="px-4 py-2 align-top">{payorStatus || '—'}</td>
+                        <td className="px-4 py-2 align-top">{insurancePlan || '—'}</td>
                         <td className="px-4 py-2 align-top">{oaClaimId || '—'}</td>
                         <td className="px-4 py-2 align-top">{payorRefId || '—'}</td>
+                        <td className="px-4 py-2 align-top">{cpt ? `${cpt}` : '—'}{total !== '' ? <span className="text-textDark/60">{` / ${total}`}</span> : ''}</td>
                       </tr>
                       <tr className={`${open ? '' : 'hidden'}`}>
                         <td colSpan={7} className="px-4 pb-4">
@@ -471,6 +558,8 @@ const SubmitFilesPage: React.FC = () => {
                 {/* Recent uploads (simple list) */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
+
+              {/* (Removed Preview Modal and error toast) */}
                     <h3 className="text-sm font-medium text-textDark">Recent uploads</h3>
                     <button onClick={refreshUploads} className="text-xs px-2 py-1 rounded border">Refresh</button>
                   </div>
@@ -541,6 +630,7 @@ const SubmitFilesPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 };

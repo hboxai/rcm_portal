@@ -8,21 +8,11 @@ import { existsSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// We need to go back 4 levels: config -> src -> backend -> rcm_portal -> root
-const rootEnvPath = join(__dirname, '../../../../.env');
+// We need to go back 3 levels: config -> src -> backend -> repo root
+const rootEnvPath = join(__dirname, '../../../.env');
 
-// Load the environment variables from the root .env file
-console.log(`Loading .env from: ${rootEnvPath}`);
-console.log(`File exists: ${existsSync(rootEnvPath)}`);
+// Load the environment variables from the root .env file (quiet)
 dotenv.config({ path: rootEnvPath });
-
-// Debug: Print all environment variables to see what's loaded
-console.log('Environment variables loaded:');
-console.log(`DB_HOST: "${process.env.DB_HOST}"`);
-console.log(`DB_PORT: "${process.env.DB_PORT}"`);
-console.log(`DB_NAME: "${process.env.DB_NAME}"`);
-console.log(`DB_USER: "${process.env.DB_USER}"`);
-console.log(`DB_PASSWORD: "${process.env.DB_PASSWORD ? '[SET]' : '[NOT SET]'}"`);
 
 // Check for required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
@@ -65,11 +55,10 @@ const pool = new Pool({  host: DB_HOST,
   application_name: 'project-bolt'   // Identify connections in pg_stat_activity
 });
 
-console.log(`DB connection config: host=${DB_HOST} port=${DB_PORT} db=${DB_NAME} user=${DB_USER} sslEnabled=${sslEnabled}`);
+// Minimal, non-sensitive connection log
+console.log(`DB connection config: sslEnabled=${sslEnabled}`);
 if (!sslEnabled) {
-  console.warn('WARNING: DB_SSL_ENABLED is not true; connection will be non-SSL. This may be rejected by the server.');
-} else {
-  console.log('PostgreSQL SSL enabled (require=true, rejectUnauthorized=' + (process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false') + ')');
+  console.warn('WARNING: DB_SSL_ENABLED is not true; connection will be non-SSL.');
 }
 
 // Suppress TS7006 errors for implicit 'any' types
@@ -88,7 +77,7 @@ pool.on('connect', (client: any) => {
   connectionCount++;
   // Log only once at startup or very occasionally
   if (connectionCount === 1 || Date.now() - logThrottleTime > logThrottleInterval) {
-    console.log(`DB pool connection (total: ${connectionCount})`);
+  console.log(`DB pool connection established`);
     logThrottleTime = Date.now();
   }
   // Set per-session safety timeouts

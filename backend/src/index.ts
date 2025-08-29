@@ -10,6 +10,8 @@ import historyRoutes from './routes/history.js'; // Import the new history route
 import userRoutes from './routes/users.js'; // Import the new user routes
 import { authMiddleware } from './middleware/auth.js';
 import auditRouter from './routes/audit.js';
+import submitUploadsRouter from './routes/submitUploads.js';
+import reimburseRouter from './routes/reimburse.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path'; // Added for static file serving
@@ -19,7 +21,7 @@ import { fileURLToPath } from 'url'; // Added for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from the correct path
+// Load environment variables from the repo root
 const rootEnvPath = path.join(__dirname, '../../../.env');
 dotenv.config({ path: rootEnvPath });
 
@@ -103,6 +105,8 @@ app.use('/api/audit', auditRouter);
 // Protected routes (auth required)
 app.use('/api/claims', authMiddleware, claimRoutes);
 app.use('/api/uploads', uploadsRouter); // Mount the uploads router
+app.use('/api/submit-uploads', submitUploadsRouter);
+app.use('/api/reimburse', authMiddleware, reimburseRouter);
 app.use('/api/history', authMiddleware, historyRoutes); // Add the history routes to the app
 app.use('/api/users', authMiddleware, userRoutes); // Add the user routes to the app
 

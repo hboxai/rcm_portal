@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Download, Eye, Loader2, AlertCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getUploadPreview, downloadUpload } from '../services/uploadService';
+import { getUploadPreview, downloadUpload, getSubmitServerPreview, getSubmitUploadDownloadUrl } from '../services/uploadService';
 import { trackEvent } from '../utils/audit';
 
 interface PreviewData {
@@ -39,11 +39,26 @@ const PreviewPage: React.FC = () => {
     setError(null);
     
     try {
-      const data = await getUploadPreview(fileId, 1000); // Load up to 1000 rows for full view
-      setPreviewData(data);
-      trackEvent('upload:preview:fullview', { id: fileId });
+      // Try submit-uploads server preview from S3 first
+      try {
+        const server = await getSubmitServerPreview(fileId, 1000);
+        const headers = server.columns || [];
+        const rows = server.rows || [];
+        setPreviewData({ headers, rows, totalRows: rows.length, totalPreviewRows: rows.length, filename: server.original_filename || `upload_${fileId}.xlsx` });
+        trackEvent('submit:preview:server', { id: fileId, rows: rows.length });
+      } catch (e: any) {
+        const status = e?.response?.status;
+        if (status === 410) {
+          setError('The original file is missing from S3. Preview unavailable.');
+          return;
+        }
+        // Fallback to legacy preview (rcm_uploads flow)
+        const data = await getUploadPreview(fileId, 1000);
+        setPreviewData(data);
+        trackEvent('upload:preview:fullview', { id: fileId });
+      }
     } catch (e: any) {
-      setError('Failed to load preview: ' + e.message);
+      setError('Failed to load preview: ' + (e?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -54,6 +69,23 @@ const PreviewPage: React.FC = () => {
     
     try {
       trackEvent('upload:download', { id: fileId });
+      // Prefer submit-uploads signed URL (streams from S3)
+      try {
+        const signed = await getSubmitUploadDownloadUrl(fileId);
+        const a = document.createElement('a');
+        a.href = signed;
+        a.download = previewData.filename;
+        a.rel = 'noopener';
+        a.click();
+        return;
+      } catch (e: any) {
+        const status = e?.response?.status;
+        if (status === 410) {
+          setError('The original file is missing from S3. Download unavailable.');
+          return;
+        }
+        // Not a submit-uploads ID or endpoint failed; fallback to legacy local download
+      }
       const blob = await downloadUpload(fileId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

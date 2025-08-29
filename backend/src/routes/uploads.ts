@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { uploadFile, listUploads, getClaimsByUpload, deleteUpload, getValidationReport, downloadUploadFile, getUploadById, getUploadPreview, getMappingInfo } from '../controllers/uploadController.js';
+import { getSubmitUploadDownloadUrl } from '../controllers/submitUploadsController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +50,8 @@ router.get('/:id/claims', getClaimsByUpload);
 router.delete('/:id', deleteUpload);
 router.get('/:id/validation', getValidationReport);
 router.get('/:id/preview', getUploadPreview);
+// New: presigned URL for audit uploads (rcm_file_uploads)
+router.get('/:upload_id/download-url', getSubmitUploadDownloadUrl);
 router.get('/:id/download', downloadUploadFile);
 
 export default router;

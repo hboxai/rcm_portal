@@ -69,6 +69,17 @@ export async function getAllClaims(filters: Partial<SearchFilters> & { page?: nu
   return res.data as PaginatedClaimsResponse;
 }
 
+// New: Fetch all submit claims (real data) across all uploads
+export async function getAllSubmitClaims(filters: { page?: number; limit?: number; claimId?: string; patientName?: string; status?: string } = {}): Promise<PaginatedClaimsResponse> {
+  const { page = 1, limit = 20, ...rest } = filters;
+  const params: any = { page, limit, ...rest };
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads/claims`, {
+    headers: { Authorization: getAuthToken() },
+    params,
+  });
+  return res.data as PaginatedClaimsResponse;
+}
+
 export async function deleteUpload(fileId: string): Promise<{ success: boolean; message?: string }>{
   try {
     await axios.delete(`${API_BASE_URL}/uploads/${fileId}`, {
@@ -102,4 +113,99 @@ export async function getUploadPreview(fileId: string, limit: number = 100): Pro
   } catch (e: any) {
     throw new Error(e?.response?.data?.message || 'Failed to load preview');
   }
+}
+
+// Submit Upload (Claims) flow
+export type SubmitPreviewResponse = {
+  upload_id: string;
+  s3_url?: string;
+  original_filename?: string;
+  row_count: number;
+  columns_found: string[];
+  missing_required: string[];
+  warnings: string[];
+  sample_rows: any[];
+  can_commit: boolean;
+  duplicate_of?: string | null;
+  errors?: string[]; // when cannot commit
+};
+
+export type SubmitCommitResponse = {
+  upload_id: string;
+  inserted_count: number;
+  updated_count: number;
+  skipped_count: number;
+  warnings: string[];
+  duration_ms: number;
+};
+
+export async function submitUploadPreview(
+  file: File,
+  clinic: string,
+  onProgress?: (pct: number) => void
+): Promise<SubmitPreviewResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('clinic', clinic);
+  const res = await axios.post(`${API_BASE_URL}/submit-uploads/preview`, form, {
+    headers: { Authorization: getAuthToken(), 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (evt) => {
+      if (onProgress && evt.total) onProgress(Math.round((evt.loaded / evt.total) * 100));
+    }
+  });
+  return res.data;
+}
+
+export async function submitUploadCommit(upload_id: string): Promise<SubmitCommitResponse> {
+  const res = await axios.post(
+    `${API_BASE_URL}/submit-uploads/commit`,
+    { upload_id },
+    { headers: { Authorization: getAuthToken(), 'Content-Type': 'application/json' } }
+  );
+  return res.data;
+}
+
+// New: Submit uploads listing and download-url
+export type SubmitUploadListItem = {
+  upload_id: string;
+  clinic: string;
+  file_kind: 'SUBMIT_EXCEL';
+  original_filename: string;
+  row_count: number | null;
+  status: 'PENDING' | 'COMPLETED' | 'COMMITTED' | 'FAILED';
+  message: string | null;
+  created_by: string | null;
+  created_at: string;
+  claims_count: number;
+};
+
+export async function listSubmitUploads(params: { clinic?: string; limit?: number; offset?: number; status?: string; search?: string } = {}): Promise<{ items: SubmitUploadListItem[]; total: number }>{
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads`, {
+    headers: { Authorization: getAuthToken() },
+    params,
+  });
+  return res.data as { items: SubmitUploadListItem[]; total: number };
+}
+
+export async function getSubmitUploadDownloadUrl(upload_id: string): Promise<string> {
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads/${upload_id}/download-url`, {
+    headers: { Authorization: getAuthToken() },
+  });
+  return res.data.url as string;
+}
+
+export type ServerPreview = {
+  upload_id: string;
+  original_filename?: string;
+  sheet_names: string[];
+  columns: string[];
+  rows: any[];
+};
+
+export async function getSubmitServerPreview(upload_id: string, rows = 500): Promise<ServerPreview> {
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads/${upload_id}/preview`, {
+    headers: { Authorization: getAuthToken() },
+    params: { rows }
+  });
+  return res.data as ServerPreview;
 }
