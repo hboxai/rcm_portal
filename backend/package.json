@@ -12,6 +12,7 @@
     "start": "node dist/index.js",
   "db:migrate": "tsx src/scripts/runMigrations.ts",
   "db:verify:uploads": "tsx src/scripts/verifyUploadsTable.ts",
+  "db:verify:submit-cols": "tsx src/scripts/verifySubmitSystemCols.ts",
   "test": "echo \"Error: no test specified\" && exit 1",
   "db:columns": "node scripts/list-columns.cjs api_bil_claim_submit",
   "db:seed:submit": "node scripts/seed-submit-table.cjs"
