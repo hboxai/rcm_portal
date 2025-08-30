@@ -59,7 +59,7 @@ const ProfilePage: React.FC = () => {
               className="text-purple hover:text-purple/80 flex items-center gap-1"
             >
               <ChevronLeft size={18} />
-              <span>Back to Search</span>
+              <span>Back to Reimburse Files</span>
             </Link>
           </div>
           

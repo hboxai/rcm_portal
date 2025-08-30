@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../config/db.js';
-import { downloadFromS3 } from '../services/s3.js';
+import { downloadFromS3, deleteFromS3 } from '../services/s3.js';
 import XLSX from 'xlsx';
 import crypto from 'crypto';
 import { alias, norm as normHdr } from '../utils/headerMap.js';
@@ -214,7 +214,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     if (!up.rowCount) return res.status(422).json({ error: 'Upload not found' });
     const row = up.rows[0];
     if (row.file_kind !== 'SUBMIT_EXCEL') return res.status(422).json({ error: 'Wrong upload kind' });
-    if (row.status !== 'COMPLETED') return res.status(422).json({ error: 'Upload status not COMPLETED' });
+  if (row.status !== 'COMPLETED') return res.status(422).json({ error: 'Upload status not COMPLETED' });
 
     // Fetch file content
     const bucket = row.s3_bucket;
@@ -234,11 +234,20 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     let skipped = 0;
     const warnings: string[] = [];
 
+    // Initialize progress fields (keep status unchanged to satisfy DB check constraint)
+    await pool.query(
+      `UPDATE rcm_file_uploads SET row_count=$1, message=$2 WHERE upload_id=$3`,
+      [rows.length, `Processing 0/${rows.length} (0%)`, upload_id]
+    );
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
   const colTypes = await getTableColumnTypes(client, 'api_bil_claim_submit');
   const schemaColumns = new Set(Object.keys(colTypes));
+      let processed = 0;
+      const total = rows.length || 1;
+      const progressStep = Math.max(1, Math.floor(total / 100)); // Update progress more frequently (up to 100 updates)
 
       for (let i = 0; i < rows.length; i++) {
   const raw = rows[i];
@@ -319,6 +328,28 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           await client.query(sql, [...vals, existingId]);
           updates.push(existingId);
         }
+
+        // Progress and cancellation checks outside the transaction so UI can poll
+        processed++;
+        if (processed % Math.max(1, Math.floor(progressStep / 2)) === 0 || processed === total) {
+          const pct = Math.floor((processed / total) * 100);
+          try {
+            // More frequent progress updates for better real-time feel
+            await pool.query(
+              `UPDATE rcm_file_uploads SET message=$1 WHERE upload_id=$2`,
+              [`Processing ${processed}/${total} (${pct}%)`, upload_id]
+            );
+            // Cancellation: if user requested cancel (status flipped to FAILED), abort
+            const st = await pool.query(`SELECT status FROM rcm_file_uploads WHERE upload_id=$1`, [upload_id]);
+            const cur = st.rows?.[0]?.status;
+            if (cur === 'FAILED') {
+              throw new Error('Cancelled by user');
+            }
+          } catch (e) {
+            // Re-throw to trigger rollback
+            throw e;
+          }
+        }
       }
 
       await client.query('COMMIT');
@@ -337,17 +368,20 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     const skipped_count = skipped;
 
   const msg = `Committed ${inserted_count + updated_count} rows (inserted ${inserted_count}, updated ${updated_count}, skipped ${skipped_count}); Reimburse: created=${mirror.created}, updated=${mirror.updated}, deleted=${mirror.deleted}`;
-    await pool.query(
+  await pool.query(
       `UPDATE rcm_file_uploads
          SET message=$1,
              row_count=COALESCE(row_count, $2),
-             status='COMPLETED',
+       status='COMPLETED',
              processing_completed_at=NOW()
        WHERE upload_id=$3`,
       [msg, inserted_count + updated_count, upload_id]
     );
 
-    return res.status(200).json({
+  // Best-effort S3 cleanup after successful commit
+  try { await deleteFromS3({ bucket, key: keyObj }); } catch {}
+
+  return res.status(200).json({
       upload_id,
       inserted_count,
       updated_count,
@@ -366,10 +400,13 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     console.error('commitSubmitUpload error:', err);
     try {
       if (upload_id) {
+        const meta = await pool.query(`SELECT s3_bucket, s3_key FROM rcm_file_uploads WHERE upload_id=$1`, [upload_id]);
         await pool.query(
           `UPDATE rcm_file_uploads SET status='FAILED', message=$1 WHERE upload_id=$2`,
           [String(err?.message || 'Commit failed'), upload_id]
         );
+        // Best-effort cleanup of source object
+        try { await deleteFromS3({ bucket: meta.rows?.[0]?.s3_bucket, key: meta.rows?.[0]?.s3_key }); } catch {}
       }
     } catch {}
     return res.status(500).json({ error: err?.message || 'Internal error' });

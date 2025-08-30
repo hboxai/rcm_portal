@@ -13,6 +13,11 @@ interface SearchResultsProps {
   currentPage: number;
   claimsPerPage: number;
   onPageChange: (page: number) => void;
+  // Optional: customize the destination for the details link (used by Submit Files page)
+  buildDetailsLink?: (claim: VisitClaim) => string;
+  buildDetailsState?: (claim: VisitClaim) => any;
+  // Optional: provide a custom card renderer per claim (full control of card UI)
+  renderCard?: (claim: VisitClaim) => React.ReactNode;
 }
 
 const SearchResults: React.FC<SearchResultsProps> = ({ 
@@ -22,7 +27,10 @@ const SearchResults: React.FC<SearchResultsProps> = ({
   totalCount,
   currentPage,
   claimsPerPage,
-  onPageChange
+  onPageChange,
+  buildDetailsLink,
+  buildDetailsState,
+  renderCard,
 }) => {  
   const totalPages = Math.ceil(totalCount / claimsPerPage);
 
@@ -32,7 +40,8 @@ const SearchResults: React.FC<SearchResultsProps> = ({
     }
   };
 
-  if (isLoading) {    return (
+  if (isLoading) {
+    return (
       <div className="glass-card min-h-48 flex items-center justify-center rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
         <div className="text-center">
           <div className="w-10 h-10 border-2 border-purple border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
@@ -69,8 +78,13 @@ const SearchResults: React.FC<SearchResultsProps> = ({
   return (
     <div className="glass-card min-h-48 rounded-xl p-6 bg-white/90 backdrop-blur-sm border border-purple/20">
       <div className="space-y-4">
-        {results.map((claim) => (
-          <div key={claim.id} className="glass-card rounded-xl overflow-hidden bg-white/60 border border-purple/10 hover:bg-white/80 transition-all duration-200">
+  {results.map((claim) => (
+          renderCard ? (
+            <React.Fragment key={(claim.id || claim.claimId || claim.billing_id) as any}>
+              {renderCard(claim)}
+            </React.Fragment>
+          ) : (
+          <div key={claim.id as any} className="glass-card rounded-xl overflow-hidden bg-white/60 border border-purple/10 hover:bg-white/80 transition-all duration-200">
             <div className="p-4">              {/* Patient Name with Provider Name beside it */}
               <div className="mb-4 flex justify-between items-center">
                 <h3 className="text-xl font-medium text-textDark">
@@ -133,12 +147,17 @@ const SearchResults: React.FC<SearchResultsProps> = ({
               </div>
                 {/* View Details link */}
               <div className="text-right">
-                <Link to={`/profile/${claim.id || claim.claimId || claim.billing_id}`} className="text-blue hover:text-blue/80 text-sm font-medium">
+                <Link 
+                  to={buildDetailsLink ? buildDetailsLink(claim) : `/profile/${claim.id || claim.claimId || claim.billing_id}`}
+                  state={buildDetailsState ? buildDetailsState(claim) : undefined}
+                  className="text-blue hover:text-blue/80 text-sm font-medium"
+                >
                   View Details
                 </Link>
               </div>
             </div>
           </div>
+          )
         ))}
       </div>      {/* Pagination Controls */}
       {totalPages > 0 && (

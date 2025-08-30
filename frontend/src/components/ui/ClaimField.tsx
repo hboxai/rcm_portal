@@ -43,12 +43,11 @@ export const formatters = {
     if (value === null || value === undefined || value === '') {
       return 'N/A';
     }
-    return new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(Number(value));
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sign = n < 0 ? '-' : '';
+    return `${sign}$${s}`;
   },
     // Date formatter
   date: (value: any): string => {

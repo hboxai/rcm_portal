@@ -84,11 +84,18 @@ const SearchPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white pt-24">
       <div className="p-4 md:p-8">
-        <div className="mb-8">          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
-            Claim Search
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
+            Reimburse Files
           </h1>
-          
-          <SearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} onClear={handleClear} />
+
+          <SearchForm 
+            onSearch={handleSearch} 
+            isLoading={isLoading} 
+            filters={filters} 
+            setFilters={setFilters} 
+            onClear={handleClear} 
+          />
         </div>
 
         {/* Display error message if there is an error from the context */}

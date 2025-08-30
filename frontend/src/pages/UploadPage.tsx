@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
-import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl } from '../services/uploadService';
+import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress } from '../services/uploadService';
 import type { SubmitUploadListItem } from '../services/uploadService';
 import { UploadedFile } from '../types/file';
 import { trackEvent } from '../utils/audit';
@@ -43,6 +43,12 @@ const UploadPage: React.FC = () => {
   const [quickProgress, setQuickProgress] = useState(0);
   const [commitWarnings, setCommitWarnings] = useState<string[]>([]);
   const progressTimerRef = useRef<number | null>(null);
+  // Upload smoothing timer & target (to avoid instant jump to 99%)
+  const uploadTimerRef = useRef<number | null>(null);
+  const uploadTargetRef = useRef<number>(1);
+  // Quick preview upload smoothing
+  const quickUploadTimerRef = useRef<number | null>(null);
+  const quickTargetRef = useRef<number>(1);
   // (Removed submit uploads list state)
   // Submit uploads list & preview state
   const [submitUploads, setSubmitUploads] = useState<SubmitUploadListItem[]>([]);
@@ -117,12 +123,32 @@ const UploadPage: React.FC = () => {
     setError(null);
     setSuccess(null);
     setUploading(true);
-    setProgress(0);
+    // initialize displayed progress and target at 1%
+    setProgress(1);
+    uploadTargetRef.current = 1;
 
     try {
       for (const file of validFiles) {
+        // restart smoothing animator per file
+        if (uploadTimerRef.current) { window.clearInterval(uploadTimerRef.current); uploadTimerRef.current = null; }
+        setProgress(1);
+        uploadTargetRef.current = 1;
+    uploadTimerRef.current = window.setInterval(() => {
+          setProgress((p) => {
+            const target = uploadTargetRef.current;
+            if (p >= target) return p;
+      // Ease towards target similar to commit animation (~3% of remaining)
+      const step = Math.max(1, Math.round((target - p) * 0.03));
+            return Math.min(target, p + step);
+          });
+    }, 150);
+
         trackEvent('upload:start', { name: file.name, size: file.size });
-        const result = await uploadMetabaseExport(file, setProgress);
+        const result = await uploadMetabaseExport(file, (pct) => {
+          // update the target, animator will smoothly catch up
+          const clamped = Math.max(1, Math.min(99, pct));
+          if (clamped > uploadTargetRef.current) uploadTargetRef.current = clamped;
+        });
         
         if (!result.success) {
           setError(result.message || 'Upload failed');
@@ -131,6 +157,10 @@ const UploadPage: React.FC = () => {
         
         trackEvent('upload:success', { id: result.file?.id, name: file.name });
         setSuccess(`Successfully uploaded ${file.name}`);
+        // complete: jump target to 100, snap and hold briefly like commit animation
+        uploadTargetRef.current = 100;
+        setProgress(100);
+  await new Promise(r => setTimeout(r, 300));
         
         // Refresh the uploads list
         await refreshUploads();
@@ -138,6 +168,7 @@ const UploadPage: React.FC = () => {
     } catch (e: any) {
       setError(e.message || 'Upload failed');
     } finally {
+      if (uploadTimerRef.current) { window.clearInterval(uploadTimerRef.current); uploadTimerRef.current = null; }
       setUploading(false);
       setProgress(0);
     }
@@ -152,11 +183,23 @@ const UploadPage: React.FC = () => {
     setError(null); setSuccess(null);
     setQuickPreview(null);
     setQuickSubmitting(true);
-    setQuickProgress(0);
+    setQuickProgress(1);
+    // start smoothing towards upload progress target
+    if (quickUploadTimerRef.current) { window.clearInterval(quickUploadTimerRef.current); quickUploadTimerRef.current = null; }
+    quickTargetRef.current = 1;
+    quickUploadTimerRef.current = window.setInterval(() => {
+      setQuickProgress((p) => {
+        const target = quickTargetRef.current;
+        if (p >= target) return p;
+        const step = Math.max(1, Math.round((target - p) * 0.03));
+        return Math.min(target, p + step);
+      });
+    }, 150);
     try {
       const prev = await submitUploadPreview(f, quickClinic, (pct) => {
-        // Show true upload progress directly
-        setQuickProgress(Math.max(0, Math.min(100, pct)));
+        // update target; animator will smoothly catch up
+        const clamped = Math.max(1, Math.min(99, pct));
+        if (clamped > quickTargetRef.current) quickTargetRef.current = clamped;
       });
       if (!prev.can_commit) {
         setError(prev.errors?.join('\n') || `Missing required headers: ${prev.missing_required.join(', ')}`);
@@ -177,8 +220,10 @@ const UploadPage: React.FC = () => {
       setError(e?.message || 'Quick preview failed');
     } finally {
   // Ensure 100% completion is visible briefly
+  quickTargetRef.current = 100;
   setQuickProgress(100);
-  setTimeout(() => setQuickSubmitting(false), 150);
+  if (quickUploadTimerRef.current) { window.clearInterval(quickUploadTimerRef.current); quickUploadTimerRef.current = null; }
+  setTimeout(() => setQuickSubmitting(false), 250);
     }
   };
 
@@ -186,24 +231,63 @@ const UploadPage: React.FC = () => {
     if (!quickPreview) return;
     setQuickSubmitting(true);
     setQuickProgress(0);
-    // Simulate progress during commit until API returns
-    if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
-    progressTimerRef.current = window.setInterval(() => {
-      setQuickProgress(p => (p < 97 ? p + Math.max(1, Math.round((100 - p) * 0.02)) : p));
-    }, 200);
+    
+    // Clear any existing progress timer
+    if (progressTimerRef.current) {
+      window.clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+
+    // Start real-time progress polling immediately
+    const startPolling = () => {
+      progressTimerRef.current = window.setInterval(async () => {
+        try {
+          if (!quickPreview) return;
+          const pr = await pollSubmitProgress(quickPreview.upload_id);
+          
+          // Update progress based on real backend data
+          if (typeof pr.percent === 'number') {
+            setQuickProgress(Math.max(0, Math.min(100, pr.percent)));
+          }
+          
+          // Stop polling when complete
+          if (pr.done || pr.status === 'COMPLETED' || pr.status === 'FAILED') {
+            setQuickProgress(pr.status === 'FAILED' ? (pr.percent ?? 0) : 100);
+            if (progressTimerRef.current) {
+              window.clearInterval(progressTimerRef.current);
+              progressTimerRef.current = null;
+            }
+          }
+        } catch (error) {
+          console.warn('Progress polling error:', error);
+        }
+      }, 200); // Poll every 200ms for more responsive updates
+    };
+
+    startPolling();
+
     try {
-  const r = await submitUploadCommit(quickPreview.upload_id);
-  setCommitWarnings(r.warnings || []);
-  setSuccess(`Committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
+      const r = await submitUploadCommit(quickPreview.upload_id);
+      setCommitWarnings(r.warnings || []);
+      setSuccess(`Committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
       setQuickPreview(null);
       await refreshUploads();
+      await refreshSubmitUploads();
       trackEvent('submit:commit', { id: r.upload_id, inserted: r.inserted_count, updated: r.updated_count });
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || 'Commit failed');
     } finally {
-      setQuickProgress(100);
-      if (progressTimerRef.current) { window.clearInterval(progressTimerRef.current); progressTimerRef.current = null; }
-      setTimeout(() => setQuickSubmitting(false), 200);
+      // Ensure cleanup
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+      
+      // Brief delay to show 100% completion
+      setTimeout(() => {
+        setQuickSubmitting(false);
+        setQuickProgress(0);
+      }, 500);
     }
   };
 
@@ -364,9 +448,9 @@ const UploadPage: React.FC = () => {
               <Loader2 className="mx-auto animate-spin text-purple" size={64} />
               <div className="space-y-3">
                 <p className="text-xl text-textDark">Uploading file...</p>
-                <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-3">
-                  <div 
-                    className="bg-purple h-3 rounded-full transition-all duration-300"
+        <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div
+          className="bg-purple h-2 rounded-full transition-all"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -389,15 +473,7 @@ const UploadPage: React.FC = () => {
                 <p className="text-base text-textDark/60">
                   Supports .csv, .xlsx, and .xls files
                 </p>
-                <div className="mt-3 flex items-center gap-2 text-sm">
-                  <label className="text-textDark/70">Clinic:</label>
-                  <input
-                    value={quickClinic}
-                    onChange={(e)=>setQuickClinic(e.target.value)}
-                    className="px-2 py-1 border rounded w-48"
-                    placeholder="clinic id/name"
-                  />
-                </div>
+                {/* Clinic selection removed per request; default clinic is used internally */}
               </div>
             </div>
           )}
@@ -405,12 +481,12 @@ const UploadPage: React.FC = () => {
       </div>
 
       {/* Quick Submit Preview / Progress */}
-      {quickSubmitting && !quickPreview && (
+  {quickSubmitting && !quickPreview && (
         <div className="mb-8 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
           <div className="flex items-center gap-3 mb-2"><Loader2 className="animate-spin text-blue-600" size={18}/> <div className="font-medium text-textDark">Uploading & analyzing…</div></div>
           <div className="w-full max-w-xl">
-            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-              <div className="bg-blue-600 h-3 rounded-full transition-all" style={{ width: `${quickProgress}%` }} />
+    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+      <div className="bg-purple h-2 rounded-full transition-all" style={{ width: `${quickProgress}%` }} />
             </div>
             <div className="text-xs mt-1 text-textDark/70">{quickProgress}%</div>
           </div>
@@ -440,7 +516,18 @@ const UploadPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setQuickPreview(null)}
+                onClick={async () => {
+                  if (!quickPreview) return;
+                  try {
+                    await submitUploadCancel(quickPreview.upload_id);
+                    setSuccess('Upload cancelled');
+                  } catch (e: any) {
+                    setError(e?.response?.data?.error || e?.message || 'Cancel failed');
+                  } finally {
+                    setQuickPreview(null);
+                    void refreshSubmitUploads();
+                  }
+                }}
                 className="px-4 py-2 rounded-md border border-gray-300 text-textDark hover:bg-gray-50"
               >
                 Cancel

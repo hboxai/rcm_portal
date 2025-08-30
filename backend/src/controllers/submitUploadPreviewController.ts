@@ -4,7 +4,7 @@ import fs from 'fs';
 import { Request, Response } from 'express';
 import XLSX from 'xlsx';
 import pool from '../config/db.js';
-import { uploadToS3 } from '../services/s3.js';
+import { uploadToS3, deleteFromS3 } from '../services/s3.js';
 
 // Header synonym groups for robust detection
 const HEADER_SYNONYMS: Record<string, string[]> = {
@@ -101,6 +101,8 @@ export async function previewSubmitUpload(req: Request, res: Response) {
 
   let uploadId: string;
   let s3Url: string;
+  let s3KeyUsed: string | undefined;
+  let s3UploadedHere = false;
     let s3Bucket = process.env.S3_BUCKET || '';
     const { y, m } = yearMonth();
   const s3KeyPrefix = `submit/${clinic}/${y}/${m}/`;
@@ -113,16 +115,22 @@ export async function previewSubmitUpload(req: Request, res: Response) {
       const existingKey = (dupCheck.rows[0] as any).s3_key;
       if (!s3Url || !existingBucket || !existingKey) {
         const key = `${s3KeyPrefix}${uploadId}${ext || '.xlsx'}`;
-        const up = await uploadToS3({ bucket: s3Bucket, key, body: bodyBuf, contentType: file.mimetype });
+  const up = await uploadToS3({ bucket: s3Bucket, key, body: bodyBuf, contentType: file.mimetype });
         s3Url = up.s3Url;
+        s3KeyUsed = key;
+  s3UploadedHere = true;
         await pool.query(`UPDATE rcm_file_uploads SET s3_bucket=$1, s3_key=$2, s3_url=$3 WHERE upload_id=$4`, [s3Bucket, key, s3Url, uploadId]);
+      } else {
+        s3KeyUsed = existingKey;
       }
     } else {
       // 5) Generate upload_id, upload to S3 first (to satisfy NOT NULL s3_url), then insert audit row
       uploadId = crypto.randomUUID();
       const key = `${s3KeyPrefix}${uploadId}${ext || '.xlsx'}`;
-      const up = await uploadToS3({ bucket: s3Bucket, key, body: bodyBuf, contentType: file.mimetype });
+  const up = await uploadToS3({ bucket: s3Bucket, key, body: bodyBuf, contentType: file.mimetype });
       s3Url = up.s3Url;
+  s3KeyUsed = key;
+  s3UploadedHere = true;
 
       await pool.query(
         `INSERT INTO rcm_file_uploads (
@@ -204,6 +212,10 @@ export async function previewSubmitUpload(req: Request, res: Response) {
     const duplicate_of = dupCheck.rowCount ? dupCheck.rows[0].upload_id : null;
 
     if (!can_commit) {
+      // Best-effort: delete only if we uploaded a new object in this request
+      if (s3UploadedHere) {
+        try { await deleteFromS3({ bucket: s3Bucket, key: s3KeyUsed }); } catch {}
+      }
       return res.status(200).json({
         upload_id: uploadId,
     errors: message ? [message] : (hasRequiredValues ? [] : ['No rows contain required values (Patient, Service, and Insurance).']),

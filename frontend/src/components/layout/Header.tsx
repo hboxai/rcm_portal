@@ -129,15 +129,15 @@ const Header: React.FC = () => {
               whileHover="hover"
               custom={1}
               transition={{ delay: 0.15 }}
-            >              <Link 
-                to="/search" 
+      >              <Link 
+        to="/search" 
                 className={`px-4 py-2 mx-1 rounded-md transition-all duration-200 ${
                   isActive('/search') 
                     ? 'text-white bg-white/20 shadow-sm shadow-white/10' 
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
-                Search
+        Reimburse Files
               </Link>
             </motion.div>
             
@@ -257,7 +257,7 @@ const Header: React.FC = () => {
                   }`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  Search
+                  Reimburse Files
                 </Link>
               </motion.div>
               

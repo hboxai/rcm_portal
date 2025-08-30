@@ -9,15 +9,29 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const page = Math.max(parseInt(String(req.query.page ?? '1'), 10) || 1, 1);
     const offset = (page - 1) * limit;
 
-    const claimId = (req.query.claimId as string | undefined)?.trim();
-    const patientName = (req.query.patientName as string | undefined)?.trim();
+  const claimId = (req.query.claimId as string | undefined)?.trim();
+  const patientName = (req.query.patientName as string | undefined)?.trim();
+  const clinicName = (req.query.clinicName as string | undefined)?.trim();
+  const dateOfBirth = (req.query.dateOfBirth as string | undefined)?.trim();
+  const payerName = (req.query.payerName as string | undefined)?.trim();
+  const cptCode = (req.query.cptCode as string | undefined)?.trim();
     // Status is not reliably present on submit table; accept but ignore safely
     // const status = (req.query.status as string | undefined)?.trim();
 
     const where: string[] = [];
     const params: any[] = [];
     if (claimId) { params.push(`%${claimId}%`); where.push(`CAST(oa_claimid AS TEXT) ILIKE $${params.length}`); }
-    if (patientName) { params.push(`%${patientName}%`); where.push(`(COALESCE(patientfirst,'') || ' ' || COALESCE(patientlast,'')) ILIKE $${params.length}`); }
+  if (patientName) { params.push(`%${patientName}%`); where.push(`(COALESCE(patientfirst,'') || ' ' || COALESCE(patientlast,'')) ILIKE $${params.length}`); }
+    if (clinicName) { params.push(`%${clinicName}%`); where.push(`COALESCE(facilityname,'') ILIKE $${params.length}`); }
+    if (dateOfBirth) { params.push(dateOfBirth); where.push(`patientdob = $${params.length}::date`); }
+    if (payerName) { params.push(`%${payerName}%`); where.push(`COALESCE(insuranceplanname,'') ILIKE $${params.length}`); }
+    if (cptCode) {
+      // Search across cpt1..cpt6
+      const param = `%${cptCode}%`;
+      const base = params.length;
+      params.push(param, param, param, param, param, param);
+      where.push(`(COALESCE(cpt1,'') ILIKE $${base + 1} OR COALESCE(cpt2,'') ILIKE $${base + 2} OR COALESCE(cpt3,'') ILIKE $${base + 3} OR COALESCE(cpt4,'') ILIKE $${base + 4} OR COALESCE(cpt5,'') ILIKE $${base + 5} OR COALESCE(cpt6,'') ILIKE $${base + 6})`);
+    }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const totalSql = `SELECT COUNT(*)::int AS total FROM api_bil_claim_submit ${whereSql}`;
@@ -26,7 +40,8 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
 
     const rowsSql = `
       SELECT bil_claim_submit_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid,
-             oa_claimid, payor_reference_id, totalcharges, cpt1
+        oa_claimid, payor_reference_id, totalcharges, cpt1,
+        facilityname, payor_status
       FROM api_bil_claim_submit
       ${whereSql}
       ORDER BY bil_claim_submit_id
@@ -45,11 +60,29 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
       cpt_code: r.cpt1 ?? '',
       total_amt: r.totalcharges ?? 0,
       claim_status: '',
+      // pass-throughs for preview card
+      facilityname: r.facilityname ?? null,
+      payor_status: r.payor_status ?? null,
     }));
 
     return res.json({ data, totalCount: total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err: any) {
     console.error('getAllSubmitClaims error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal error' });
+  }
+}
+
+// New: fetch a single submit claim row by ID (all columns)
+export async function getSubmitClaimById(req: Request, res: Response) {
+  try {
+    const idRaw = (req.params as any).id;
+    const id = parseInt(String(idRaw), 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
+    const r = await pool.query(`SELECT * FROM api_bil_claim_submit WHERE bil_claim_submit_id=$1 LIMIT 1`, [id]);
+    if (!r.rowCount) return res.status(404).json({ error: 'Not found' });
+    return res.json({ data: r.rows[0] });
+  } catch (err: any) {
+    console.error('getSubmitClaimById error:', err);
     return res.status(500).json({ error: err?.message || 'Internal error' });
   }
 }
@@ -191,7 +224,8 @@ export async function getClaimsBySubmitUpload(req: Request, res: Response) {
     const total = totalRes.rows[0]?.total ?? 0;
 
     const rowsRes = await pool.query(
-      `SELECT bil_claim_submit_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid, oa_claimid, payor_reference_id, totalcharges, cpt1
+      `SELECT bil_claim_submit_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid, oa_claimid, payor_reference_id, totalcharges, cpt1,
+       facilityname, payor_status
        FROM api_bil_claim_submit
        WHERE upload_id=$1
        ORDER BY bil_claim_submit_id
@@ -210,6 +244,9 @@ export async function getClaimsBySubmitUpload(req: Request, res: Response) {
       cpt_code: r.cpt1 ?? '',
       total_amt: r.totalcharges ?? 0,
       claim_status: '',
+      // pass-throughs for preview card
+      facilityname: r.facilityname ?? null,
+      payor_status: r.payor_status ?? null,
     }));
 
     return res.json({ data, totalCount: total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });

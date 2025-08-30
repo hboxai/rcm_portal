@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const REGION = process.env.S3_REGION || process.env.AWS_REGION || '';
@@ -60,5 +60,18 @@ export async function headObject(params: { bucket: string; key: string }): Promi
     const name = String(e?.name || e?.Code || '').toLowerCase();
     if (name.includes('notfound') || name.includes('nosuchkey')) return { exists: false, reason: 'NotFound' };
     return { exists: false, reason: e?.message || 'Unknown' };
+  }
+}
+
+export async function deleteFromS3(params: { bucket?: string | null; key?: string | null }): Promise<boolean> {
+  const bucket = params.bucket || '';
+  const key = params.key || '';
+  if (!bucket || !key) return false;
+  try {
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    return true;
+  } catch (e) {
+    // swallow; container cleanliness is best-effort
+    return false;
   }
 }

@@ -17,7 +17,10 @@ export async function uploadMetabaseExport(file: File, onProgress?: (pct: number
       headers: { Authorization: getAuthToken(), 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (evt) => {
         if (onProgress && evt.total) {
-          onProgress(Math.round((evt.loaded / evt.total) * 100));
+          const raw = Math.round((evt.loaded / evt.total) * 100);
+          // Keep within 1–99 during transfer; caller will set 100 on completion
+          const clamped = Math.max(1, Math.min(99, raw));
+          onProgress(clamped);
         }
       }
     });
@@ -70,7 +73,7 @@ export async function getAllClaims(filters: Partial<SearchFilters> & { page?: nu
 }
 
 // New: Fetch all submit claims (real data) across all uploads
-export async function getAllSubmitClaims(filters: { page?: number; limit?: number; claimId?: string; patientName?: string; status?: string } = {}): Promise<PaginatedClaimsResponse> {
+export async function getAllSubmitClaims(filters: { page?: number; limit?: number; claimId?: string; patientName?: string; status?: string; clinicName?: string } = {}): Promise<PaginatedClaimsResponse> {
   const { page = 1, limit = 20, ...rest } = filters;
   const params: any = { page, limit, ...rest };
   const res = await axios.get(`${API_BASE_URL}/submit-uploads/claims`, {
@@ -78,6 +81,14 @@ export async function getAllSubmitClaims(filters: { page?: number; limit?: numbe
     params,
   });
   return res.data as PaginatedClaimsResponse;
+}
+
+// New: get full submit claim record by id
+export async function getSubmitClaimById(id: string | number): Promise<any> {
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads/claims/${id}`, {
+    headers: { Authorization: getAuthToken() },
+  });
+  return res.data?.data;
 }
 
 export async function deleteUpload(fileId: string): Promise<{ success: boolean; message?: string }>{
@@ -139,6 +150,11 @@ export type SubmitCommitResponse = {
   duration_ms: number;
 };
 
+export type SubmitCancelResponse = {
+  upload_id: string;
+  status: 'FAILED';
+};
+
 export async function submitUploadPreview(
   file: File,
   clinic: string,
@@ -150,7 +166,11 @@ export async function submitUploadPreview(
   const res = await axios.post(`${API_BASE_URL}/submit-uploads/preview`, form, {
     headers: { Authorization: getAuthToken(), 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (evt) => {
-      if (onProgress && evt.total) onProgress(Math.round((evt.loaded / evt.total) * 100));
+      if (onProgress && evt.total) {
+        const raw = Math.round((evt.loaded / evt.total) * 100);
+        const clamped = Math.max(1, Math.min(99, raw));
+        onProgress(clamped);
+      }
     }
   });
   return res.data;
@@ -163,6 +183,15 @@ export async function submitUploadCommit(upload_id: string): Promise<SubmitCommi
     { headers: { Authorization: getAuthToken(), 'Content-Type': 'application/json' } }
   );
   return res.data;
+}
+
+export async function submitUploadCancel(upload_id: string): Promise<SubmitCancelResponse> {
+  const res = await axios.post(
+    `${API_BASE_URL}/submit-uploads/cancel`,
+    { upload_id },
+    { headers: { Authorization: getAuthToken(), 'Content-Type': 'application/json' } }
+  );
+  return res.data as SubmitCancelResponse;
 }
 
 // New: Submit uploads listing and download-url
@@ -192,6 +221,13 @@ export async function getSubmitUploadDownloadUrl(upload_id: string): Promise<str
     headers: { Authorization: getAuthToken() },
   });
   return res.data.url as string;
+}
+
+export async function pollSubmitProgress(upload_id: string): Promise<{ status: string; row_count: number | null; message: string | null; percent: number | null; done: boolean }>{
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads/${upload_id}/progress`, {
+    headers: { Authorization: getAuthToken() },
+  });
+  return res.data;
 }
 
 export type ServerPreview = {
