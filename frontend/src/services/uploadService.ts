@@ -72,6 +72,25 @@ export async function getAllClaims(filters: Partial<SearchFilters> & { page?: nu
   return res.data as PaginatedClaimsResponse;
 }
 
+// New: Fetch reimburse claims using the same filter shape as submit claims search
+export async function getAllReimburseClaims(filters: Partial<SearchFilters> & { page?: number; limit?: number } = {}): Promise<PaginatedClaimsResponse> {
+  const { page = 1, limit = 20, ...rest } = filters;
+  const params: any = { page, limit };
+  // Map known fields to backend param names
+  if ((rest as any).patientId) params.patient_id = (rest as any).patientId;
+  if ((rest as any).billingId) params.billingId = (rest as any).billingId;
+  if ((rest as any).dos) params.dos = (rest as any).dos;
+  if ((rest as any).payerName) params.prim_ins = (rest as any).payerName;
+  if ((rest as any).cptCode) params.cpt_code = (rest as any).cptCode;
+  if ((rest as any).uploadId) params.upload_id = (rest as any).uploadId;
+
+  const res = await axios.get(`${API_BASE_URL}/reimburse/search`, {
+    headers: { Authorization: getAuthToken() },
+    params,
+  });
+  return res.data as PaginatedClaimsResponse;
+}
+
 // New: Fetch all submit claims (real data) across all uploads
 export async function getAllSubmitClaims(filters: { page?: number; limit?: number; claimId?: string; patientName?: string; status?: string; clinicName?: string } = {}): Promise<PaginatedClaimsResponse> {
   const { page = 1, limit = 20, ...rest } = filters;

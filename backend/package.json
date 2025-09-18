@@ -20,9 +20,12 @@
     "db:seed:submit": "node scripts/seed-submit-table.cjs",
     "db:clear:submit": "tsx src/scripts/clearSubmitTable.ts",
     "purge:submit": "tsx src/scripts/purgeSubmitArtifacts.ts",
-  "db:reset:full": "tsx src/scripts/purgeUploadsAndReset.ts",
+    "db:reset:full": "tsx src/scripts/purgeUploadsAndReset.ts",
+    "reset:all": "tsx src/scripts/resetAllArtifacts.ts",
     "reimburse:mirror": "tsx src/scripts/reimburseMirror.ts",
-    "reimburse:report": "tsx src/scripts/reimburseReport.ts"
+    "reimburse:report": "tsx src/scripts/reimburseReport.ts",
+    "diag:reimburse:seq": "tsx src/scripts/diagReimburseSequences.ts"
+    ,"fix:reimburse:identity": "tsx src/scripts/fixReimburseIdentity.ts"
   },
   "keywords": [
     "express",

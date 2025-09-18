@@ -88,13 +88,14 @@ const FullProfilePage: React.FC = () => {
       <div className="container mx-auto pb-12 px-4 md:px-6">
         <div className="mb-8 p-6 rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
           <div className="flex items-center gap-2 mb-2">
-            <Link 
-              to={`/profile/${id}`} 
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
               className="text-purple hover:text-purple/80 flex items-center gap-1 transition-colors"
             >
               <ChevronLeft size={18} />
-              <span>Back to Profile</span>
-            </Link>
+              <span>Back</span>
+            </button>
           </div>
           
           <h1 className="text-3xl font-bold text-textDark">

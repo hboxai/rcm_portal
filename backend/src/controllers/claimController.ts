@@ -7,8 +7,8 @@ const CLAIM_HISTORY_TABLE = process.env.CLAIM_HISTORY_TABLE || 'upl_change_logs'
 // Many legacy / external tables may not have a generic "id" column. Set CLAIMS_ID_COLUMN
 // (e.g. cpt_id, oa_claim_id, oa_visit_id, claim_number, etc.) and the code will alias it to id.
 // If not provided we assume an "id" column already exists.
-// Default to bil_claim_reimburse because that's the primary key
-const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'bil_claim_reimburse';
+// Default to the primary key column name on reimburse table
+const CLAIMS_ID_COLUMN = process.env.CLAIMS_ID_COLUMN || 'bil_claim_reimburse_id';
 import Claim from '../models/Claim.js';
 import ChangeLog from '../models/ChangeLog.js';
 import fs from 'fs';
@@ -34,120 +34,110 @@ const queryCache: Record<string, {
  */
 export const getClaims = async (req: Request, res: Response) => {
   try {
-    // Return two mock claims so the UI can render sample rows
-    const mockClaims = [
-      {
-        // Row identity
-        claimId: 'CLAIM-1001',
-        id: 'CLAIM-1001',
-        oa_claim_id: 'OA-CLM-1001',
-        oa_visit_id: 'VIS-5001',
-        claim_status: 'Pending',
-        payor_status: 'Pending Review',
-        payor_reference_id: 'PR-789001',
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '10'), 10) || 10));
+    const offset = (page - 1) * limit;
 
-        // Patient
-        patient_id: 'P-001',
-        patient_emr_no: 'EMR-001',
-        patientfirst: 'John',
-        patientlast: 'Doe',
-        first_name: 'John',
-        last_name: 'Doe',
-        date_of_birth: '1985-03-14',
+    // Filters from query
+    const patient_id = req.query.patient_id ? String(req.query.patient_id) : undefined;
+    const prim_ins = req.query.prim_ins ? String(req.query.prim_ins) : undefined;
+  const cpt_code = req.query.cpt_code ? String(req.query.cpt_code) : undefined; // maps to cpt_id
+    const dos = req.query.dos ? String(req.query.dos) : undefined; // maps to charge_dt
+    const upload_id = req.query.upload_id ? String(req.query.upload_id) : undefined;
+  const billingId = req.query.billingId ? String(req.query.billingId) : undefined; // maps to bil_claim_submit_id
 
-        // Facility / provider
-        facilityname: 'Downtown Health Clinic',
-        renderingprovidername: 'Dr. Alice Carter, MD',
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let i = 1;
+    if (patient_id) { conditions.push(`patient_id = $${i++}`); params.push(patient_id); }
+    if (prim_ins)   { conditions.push(`prim_ins ILIKE $${i++}`); params.push(`%${prim_ins}%`); }
+    if (cpt_code)   { conditions.push(`cpt_id::text = $${i++}`); params.push(cpt_code.trim()); }
+    if (dos)        { conditions.push(`charge_dt = $${i++}::date`); params.push(dos); }
+  if (upload_id)  { conditions.push(`upload_id = $${i++}`); params.push(upload_id); }
+  if (billingId)  { conditions.push(`bil_claim_submit_id::text = $${i++}`); params.push(billingId.trim()); }
 
-        // Dates / service
-        charge_dt: '2025-08-01',
-        service_start: '2025-08-01',
-        service_end: '2025-08-01',
-        dos: '2025-08-01',
+    const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        // Insurance
-        prim_ins: 'Medicare',
-        prim_amt: 120.0,
-        prim_post_dt: '2025-08-05',
-        sec_ins: 'Blue Cross',
-        sec_amt: 30.0,
-
-        // Billing
-        cpt_code: '99213',
-        cpt_id: 99213,
-        units: 1,
-        total_amt: 250.0,
-        charge_amt: 250.0,
-        allowed_amt: 200.0,
-        allowed_add_amt: 0.0,
-        allowed_exp_amt: 0.0,
-        sec_denial_code: null,
-        prim_chk_det: 'CHK-1001-ABC'
-      },
-      {
-        // Row identity
-        claimId: 'CLAIM-1002',
-        id: 'CLAIM-1002',
-        oa_claim_id: 'OA-CLM-1002',
-        oa_visit_id: 'VIS-5002',
-        claim_status: 'Paid',
-        payor_status: 'Paid',
-        payor_reference_id: 'PR-789002',
-
-        // Patient
-        patient_id: 'P-002',
-        patient_emr_no: 'EMR-002',
-        patientfirst: 'Jane',
-        patientlast: 'Smith',
-        first_name: 'Jane',
-        last_name: 'Smith',
-        date_of_birth: '1990-11-02',
-
-        // Facility / provider
-        facilityname: 'Lakeside Medical Center',
-        renderingprovidername: 'Dr. Brian Lee, DO',
-
-        // Dates / service
-        charge_dt: '2025-08-03',
-        service_start: '2025-08-03',
-        service_end: '2025-08-03',
-        dos: '2025-08-03',
-
-        // Insurance
-        prim_ins: 'Aetna',
-        prim_amt: 180.0,
-        prim_post_dt: '2025-08-07',
-        sec_ins: 'None',
-        sec_amt: 0.0,
-
-        // Billing
-        cpt_code: '97014',
-        cpt_id: 97014,
-        units: 2,
-        total_amt: 320.0,
-        charge_amt: 320.0,
-        allowed_amt: 300.0,
-        allowed_add_amt: 10.0,
-        allowed_exp_amt: 0.0,
-        sec_denial_code: null,
-        prim_chk_det: 'CHK-1002-XYZ'
-      }
-    ];
+    const baseSelect = `
+      SELECT 
+        r.bil_claim_reimburse_id AS id,
+        r.bil_claim_submit_id   AS billing_id,
+        r.upload_id,
+        r.patient_id,
+        r.cpt_id::text          AS cpt_code,
+        r.charge_dt,
+        r.charge_amt,
+        r.allowed_amt,
+        r.allowed_add_amt,
+        r.allowed_exp_amt,
+        r.total_amt,
+        r.write_off_amt,
+        r.bal_amt,
+        r.reimb_pct,
+        r.claim_status,
+        r.claim_status_type,
+        r.prim_ins,
+        r.prim_amt,
+        r.prim_post_dt,
+        r.prim_chk_det,
+        r.prim_recv_dt,
+        r.prim_chk_amt,
+        r.prim_cmt,
+        r.sec_ins,
+        r.sec_amt,
+        r.sec_post_dt,
+        r.sec_chk_det,
+        r.sec_recv_dt,
+        r.sec_chk_amt,
+        r.sec_cmt,
+        r.sec_denial_code,
+        r.pat_amt,
+        r.pat_recv_dt,
+        -- Enrichments from submit table
+        s.patientfirst AS first_name,
+        s.patientlast  AS last_name,
+        (s.patientfirst || ' ' || s.patientlast) AS patientname,
+        s.facilityname,
+        s.facilityname AS clinicname,
+        s.oa_claimid,
+        s.payor_reference_id
+      FROM ${CLAIMS_TABLE} r
+      LEFT JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id
+      ${whereSql ? whereSql.replace(/\b(\w+)\b/g, (m) => {
+        const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','bil_claim_submit_id'];
+        return cols.includes(m) ? `r.${m}` : m;
+      }) : ''}
+      ORDER BY r.bil_claim_reimburse_id DESC
+      LIMIT $${i} OFFSET $${i + 1}
+    `;
+    const [rows, count] = await Promise.all([
+      query(baseSelect, [...params, limit, offset]),
+      query(
+        `SELECT COUNT(*)::int AS n 
+         FROM ${CLAIMS_TABLE} r 
+         LEFT JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id 
+         ${whereSql ? whereSql.replace(/\b(\w+)\b/g, (m) => {
+           const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','bil_claim_submit_id'];
+           return cols.includes(m) ? `r.${m}` : m;
+         }) : ''}
+        `,
+        params
+      )
+    ]);
 
     return res.json({
       success: true,
-      data: mockClaims,
-      totalCount: mockClaims.length,
-      page: 1,
-      limit: mockClaims.length,
-      totalPages: 1,
-      message: 'Mock claims'
+      data: rows.rows,
+      totalCount: count.rows[0]?.n || 0,
+      page,
+      limit,
+      totalPages: Math.ceil((count.rows[0]?.n || 0) / limit)
     });
   } catch (error: any) {
     console.error('Error in getClaims:', error);
     return res.status(500).json({
       success: false,
-      message: 'Database tables unlinked',
+      message: 'Failed to fetch claims',
       error: error.message
     });
   }
@@ -159,16 +149,62 @@ export const getClaims = async (req: Request, res: Response) => {
  */
 export const getClaimById = async (req: Request, res: Response) => {
   try {
-    console.log('Claim details disabled: Database tables unlinked');
-    return res.json({
-      success: false,
-      message: 'Claim details disabled: Database tables unlinked',
-      data: null
-    });
+    const rawId = req.params.id;
+    const id = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
+    const sql = `
+      SELECT 
+        r.bil_claim_reimburse_id AS id,
+        r.bil_claim_submit_id   AS billing_id,
+        r.upload_id,
+        r.patient_id,
+        r.cpt_id::text          AS cpt_code,
+        r.charge_dt,
+        r.charge_amt,
+        r.allowed_amt,
+        r.allowed_add_amt,
+        r.allowed_exp_amt,
+        r.total_amt,
+        r.write_off_amt,
+        r.bal_amt,
+        r.reimb_pct,
+        r.claim_status,
+        r.claim_status_type,
+        r.prim_ins,
+        r.prim_amt,
+        r.prim_post_dt,
+        r.prim_chk_det,
+        r.prim_recv_dt,
+        r.prim_chk_amt,
+        r.prim_cmt,
+        r.sec_ins,
+        r.sec_amt,
+        r.sec_post_dt,
+        r.sec_chk_det,
+        r.sec_recv_dt,
+        r.sec_chk_amt,
+        r.sec_cmt,
+        r.sec_denial_code,
+        r.pat_amt,
+        r.pat_recv_dt,
+        -- Enrichments from submit table
+        s.patientfirst AS first_name,
+        s.patientlast  AS last_name,
+        (s.patientfirst || ' ' || s.patientlast) AS patientname,
+        s.facilityname,
+        s.facilityname AS clinicname,
+        s.oa_claimid,
+        s.payor_reference_id
+      FROM ${CLAIMS_TABLE} r
+      LEFT JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id
+      WHERE r.${CLAIMS_ID_COLUMN} = $1
+    `;
+    const r = await query(sql, [id]);
+    if (!r.rowCount) return res.status(404).json({ success: false, message: 'Not found', data: null });
+    return res.json({ success: true, data: r.rows[0] });
   } catch (error: any) {
     return res.status(500).json({
       success: false,
-      message: 'Database tables unlinked',
+      message: 'Failed to fetch claim',
       error: error.message
     });
   }
@@ -180,16 +216,25 @@ export const getClaimById = async (req: Request, res: Response) => {
  */
 export const updateClaim = async (req: Request, res: Response) => {
   try {
-    console.log('Claim updates disabled: Database tables unlinked');
-    return res.json({
-      success: false,
-      message: 'Claim updates disabled: Database tables unlinked',
-      data: null
-    });
+    const rawId = req.params.id;
+    const id = /^\d+$/.test(rawId) ? Number(rawId) : rawId;
+    const allowed = [
+      'allowed_amt','allowed_add_amt','allowed_exp_amt','prim_ins','prim_amt','prim_post_dt','prim_chk_det','prim_recv_dt','prim_chk_amt','prim_cmt',
+      'sec_ins','sec_amt','sec_post_dt','sec_chk_det','sec_recv_dt','sec_chk_amt','sec_cmt','sec_denial_code','pat_amt','pat_recv_dt','total_amt','write_off_amt','bal_amt','reimb_pct','claim_status','claim_status_type','payor_reference_id','claim_id'
+    ];
+    const fields = Object.fromEntries(Object.entries(req.body || {}).filter(([k]) => allowed.includes(k)));
+    if (Object.keys(fields).length === 0) return res.status(400).json({ success: false, message: 'No updatable fields provided' });
+    const cols = Object.keys(fields);
+    const vals = Object.values(fields);
+    const setSql = cols.map((c, i) => `${c}=$${i + 1}`).join(',');
+    const sql = `UPDATE ${CLAIMS_TABLE} SET ${setSql}, updated_at=NOW() WHERE ${CLAIMS_ID_COLUMN}=$${cols.length + 1} RETURNING *`;
+    const r = await query(sql, [...vals, id]);
+    if (!r.rowCount) return res.status(404).json({ success: false, message: 'Not found' });
+    return res.json({ success: true, data: r.rows[0] });
   } catch (error: any) {
     return res.status(500).json({
       success: false,
-      message: 'Database tables unlinked',
+      message: 'Failed to update claim',
       error: error.message
     });
   }

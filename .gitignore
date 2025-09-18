@@ -70,3 +70,5 @@ backend/build/
 backend/uploads/
 uploads/
 excel_schema_report.md
+*.xls
+*.xlsx

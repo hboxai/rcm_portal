@@ -22,7 +22,18 @@ const SubmitSearchForm: React.FC<Props> = ({ onSearch, isLoading, filters, setFi
   };
 
   const handleClear = () => {
-    setFilters({ firstName: '', lastName: '', clinicName: '', dateOfBirth: '', payerName: '', cptCode: '' } as any);
+    setFilters({
+      firstName: '',
+      lastName: '',
+      dateOfBirth: '',
+      patientId: '',
+      payerName: '',
+      cptCode: '',
+      dos: '',
+      billingId: '',
+      clinicName: '',
+      providerName: '',
+    } as any);
     onClear?.();
   };
 
@@ -34,7 +45,8 @@ const SubmitSearchForm: React.FC<Props> = ({ onSearch, isLoading, filters, setFi
         <div className="card-header rounded-t-lg -mx-6 -mt-6 mb-6">
           <h2 className="text-lg font-semibold">Search Claims</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Row 1 */}
           <div>
             <label className="block text-textDark mb-2 font-medium">First Name</label>
             <input name="firstName" placeholder="Enter First Name" value={filters.firstName || ''} onChange={handleChange} className={inputNoIconClass} />
@@ -43,24 +55,47 @@ const SubmitSearchForm: React.FC<Props> = ({ onSearch, isLoading, filters, setFi
             <label className="block text-textDark mb-2 font-medium">Last Name</label>
             <input name="lastName" placeholder="Enter Last Name" value={filters.lastName || ''} onChange={handleChange} className={inputNoIconClass} />
           </div>
-          <div>
-            <label className="block text-textDark mb-2 font-medium">Clinic Name</label>
-            <input name="clinicName" placeholder="Enter Clinic Name" value={filters.clinicName || ''} onChange={handleChange} className={inputNoIconClass} />
-          </div>
           <GlassDateInput
             label="Date of Birth (DOB)"
             name="dateOfBirth"
             value={filters.dateOfBirth || ''}
             onChange={handleChange}
-            placeholder="dd-mm-yyyy"
+            placeholder="Select Date of Birth"
           />
+          <div>
+            <label className="block text-textDark mb-2 font-medium">Patient ID</label>
+            <input name="patientId" placeholder="Enter patient ID" value={filters.patientId || ''} onChange={handleChange} className={inputNoIconClass} />
+          </div>
+
+          {/* Row 2 */}
           <div>
             <label className="block text-textDark mb-2 font-medium">Payer Name</label>
             <input name="payerName" placeholder="Enter Payer Name" value={filters.payerName || ''} onChange={handleChange} className={inputNoIconClass} />
           </div>
           <div>
             <label className="block text-textDark mb-2 font-medium">CPT Code</label>
-            <input name="cptCode" placeholder="e.g. 99213" value={filters.cptCode || ''} onChange={handleChange} className={inputNoIconClass} />
+            <input name="cptCode" placeholder="Enter CPT Code" value={filters.cptCode || ''} onChange={handleChange} className={inputNoIconClass} />
+          </div>
+          <GlassDateInput
+            label="Date of Service (DOS)"
+            name="dos"
+            value={filters.dos || ''}
+            onChange={handleChange}
+            placeholder="Select a date"
+          />
+          <div>
+            <label className="block text-textDark mb-2 font-medium">Billing ID</label>
+            <input name="billingId" placeholder="Enter Billing ID" value={filters.billingId || ''} onChange={handleChange} className={inputNoIconClass} />
+          </div>
+
+          {/* Row 3 */}
+          <div>
+            <label className="block text-textDark mb-2 font-medium">Clinic Name</label>
+            <input name="clinicName" placeholder="Enter Clinic Name" value={filters.clinicName || ''} onChange={handleChange} className={inputNoIconClass} />
+          </div>
+          <div>
+            <label className="block text-textDark mb-2 font-medium">Provider Name</label>
+            <input name="providerName" placeholder="Enter Provider Name" value={filters.providerName || ''} onChange={handleChange} className={inputNoIconClass} />
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-4 mt-6">

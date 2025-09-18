@@ -12,6 +12,7 @@
     "build": "cd frontend && npm run build && cd ../backend && npm run build",
     "lint": "cd frontend && npm run lint",
     "preview": "cd frontend && npm run preview",
+    "analyze:xls": "node scripts/analyze-excel.js",
     "docker:build": "docker-compose build",
     "docker:start": "docker-compose up",
     "docker:start:detached": "docker-compose up -d",
@@ -26,6 +27,7 @@
     "backend": "^0.0.0",
     "bcrypt": "^6.0.0",
     "cd": "^0.3.3",
-    "multer": "^2.0.0"
+    "multer": "^2.0.0",
+    "xlsx": "^0.18.5"
   }
 }

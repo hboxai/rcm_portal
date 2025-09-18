@@ -64,118 +64,168 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Scope selection
     const scopeSql = uploadId ? 'WHERE upload_id = $1' : '';
     const params = uploadId ? [uploadId] : [];
     const sel = await client.query(
       `SELECT bil_claim_submit_id, upload_id, patient_id, insuranceplanname, payor_reference_id, oa_claimid,
               cpt1, cpt2, cpt3, cpt4, cpt5, cpt6,
               charges1, charges2, charges3, charges4, charges5, charges6,
-              units1, units2, units3, units4, units5, units6,
-              placeofservice1, placeofservice2, placeofservice3, placeofservice4, placeofservice5, placeofservice6,
-              diagcodepointer1, diagcodepointer2, diagcodepointer3, diagcodepointer4, diagcodepointer5, diagcodepointer6,
-              renderingphysnpi1, renderingphysnpi2, renderingphysnpi3, renderingphysnpi4, renderingphysnpi5, renderingphysnpi6,
               fromdateofservice1, fromdateofservice2, fromdateofservice3, fromdateofservice4, fromdateofservice5, fromdateofservice6
          FROM api_bil_claim_submit
-       ${scopeSql}`, params);
+       ${scopeSql}`, params
+    );
 
-    let created = 0, updated = 0, deleted = 0;
     const submit_rows = sel.rowCount ?? 0;
 
+    // Build candidate reimburse lines in memory (fast) and stage into a temp table for set-based ops
+    type Cand = {
+      bil_claim_submit_id: number;
+      upload_id: string | null;
+      patient_id: number | null;
+      cpt_id: string;
+      charge_dt: string | null;
+      charge_amt: number;
+      claim_id: string | null;
+      payor_reference_id: string | null;
+      prim_ins: string | null;
+    };
+
+    const candidates: Cand[] = [];
     for (const s of sel.rows) {
-  const candidates: Array<{ cpt_id: string; charge_dt: string | null; charge_amt: number }>
-        = [];
       for (let i = 1; i <= 6; i++) {
         const cpt = normCpt(s[`cpt${i}`]);
         const amt = parseAmt(s[`charges${i}`]);
         const dt = toPgDate(s[`fromdateofservice${i}`]);
         if (!cpt || amt == null) continue;
-  // prim_cmt must remain NULL per requirement; do not compose comments
-  candidates.push({ cpt_id: cpt, charge_dt: dt, charge_amt: amt });
+        candidates.push({
+          bil_claim_submit_id: Number(s.bil_claim_submit_id),
+          upload_id: s.upload_id ?? null,
+          patient_id: s.patient_id == null ? null : Number(s.patient_id),
+          cpt_id: cpt,
+          charge_dt: dt,
+          charge_amt: amt,
+          claim_id: s.oa_claimid ?? null,
+          payor_reference_id: s.payor_reference_id ?? null,
+          prim_ins: s.insuranceplanname ?? null,
+        });
       }
+    }
 
-      // Upsert per candidate
-      for (const c of candidates) {
-    const u = await client.query(
-          `UPDATE api_bil_claim_reimburse
-              SET patient_id=$1, upload_id=$2, claim_id=$3, payor_reference_id=$4,
-                  charge_amt=$5, prim_ins=$6, bal_amt=$5, claim_status='SUBMITTED', claim_status_type='PAYER',
-      prim_cmt=NULL, updated_at=NOW()
-    WHERE bil_claim_submit_id=$7 AND cpt_id=$8 AND charge_dt=$9::date`,
-          [
-            s.patient_id ?? null,
-            s.upload_id,
-            s.oa_claimid ?? null,
-            s.payor_reference_id ?? null,
-            c.charge_amt,
-    s.insuranceplanname ?? null,
-            s.bil_claim_submit_id,
-            c.cpt_id,
-      c.charge_dt,
-          ]
-        );
-        if (u.rowCount && u.rowCount > 0) {
-          updated += u.rowCount;
-        } else {
-          const ins = await client.query(
-            `INSERT INTO api_bil_claim_reimburse (
-               bil_claim_submit_id, upload_id, patient_id, cpt_id, era_filename,
-               claim_id, payor_reference_id,
-               charge_dt, charge_amt,
-               prim_ins, bal_amt, claim_status, claim_status_type,
-               prim_cmt
-             ) VALUES ($1,$2,$3,$4,NULL,$5,$6,$7::date,$8,$9,$8,'SUBMITTED','PAYER',NULL)
-             RETURNING bil_claim_reimburse_id`,
-            [
-              s.bil_claim_submit_id,
-              s.upload_id,
-              s.patient_id ?? null,
-              c.cpt_id,
-              s.oa_claimid ?? null,
-              s.payor_reference_id ?? null,
-              c.charge_dt,
-              c.charge_amt,
-              s.insuranceplanname ?? null,
-              // prim_cmt intentionally NULL
-            ]
-          );
-          if (ins.rowCount) created += ins.rowCount;
-        }
-      }
+    // Create temp table
+    await client.query(`
+      CREATE TEMP TABLE IF NOT EXISTS tmp_reimburse_candidates (
+        bil_claim_submit_id bigint not null,
+        upload_id text,
+        patient_id bigint,
+        cpt_id text not null,
+        charge_dt date,
+        charge_amt numeric,
+        claim_id text,
+        payor_reference_id text,
+        prim_ins text
+      ) ON COMMIT DROP
+    `);
 
-      // Deletion sweep for stale CPT/date combos
-      // Null-safe deletion: remove rows whose (cpt_id, charge_dt) not in candidates
-      let d;
-      if (candidates.length > 0) {
-        const keep = candidates;
-  d = await client.query(
-          `DELETE FROM api_bil_claim_reimburse r
-             WHERE r.bil_claim_submit_id = $1
-               AND NOT EXISTS (
-                 SELECT 1 FROM (
-       VALUES ${keep.map((_, i) => `($${i * 2 + 2}::text, $${i * 2 + 3}::date)`).join(',')}
-                 ) AS v(cpt_id, charge_dt)
-                 WHERE v.cpt_id = r.cpt_id AND (
-                   (v.charge_dt IS NULL AND r.charge_dt IS NULL) OR
-                   (v.charge_dt IS NOT NULL AND r.charge_dt = v.charge_dt)
-                 )
-               )`,
-          [s.bil_claim_submit_id, ...keep.flatMap(c => [c.cpt_id, c.charge_dt])]
-        );
-      } else {
-        d = await client.query(
-          `DELETE FROM api_bil_claim_reimburse WHERE bil_claim_submit_id = $1`,
-          [s.bil_claim_submit_id]
-        );
-      }
-  deleted += d.rowCount ?? 0;
+    // Truncate in case it existed
+    await client.query('TRUNCATE tmp_reimburse_candidates');
+
+    // Batch insert candidates into temp table for performance
+    const batchSize = 1000;
+    for (let i = 0; i < candidates.length; i += batchSize) {
+      const batch = candidates.slice(i, i + batchSize);
+      if (batch.length === 0) continue;
+      const cols = ['bil_claim_submit_id','upload_id','patient_id','cpt_id','charge_dt','charge_amt','claim_id','payor_reference_id','prim_ins'];
+      const valuesSql = batch
+        .map((_, rowIdx) => `(${cols.map((__, colIdx) => `$${rowIdx * cols.length + colIdx + 1}`).join(',')})`)
+        .join(',');
+      const values = batch.flatMap(b => [
+        b.bil_claim_submit_id,
+        b.upload_id,
+        b.patient_id,
+        b.cpt_id,
+        b.charge_dt,
+        b.charge_amt,
+        b.claim_id,
+        b.payor_reference_id,
+        b.prim_ins,
+      ]);
+      await client.query(
+        `INSERT INTO tmp_reimburse_candidates (${cols.join(',')}) VALUES ${valuesSql}`,
+        values
+      );
+    }
+
+    // Set-based UPDATE existing reimburse rows
+    const upd = await client.query(
+      `UPDATE api_bil_claim_reimburse r
+          SET patient_id = c.patient_id,
+              upload_id = c.upload_id,
+              claim_id = c.claim_id,
+              payor_reference_id = c.payor_reference_id,
+              charge_amt = c.charge_amt,
+              prim_ins = c.prim_ins,
+              bal_amt = c.charge_amt,
+              claim_status = 'SUBMITTED',
+              claim_status_type = 'PAYER',
+              prim_cmt = NULL,
+              updated_at = NOW()
+        FROM tmp_reimburse_candidates c
+       WHERE r.bil_claim_submit_id = c.bil_claim_submit_id
+         AND r.cpt_id = c.cpt_id
+         AND ((r.charge_dt IS NULL AND c.charge_dt IS NULL) OR (r.charge_dt = c.charge_dt))`
+    );
+
+    // Set-based INSERT for new rows
+    const ins = await client.query(
+      `INSERT INTO api_bil_claim_reimburse (
+         bil_claim_reimburse_id,
+         bil_claim_submit_id, upload_id, patient_id, cpt_id, era_filename,
+         claim_id, payor_reference_id,
+         charge_dt, charge_amt,
+         prim_ins, bal_amt, claim_status, claim_status_type,
+         prim_cmt
+       )
+       SELECT nextval('public.api_bil_claim_reimburse_bil_claim_reimburse_id_seq'),
+              c.bil_claim_submit_id, c.upload_id, c.patient_id, c.cpt_id, NULL,
+              c.claim_id, c.payor_reference_id,
+              c.charge_dt, c.charge_amt,
+              c.prim_ins, c.charge_amt, 'SUBMITTED', 'PAYER',
+              NULL
+         FROM tmp_reimburse_candidates c
+    LEFT JOIN api_bil_claim_reimburse r
+           ON r.bil_claim_submit_id = c.bil_claim_submit_id
+          AND r.cpt_id = c.cpt_id
+          AND ((r.charge_dt IS NULL AND c.charge_dt IS NULL) OR (r.charge_dt = c.charge_dt))
+        WHERE r.bil_claim_reimburse_id IS NULL`
+    );
+
+    // Set-based DELETE of stale rows (only for the current upload scope)
+    let del;
+    if (uploadId) {
+      del = await client.query(
+        `DELETE FROM api_bil_claim_reimburse r
+          WHERE r.upload_id = $1
+            AND NOT EXISTS (
+              SELECT 1 FROM tmp_reimburse_candidates c
+               WHERE r.bil_claim_submit_id = c.bil_claim_submit_id
+                 AND r.cpt_id = c.cpt_id
+                 AND ((r.charge_dt IS NULL AND c.charge_dt IS NULL) OR (r.charge_dt = c.charge_dt))
+            )`,
+        [uploadId]
+      );
+    } else {
+      // If no specific uploadId, we can't safely delete globally; skip deletion in this mode
+      del = { rowCount: 0 } as any;
     }
 
     // Samples for this upload
     const samples: MirrorResult['samples'] = [];
     if (uploadId) {
       const smp = await client.query(
-  `SELECT bil_claim_submit_id AS submit_id, cpt_id,
-    to_char(charge_dt, 'FMMM/FMDD/YYYY') AS charge_dt, charge_amt::numeric, prim_cmt
+        `SELECT bil_claim_submit_id AS submit_id, cpt_id,
+                to_char(charge_dt, 'FMMM/FMDD/YYYY') AS charge_dt, charge_amt::numeric, prim_cmt
            FROM api_bil_claim_reimburse
           WHERE upload_id=$1
           ORDER BY bil_claim_reimburse_id
@@ -194,7 +244,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
     }
 
     await client.query('COMMIT');
-    return { submit_rows, created, updated, deleted, samples };
+    return { submit_rows, created: ins.rowCount ?? 0, updated: upd.rowCount ?? 0, deleted: del.rowCount ?? 0, samples };
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;

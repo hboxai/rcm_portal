@@ -155,11 +155,11 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
     pat_amt: apiClaim.pat_amt !== undefined ? apiClaim.pat_amt : null,
     pat_recv_dt: apiClaim.pat_recv_dt || null,
       // Frontend fields (mapped for compatibility with UI components)
-    visitId: apiClaim.oa_visit_id || `V-${mappedId}`, 
-    patientName: `${apiClaim.first_name || ''} ${apiClaim.last_name || ''}`.trim() || 'Unknown Patient',
+  visitId: apiClaim.oa_visit_id || `V-${mappedId}`, 
+  patientName: (apiClaim.patientname || `${apiClaim.first_name || ''} ${apiClaim.last_name || ''}`.trim() || '').trim() || 'Unknown Patient',
     dob: apiClaim.date_of_birth || '', // Retained for potential direct use, though dateOfBirth is preferred
     dateOfBirth: apiClaim.date_of_birth || '', 
-    dos: apiClaim.service_end || apiClaim.service_start || '',
+  dos: apiClaim.service_end || apiClaim.service_start || apiClaim.charge_dt || '',
     checkNumber: apiClaim.prim_chk_det || apiClaim.sec_chk_det || '', // Not in VisitClaim    amount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0, // Not in VisitClaim, use billedAmount
     status: apiClaim.claim_status || 'Pending',
     billedAmount: apiClaim.charge_amt !== undefined && apiClaim.charge_amt !== null ? apiClaim.charge_amt : 0,
@@ -175,8 +175,8 @@ const mapApiClaimToVisitClaim = (apiClaim: any): VisitClaim => {
     icdCodes: apiClaim.icd_code ? (Array.isArray(apiClaim.icd_code) ? apiClaim.icd_code.map(String) : [String(apiClaim.icd_code)]) : [],
     createdAt: apiClaim.charge_dt || new Date().toISOString(),
     updatedAt: apiClaim.prim_post_dt || apiClaim.sec_post_dt || new Date().toISOString(),
-    notes: Array.isArray(apiClaim.notes) ? apiClaim.notes.map(String) : (apiClaim.notes ? [String(apiClaim.notes)] : []),    // Map clinicName to cpt_code as facility_name doesn't exist in the database
-    clinicName: apiClaim.cpt_code || '',
+  notes: Array.isArray(apiClaim.notes) ? apiClaim.notes.map(String) : (apiClaim.notes ? [String(apiClaim.notes)] : []),
+  clinicName: apiClaim.clinicname || apiClaim.facilityname || '',
     providerName: apiClaim.provider_name || ''
   } as VisitClaim; // Added 'as VisitClaim' for stricter type checking if needed, but ensure all fields match
 };
@@ -254,41 +254,110 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Debounce search function to prevent rapid consecutive API calls
   const searchClaims = useCallback(async (filtersArg: SearchFilters, pageArg?: number, limitArg?: number) => {
-    // Search page database tables are unlinked - no database queries allowed
-    console.log('Search functionality disabled: Database tables unlinked');
-    setIsLoading(false);
-    setSearchResults([]);
-    setTotalClaimCount(0);
-    setCurrentPage(1);
-    setTotalPages(1);
-    setHasSearched(true);
-    setError("Search functionality disabled: Database tables unlinked");
-    return;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const page = pageArg || filtersArg.page || 1;
+      const limit = limitArg || filtersArg.limit || claimsPerPage;
+      const response = await fetchClaims(filtersArg, page, limit);
+      if (response.success && Array.isArray(response.data)) {
+        const mapped = response.data.map(mapApiClaimToVisitClaim);
+        setSearchResults(mapped);
+        setTotalClaimCount(response.totalCount || 0);
+        setCurrentPage(response.page || page);
+        setClaimsPerPage(response.limit || limit);
+        setTotalPages(response.totalPages || Math.ceil((response.totalCount || 0) / (response.limit || limit)));
+        setHasSearched(true);
+      } else {
+        setError(response.message || response.error || 'Failed to fetch claims');
+        setSearchResults([]);
+        setTotalClaimCount(0);
+        setCurrentPage(1);
+        setTotalPages(1);
+        setHasSearched(true);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Error connecting to the claims API');
+      setSearchResults([]);
+      setTotalClaimCount(0);
+      setCurrentPage(1);
+      setTotalPages(1);
+      setHasSearched(true);
+    } finally {
+      setIsLoading(false);
+    }
   }, [user, claimsPerPage]); // Dependencies remain user and claimsPerPage, setters are stable
 
   // Use local cache for claim fetching when possible
   const getClaim = useCallback(async (id: string): Promise<VisitClaim | null> => {
-    // Database tables unlinked - claim fetching is disabled
-    console.log('Claim fetching disabled: Database tables unlinked');
-    setIsLoading(false);
-    setError("Claim fetching disabled: Database tables unlinked");
-    return null;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await fetchClaimById(id);
+      if (!data) {
+        setError('Claim not found');
+        return null;
+      }
+      const mapped = mapApiClaimToVisitClaim(data);
+      setCurrentClaim(mapped);
+      return mapped;
+    } catch (err: any) {
+      setError(err?.message || 'Failed to fetch claim');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   // Helper function to ensure dates are properly formatted before sending to API
   const formatDateFields = useCallback((data: any) => {
-    // Database tables unlinked - date formatting is disabled
-    return data;
+    const normalize = (d?: string | null) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+    return {
+      ...data,
+      prim_post_dt: normalize(data.prim_post_dt),
+      prim_recv_dt: normalize(data.prim_recv_dt),
+      sec_post_dt: normalize(data.sec_post_dt),
+      sec_recv_dt: normalize(data.sec_recv_dt),
+      pat_recv_dt: normalize(data.pat_recv_dt),
+    };
   }, []);
 
   // Optimized update function with improved error handling to ensure edits are saved
   const updateClaim = useCallback(async (updatedClaimData: Partial<VisitClaim>): Promise<VisitClaim | null> => {
-    // Database tables unlinked - claim updates are disabled
-    console.log('Claim updates disabled: Database tables unlinked');
-    setIsLoading(false);
-    setError("Claim updates disabled: Database tables unlinked");
-    return null;
-  }, []);
+    try {
+      if (!updatedClaimData || !updatedClaimData.id) {
+        setError('Invalid claim data: missing id');
+        return null;
+      }
+      setIsLoading(true);
+      setError(null);
+      const id = String(updatedClaimData.id);
+      const allowedKeys = [
+        'allowed_amt','allowed_add_amt','allowed_exp_amt','prim_ins','prim_amt','prim_post_dt','prim_chk_det','prim_recv_dt','prim_chk_amt','prim_cmt',
+        'sec_ins','sec_amt','sec_post_dt','sec_chk_det','sec_recv_dt','sec_chk_amt','sec_cmt','sec_denial_code','pat_amt','pat_recv_dt','total_amt','write_off_amt','bal_amt','reimb_pct','claim_status','claim_status_type','payor_reference_id','claim_id'
+      ] as const;
+      const body: any = {};
+      const formatted = formatDateFields(updatedClaimData as any);
+      for (const k of allowedKeys) {
+        if (k in formatted && (formatted as any)[k] !== undefined) body[k] = (formatted as any)[k];
+      }
+      const resp = await updateClaimAPI(id, body);
+      if (!resp.success || !resp.data) {
+        setError(resp.message || 'Failed to update claim');
+        return null;
+      }
+      const mapped = mapApiClaimToVisitClaim(resp.data);
+      setCurrentClaim(mapped);
+      setClaims(prev => prev.map(c => (c.id === mapped.id ? mapped : c)));
+      setSearchResults(prev => prev.map(c => (c.id === mapped.id ? mapped : c)));
+      return mapped;
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update claim');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [formatDateFields]);
 
   const addNote = useCallback((claimId: string, note: string) => {
     // Ensure currentClaim and its id are defined and match claimId before proceeding

@@ -33,6 +33,9 @@ const SearchResults: React.FC<SearchResultsProps> = ({
   renderCard,
 }) => {  
   const totalPages = Math.ceil(totalCount / claimsPerPage);
+  const pageCount = results.length; // claims on this page
+  const startIdx = totalCount === 0 ? 0 : (currentPage - 1) * claimsPerPage + 1;
+  const endIdx = totalCount === 0 ? 0 : startIdx + pageCount - 1;
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -77,6 +80,11 @@ const SearchResults: React.FC<SearchResultsProps> = ({
   console.log('Rendering search results:', results);
   return (
     <div className="glass-card min-h-48 rounded-xl p-6 bg-white/90 backdrop-blur-sm border border-purple/20">
+      {/* Page summary */}
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-textDark/80">
+        <div className="text-sm">Claims on this page: <span className="font-semibold text-textDark">{pageCount}</span></div>
+        <div className="text-sm">Showing <span className="font-semibold text-textDark">{startIdx}</span>–<span className="font-semibold text-textDark">{endIdx}</span> of <span className="font-semibold text-textDark">{totalCount}</span></div>
+      </div>
       <div className="space-y-4">
   {results.map((claim) => (
           renderCard ? (
@@ -147,10 +155,10 @@ const SearchResults: React.FC<SearchResultsProps> = ({
               </div>
                 {/* View Details link */}
               <div className="text-right">
-                <Link 
+                <Link
                   to={buildDetailsLink ? buildDetailsLink(claim) : `/profile/${claim.id || claim.claimId || claim.billing_id}`}
                   state={buildDetailsState ? buildDetailsState(claim) : undefined}
-                  className="text-blue hover:text-blue/80 text-sm font-medium"
+                  className="inline-flex items-center px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm text-sm font-medium"
                 >
                   View Details
                 </Link>

@@ -10,6 +10,8 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const offset = (page - 1) * limit;
 
   const claimId = (req.query.claimId as string | undefined)?.trim();
+  const billingId = (req.query.billingId as string | undefined)?.trim();
+  const patientId = (req.query.patientId as string | undefined)?.trim();
   const patientName = (req.query.patientName as string | undefined)?.trim();
   const clinicName = (req.query.clinicName as string | undefined)?.trim();
   const dateOfBirth = (req.query.dateOfBirth as string | undefined)?.trim();
@@ -21,6 +23,8 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const where: string[] = [];
     const params: any[] = [];
     if (claimId) { params.push(`%${claimId}%`); where.push(`CAST(oa_claimid AS TEXT) ILIKE $${params.length}`); }
+    if (billingId) { params.push(`%${billingId}%`); where.push(`CAST(bil_claim_submit_id AS TEXT) ILIKE $${params.length}`); }
+    if (patientId) { params.push(`%${patientId}%`); where.push(`CAST(patient_id AS TEXT) ILIKE $${params.length}`); }
   if (patientName) { params.push(`%${patientName}%`); where.push(`(COALESCE(patientfirst,'') || ' ' || COALESCE(patientlast,'')) ILIKE $${params.length}`); }
     if (clinicName) { params.push(`%${clinicName}%`); where.push(`COALESCE(facilityname,'') ILIKE $${params.length}`); }
     if (dateOfBirth) { params.push(dateOfBirth); where.push(`patientdob = $${params.length}::date`); }

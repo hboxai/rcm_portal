@@ -16,7 +16,7 @@ const SubmitFilesPage: React.FC = () => {
   const [results, setResults] = useState<VisitClaim[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [claimsPerPage] = useState(20);
+  const [claimsPerPage, setClaimsPerPage] = useState(20);
   const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<SearchFilters>({});
   const [lastSubmittedFilters, setLastSubmittedFilters] = useState<SearchFilters>({});
@@ -107,6 +107,27 @@ const SubmitFilesPage: React.FC = () => {
             </button>
           </div>
           <SubmitSearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} onClear={() => { setHasSearched(false); setResults([]); setTotalCount(0); }} />
+          <div className="mt-4 flex items-center justify-end gap-2 text-textDark/80">
+            <label htmlFor="submit-page-size" className="text-sm">Claims per page:</label>
+            <select
+              id="submit-page-size"
+              className="text-sm px-2 py-1 rounded-md border border-purple/30 bg-white/90 text-textDark"
+              value={claimsPerPage}
+              onChange={(e) => {
+                const newLimit = parseInt(e.target.value, 10);
+                setClaimsPerPage(newLimit);
+                if (hasSearched) {
+                  // Re-run search with new limit from page 1
+                  doSearch(1, lastSubmittedFilters);
+                }
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
         </div>
 
         {error && (
