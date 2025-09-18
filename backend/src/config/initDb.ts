@@ -38,22 +38,34 @@ export const initializeDatabase = async () => {
         
         CREATE UNIQUE INDEX IF NOT EXISTS uq_rcm_portal_auth_users_email ON rcm_portal_auth_users (LOWER(email));
         CREATE UNIQUE INDEX IF NOT EXISTS uq_rcm_portal_auth_users_username ON rcm_portal_auth_users (LOWER(username));
-        
-        CREATE OR REPLACE FUNCTION trg_touch_updated_at_auth()
-        RETURNS TRIGGER AS $$
-        BEGIN
-          NEW.updated_at = NOW();
-          RETURN NEW;
-        END;$$ LANGUAGE plpgsql;
-        
-        DROP TRIGGER IF EXISTS trg_touch_rcm_portal_auth_users ON rcm_portal_auth_users;
-        CREATE TRIGGER trg_touch_rcm_portal_auth_users
-        BEFORE UPDATE ON rcm_portal_auth_users
-        FOR EACH ROW EXECUTE FUNCTION trg_touch_updated_at_auth();
       `;
       
       await pool.query(createTableQuery);
       console.log('rcm_portal_auth_users table created successfully');
+      // Optionally create trigger to maintain updated_at in non-production environments
+      try {
+        const enableTriggers = String(process.env.DB_ENABLE_TRIGGERS || '').toLowerCase();
+        if (enableTriggers === '1' || enableTriggers === 'true' || enableTriggers === 'yes') {
+          await pool.query(`
+            CREATE OR REPLACE FUNCTION trg_touch_updated_at_auth()
+            RETURNS TRIGGER AS $$
+            BEGIN
+              NEW.updated_at = NOW();
+              RETURN NEW;
+            END;$$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS trg_touch_rcm_portal_auth_users ON rcm_portal_auth_users;
+            CREATE TRIGGER trg_touch_rcm_portal_auth_users
+            BEFORE UPDATE ON rcm_portal_auth_users
+            FOR EACH ROW EXECUTE FUNCTION trg_touch_updated_at_auth();
+          `);
+          console.log('created updated_at trigger for rcm_portal_auth_users');
+        } else {
+          console.log('DB_ENABLE_TRIGGERS disabled; not creating triggers');
+        }
+      } catch (e: any) {
+        console.warn('Optional trigger creation skipped or failed:', e?.message || e);
+      }
     } else {
       console.log('rcm_portal_auth_users table already exists');
     }

@@ -11,6 +11,8 @@ import { mirrorReimburseForUpload } from '../services/reimburse.js';
 const REQUIRED_MAPPED = [
   'insurerid','patientlast','patientfirst','patientdob',
   'insuranceplanname','insurancepayerid',
+  // row-level validation is relaxed to allow any service line (1..6);
+  // per-line checks happen during splitting
   'fromdateofservice1','cpt1','charges1'
 ];
 
@@ -89,115 +91,157 @@ function pickBestSheet(wb: XLSX.WorkBook): { sheetName: string; rows: any[]; hea
   return { sheetName: best.name, rows: best.rows, headers: best.headers };
 }
 
-function hasRequiredMapped(row: Record<string, any>): boolean {
-  // minimal set
-  for (const r of ['insurerid','patientlast','patientfirst','patientdob','fromdateofservice1','cpt1','charges1']) {
-    if (!(r in row)) return false;
-    const v = row[r];
-    if (v == null || v === '') return false;
+type ColumnTypeInfo = {
+  data_type: string;
+  character_maximum_length?: number | null;
+  numeric_precision?: number | null;
+};
+
+async function getTableColumnTypes(client: any, tableName: string): Promise<Record<string, ColumnTypeInfo>> {
+  const q = await client.query(
+    `SELECT column_name, data_type, character_maximum_length, numeric_precision
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  const m: Record<string, ColumnTypeInfo> = {};
+  for (const r of q.rows) {
+    m[r.column_name] = {
+      data_type: r.data_type,
+      character_maximum_length: r.character_maximum_length,
+      numeric_precision: r.numeric_precision,
+    };
   }
-  // insurance: allow either payer ID or plan name
-  const hasPayerId = row.insurancepayerid != null && row.insurancepayerid !== '';
-  const hasPlanName = row.insuranceplanname != null && row.insuranceplanname !== '';
-  if (!hasPayerId && !hasPlanName) return false;
-  return true;
+  return m;
 }
 
-function listMissingFields(row: Record<string, any>): string[] {
+function isNumericType(t: string): boolean {
+  return /^(integer|bigint|smallint|numeric|decimal|double precision|real)$/i.test(t);
+}
+
+function isBooleanType(t: string): boolean {
+  return /^(boolean)$/i.test(t);
+}
+
+function isDateLikeType(t: string): boolean {
+  return /^(date|timestamp|timestamp without time zone|timestamp with time zone)$/i.test(t);
+}
+
+function sanitizeByType(row: Record<string, any>, colTypes: Record<string, ColumnTypeInfo>): { clean: Record<string, any>; notes: string[] } {
+  const clean: Record<string, any> = {};
+  const notes: string[] = [];
+  for (const [k, v] of Object.entries(row)) {
+    if (!(k in colTypes)) continue; // ignore extra columns
+    const info = colTypes[k];
+    let val: any = v;
+    if (val === '') val = null;
+    if (val != null) {
+      const t = info.data_type.toLowerCase();
+      if (isNumericType(t)) {
+        if (typeof val === 'string') {
+          const n = Number(val.replace(/[$,]/g, ''));
+          if (!Number.isFinite(n)) {
+            notes.push(`Field ${k}: not a number -> NULL`);
+            val = null;
+          } else {
+            val = n;
+          }
+        } else if (typeof val === 'boolean') {
+          val = val ? 1 : 0;
+        }
+      } else if (isBooleanType(t)) {
+        if (typeof val === 'string') {
+          const s = val.trim().toLowerCase();
+          val = ['1','true','t','yes','y'].includes(s) ? true : ['0','false','f','no','n'].includes(s) ? false : null;
+          if (val === null) notes.push(`Field ${k}: invalid boolean -> NULL`);
+        }
+      } else if (isDateLikeType(t)) {
+        // keep as string; DB will cast if valid
+        if (val instanceof Date) val = val.toISOString().slice(0, 10);
+      } else {
+        // text-like
+        if (typeof val !== 'string') val = String(val);
+        const max = info.character_maximum_length ?? undefined;
+        if (max && typeof val === 'string' && val.length > max) {
+          // Special handling for CHAR(1)/VARCHAR(1) flags to avoid noisy warnings
+          if (max === 1) {
+            const s = val.trim().toLowerCase();
+            if (['1','true','t','yes','y'].includes(s)) {
+              val = 'Y';
+            } else if (['0','false','f','no','n'].includes(s)) {
+              val = 'N';
+            } else if (['male','m'].includes(s)) {
+              val = 'M';
+            } else if (['female','f'].includes(s)) {
+              val = 'F';
+            } else {
+              // Default to first character uppercased
+              val = s.charAt(0).toUpperCase();
+            }
+            // Do not emit a truncation note for expected 1-char normalization
+          } else {
+            notes.push(`Field ${k}: truncated to ${max} chars`);
+            val = val.slice(0, max);
+          }
+        }
+      }
+    }
+    clean[k] = val;
+  }
+  return { clean, notes };
+}
+
+function hasAnyServiceLine(mapped: Record<string, any>): boolean {
+  for (let li = 1; li <= 6; li++) {
+    const cpt = mapped[`cpt${li}`];
+    const chg = mapped[`charges${li}`];
+    const dos = mapped[`fromdateofservice${li}`];
+    if (cpt != null && cpt !== '' && chg != null && chg !== '' && dos != null && dos !== '') return true;
+  }
+  return false;
+}
+
+function listMissingForAnyLine(mapped: Record<string, any>): string[] {
   const missing: string[] = [];
-  const must = ['insurerid','patientlast','patientfirst','patientdob','fromdateofservice1','cpt1','charges1'];
-  for (const k of must) if (!(k in row) || row[k] == null || row[k] === '') missing.push(k);
-  const hasPayerId = row.insurancepayerid != null && row.insurancepayerid !== '';
-  const hasPlanName = row.insuranceplanname != null && row.insuranceplanname !== '';
-  if (!hasPayerId && !hasPlanName) missing.push('insurancepayerid|insuranceplanname');
+  if (!mapped.insurerid) missing.push('insurerid');
+  if (!(mapped.patientfirst && mapped.patientlast && mapped.patientdob)) missing.push('patient info');
+  if (!(mapped.insurancepayerid || mapped.insuranceplanname)) missing.push('payer id or plan name');
+  if (!hasAnyServiceLine(mapped)) missing.push('at least one complete service line');
   return missing;
 }
 
-async function findExistingSubmit(client: any, keys: { payor_reference_id?: string | null; oa_claimid?: string | null; clinic_id?: any; insurerid?: any; fromdateofservice1?: any; cpt1?: any; totalcharges?: any; }) {
-  if (keys.payor_reference_id) {
-    const r = await client.query('SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE payor_reference_id=$1 LIMIT 1', [keys.payor_reference_id]);
-    if (r.rowCount) return r.rows[0].bil_claim_submit_id;
+async function findExistingSubmit(client: any, business: Record<string, any>): Promise<number | null> {
+  // Priority 1: payor_reference_id
+  if (business.payor_reference_id) {
+    const r = await client.query(
+      `SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE payor_reference_id=$1 LIMIT 1`,
+      [business.payor_reference_id]
+    );
+    if (r.rowCount) return r.rows[0].bil_claim_submit_id as number;
   }
-  if (keys.oa_claimid) {
-    const r = await client.query('SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE oa_claimid=$1 LIMIT 1', [keys.oa_claimid]);
-    if (r.rowCount) return r.rows[0].bil_claim_submit_id;
+  // Priority 2: oa_claimid
+  if (business.oa_claimid) {
+    const r = await client.query(
+      `SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE oa_claimid=$1 LIMIT 1`,
+      [business.oa_claimid]
+    );
+    if (r.rowCount) return r.rows[0].bil_claim_submit_id as number;
   }
-  const r = await client.query(
-    `SELECT bil_claim_submit_id FROM api_bil_claim_submit
-     WHERE COALESCE(clinic_id::text,'')=COALESCE($1::text,'')
-     AND COALESCE(insurerid::text,'')=COALESCE($2::text,'')
-       AND fromdateofservice1::date = $3::date
-       AND COALESCE(cpt1::text,'')=COALESCE($4::text,'')
-       AND COALESCE(totalcharges::numeric,0)=COALESCE($5::numeric,0)
-     LIMIT 1`,
-   [keys.clinic_id ?? null, keys.insurerid ?? null, keys.fromdateofservice1 ?? null, keys.cpt1 ?? null, keys.totalcharges ?? null]
-  );
-  return r.rowCount ? r.rows[0].bil_claim_submit_id : null;
-}
-
-type ColumnInfo = { data_type: string; max_length: number | null };
-type ColumnTypes = Record<string, ColumnInfo>;
-
-async function getTableColumnTypes(client: any, tableName: string, schema = 'public'): Promise<ColumnTypes> {
-  const r = await client.query(
-    `SELECT column_name, data_type, character_maximum_length
-     FROM information_schema.columns
-     WHERE table_schema = $1 AND table_name = $2`,
-    [schema, tableName]
-  );
-  const map: ColumnTypes = {};
-  for (const row of r.rows) map[String(row.column_name)] = { data_type: String(row.data_type), max_length: row.character_maximum_length == null ? null : Number(row.character_maximum_length) };
-  return map;
-}
-
-function sanitizeByType(row: Record<string, any>, colTypes: ColumnTypes): { clean: Record<string, any>; notes: string[] } {
-  const clean: Record<string, any> = { ...row };
-  const notes: string[] = [];
-  const isInt = (t: string) => ['integer','bigint','smallint'].includes(t);
-  const isNum = (t: string) => ['numeric','decimal','double precision','real'].includes(t);
-  for (const [k, v] of Object.entries(row)) {
-    const info = colTypes[k];
-    if (!info || v == null || v === '') continue;
-    const t = info.data_type;
-    if (isInt(t)) {
-      if (typeof v === 'number' && Number.isInteger(v)) continue;
-      const s = String(v).trim();
-      if (/^[+-]?\d+$/.test(s)) {
-        clean[k] = Number(s);
-      } else {
-        clean[k] = null;
-        notes.push(`Field ${k}: non-integer value '${s}' set to null`);
-      }
-    } else if (isNum(t)) {
-      if (typeof v === 'number' && Number.isFinite(v)) continue;
-      const s = String(v).trim().replace(/[^0-9.\-]/g, '');
-      const n = s === '' ? NaN : Number(s);
-      if (!Number.isNaN(n)) clean[k] = n; else { clean[k] = null; notes.push(`Field ${k}: non-numeric value '${v}' set to null`); }
-    } else if ((t === 'character varying' || t === 'character' || t === 'char') && info.max_length != null) {
-      // Handle varchar/char with max length, especially length=1 flag columns
-      let s = v;
-      if (typeof s === 'boolean') {
-        s = s ? 'Y' : 'N';
-      } else {
-        const sv = String(s).trim();
-        if (info.max_length === 1) {
-          if (/^(y|yes|true|1)$/i.test(sv)) s = 'Y';
-          else if (/^(n|no|false|0)$/i.test(sv)) s = 'N';
-          else if (/^(male|m)$/i.test(sv)) s = 'M';
-          else if (/^(female|f)$/i.test(sv)) s = 'F';
-          else s = sv ? sv[0].toUpperCase() : null;
-        } else {
-          s = sv;
-        }
-      }
-      if (typeof s === 'string' && info.max_length != null && s.length > info.max_length) {
-        notes.push(`Field ${k}: value truncated to ${info.max_length} chars`);
-        s = s.slice(0, info.max_length);
-      }
-      clean[k] = s;
-    }
+  // Priority 3: composite business key
+  const parts: string[] = [];
+  const vals: any[] = [];
+  let idx = 1;
+  if (business.clinic_id != null) { parts.push(`clinic_id=$${idx++}`); vals.push(business.clinic_id); }
+  if (business.insurerid != null) { parts.push(`insurerid=$${idx++}`); vals.push(business.insurerid); }
+  if (business.fromdateofservice1 != null) { parts.push(`fromdateofservice1=$${idx++}`); vals.push(business.fromdateofservice1); }
+  if (business.cpt1 != null) { parts.push(`cpt1=$${idx++}`); vals.push(business.cpt1); }
+  if (business.totalcharges != null) { parts.push(`totalcharges=$${idx++}`); vals.push(business.totalcharges); }
+  if (parts.length >= 3) {
+    const sql = `SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE ${parts.join(' AND ')} LIMIT 1`;
+    const r = await client.query(sql, vals);
+    if (r.rowCount) return r.rows[0].bil_claim_submit_id as number;
   }
-  return { clean, notes };
+  return null;
 }
 
 export async function commitSubmitUpload(req: Request, res: Response) {
@@ -214,140 +258,135 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     if (!up.rowCount) return res.status(422).json({ error: 'Upload not found' });
     const row = up.rows[0];
     if (row.file_kind !== 'SUBMIT_EXCEL') return res.status(422).json({ error: 'Wrong upload kind' });
-  if (row.status !== 'COMPLETED') return res.status(422).json({ error: 'Upload status not COMPLETED' });
+    if (row.status !== 'COMPLETED') return res.status(422).json({ error: 'Upload status not COMPLETED' });
 
     // Fetch file content
-    const bucket = row.s3_bucket;
-    const keyObj = row.s3_key;
+    const bucket: string = row.s3_bucket;
+    const keyObj: string = row.s3_key;
     if (!bucket || !keyObj) return res.status(422).json({ error: 'Upload has no S3 location' });
     const buf = await downloadFromS3({ bucket, key: keyObj });
 
-    // Parse
-  // Read dates as formatted text to avoid JS Date timezone shifts
-  const wb = XLSX.read(buf, { type: 'buffer', cellDates: false, raw: false });
-  const { rows, headers } = pickBestSheet(wb);
-  const normHeaders = headers.map(h => ({ raw: h, k: key(h) }));
+    // Parse workbook
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: false, raw: false });
+    const { rows } = pickBestSheet(wb);
 
-    // Build a case-insensitive projection using headerMap
+    // Counters
     const inserts: number[] = [];
     const updates: number[] = [];
     let skipped = 0;
     const warnings: string[] = [];
 
-    // Initialize progress fields (keep status unchanged to satisfy DB check constraint)
+    // Initialize progress fields
     await pool.query(
-      `UPDATE rcm_file_uploads SET row_count=$1, message=$2 WHERE upload_id=$3`,
+      `UPDATE rcm_file_uploads SET row_count=$1, message=$2, updated_at=NOW() WHERE upload_id=$3`,
       [rows.length, `Processing 0/${rows.length} (0%)`, upload_id]
     );
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-  const colTypes = await getTableColumnTypes(client, 'api_bil_claim_submit');
-  const schemaColumns = new Set(Object.keys(colTypes));
+      const colTypes = await getTableColumnTypes(client, 'api_bil_claim_submit');
+      const schemaColumns = new Set(Object.keys(colTypes));
       let processed = 0;
       const total = rows.length || 1;
-      const progressStep = Math.max(1, Math.floor(total / 100)); // Update progress more frequently (up to 100 updates)
+  // Update progress roughly every 2% to reduce DB chatter
+  const progressStep = Math.max(1, Math.floor(total / 50));
 
       for (let i = 0; i < rows.length; i++) {
-  const raw = rows[i];
-  const mapped = mapRow(raw, schemaColumns, warnings);
+        const raw = rows[i];
+        const mapped = mapRow(raw, schemaColumns, warnings);
 
-        // sensible defaults and computed fields
-        if (mapped.units1 == null || mapped.units1 === '') mapped.units1 = 1;
-        if (mapped.totalcharges == null || mapped.totalcharges === '') {
-          const c = Number(mapped.charges1 ?? 0);
-          const u = Number(mapped.units1 ?? 1);
-          const total = isFinite(c) && isFinite(u) ? c * u : mapped.charges1 ?? null;
-          mapped.totalcharges = total;
-        }
-
-        // system fields
-        mapped.upload_id = upload_id;
-        mapped.source_system = 'OFFICE_ALLY';
-
-        if (!hasRequiredMapped(mapped)) {
+        // Row-level preconditions: basic patient/insurance + at least one complete service line exists
+        const hasPayerId = mapped.insurancepayerid != null && mapped.insurancepayerid !== '';
+        const hasPlanName = mapped.insuranceplanname != null && mapped.insuranceplanname !== '';
+        const hasInsurer = mapped.insurerid != null && mapped.insurerid !== '';
+        const hasPatient = mapped.patientfirst && mapped.patientlast && mapped.patientdob;
+        const hasAnyLine = hasAnyServiceLine(mapped);
+        if (!hasInsurer || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
           skipped++;
           if (warnings.length < 50) {
-            const miss = listMissingFields(mapped);
-            warnings.push(`Row ${i+2} skipped: missing ${miss.join(', ')}`);
+            const miss = listMissingForAnyLine(mapped);
+            warnings.push(`Row ${i + 2} skipped: missing ${miss.join(', ')}`);
           }
-          continue;
-        }
-
-        // Business key
-  const business = {
-          payor_reference_id: mapped.payor_reference_id ?? null,
-          oa_claimid: mapped.oa_claimid ?? null,
-          clinic_id: mapped.clinic_id ?? null,
-          insurerid: mapped.insurerid,
-          fromdateofservice1: mapped.fromdateofservice1,
-          cpt1: mapped.cpt1,
-          totalcharges: mapped.totalcharges,
-        };
-
-        let existingId = await findExistingSubmit(client, business);
-        // Fallback idempotency per upload via content hash of business subset
-        let contentHash: string | null = null;
-        if (!existingId) {
-          const subset = {
-            upload_id,
-            insurerid: mapped.insurerid,
-            fromdateofservice1: mapped.fromdateofservice1,
-            cpt1: mapped.cpt1,
-            totalcharges: mapped.totalcharges,
-          };
-          contentHash = crypto.createHash('sha256').update(JSON.stringify(subset)).digest('hex');
-          const er = await client.query('SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE upload_id=$1 AND content_sha256=$2 LIMIT 1', [upload_id, contentHash]);
-          if (er.rowCount) existingId = er.rows[0].bil_claim_submit_id;
-        }
-        // type sanitization against DB column types
-        const { clean, notes } = sanitizeByType(mapped, colTypes);
-        if (notes.length) {
-          const remain = 100 - warnings.length;
-          if (remain > 0) warnings.push(...notes.slice(0, remain).map(n => `Row ${i+2}: ${n}`));
-        }
-
-  // Ensure idempotency metadata
-  if (!('upload_id' in clean)) clean.upload_id = upload_id;
-  if (!('source_system' in clean)) clean.source_system = 'OFFICE_ALLY';
-  if (contentHash && !('content_sha256' in clean)) clean.content_sha256 = contentHash;
-
-  const cols = Object.keys(clean);
-  const vals = Object.values(clean);
-
-        if (!existingId) {
-          const colSql = cols.map(c => '"'+c+'"').join(',');
-          const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
-          const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING bil_claim_submit_id`;
-          const r = await client.query(sql, vals);
-          inserts.push(r.rows[0].bil_claim_submit_id);
+          // progress and continue
         } else {
-          const setSql = cols.map((c, idx) => '"'+c+'"' + `=$${idx + 1}`).join(',');
-          const sql = `UPDATE api_bil_claim_submit SET ${setSql} WHERE bil_claim_submit_id=$${cols.length + 1}`;
-          await client.query(sql, [...vals, existingId]);
-          updates.push(existingId);
+          // System fields (no per-CPT splitting for submit)
+          const rowObj: Record<string, any> = { ...mapped };
+          rowObj.upload_id = upload_id;
+          rowObj.source_system = 'OFFICE_ALLY';
+
+          // Business key (row-level)
+          const business = {
+            payor_reference_id: rowObj.payor_reference_id ?? null,
+            oa_claimid: rowObj.oa_claimid ?? null,
+            clinic_id: rowObj.clinic_id ?? null,
+            insurerid: rowObj.insurerid,
+            fromdateofservice1: rowObj.fromdateofservice1,
+            cpt1: rowObj.cpt1,
+            totalcharges: rowObj.totalcharges,
+          };
+
+          let existingId = await findExistingSubmit(client, business);
+          // Fallback idempotency per upload via content hash of business subset
+          let contentHash: string | null = null;
+          if (!existingId) {
+            const subset = {
+              upload_id,
+              insurerid: rowObj.insurerid,
+              fromdateofservice1: rowObj.fromdateofservice1,
+              cpt1: rowObj.cpt1,
+              totalcharges: rowObj.totalcharges,
+            };
+            contentHash = crypto.createHash('sha256').update(JSON.stringify(subset)).digest('hex');
+            const er = await client.query(
+              'SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE upload_id=$1 AND content_sha256=$2 LIMIT 1',
+              [upload_id, contentHash]
+            );
+            if (er.rowCount) existingId = er.rows[0].bil_claim_submit_id;
+          }
+
+          // type sanitization against DB column types
+          const { clean, notes } = sanitizeByType(rowObj, colTypes);
+          if (notes.length) {
+            const remain = Math.max(0, 100 - warnings.length);
+            if (remain > 0) warnings.push(...notes.slice(0, remain).map((n: string) => `Row ${i + 2}: ${n}`));
+          }
+
+          // Ensure idempotency metadata
+          if (!('upload_id' in clean)) clean.upload_id = upload_id;
+          if (!('source_system' in clean)) clean.source_system = 'OFFICE_ALLY';
+          if (contentHash && !('content_sha256' in clean)) clean.content_sha256 = contentHash;
+
+          const cols = Object.keys(clean);
+          const vals = Object.values(clean);
+
+          if (!existingId) {
+            const colSql = cols.map(c => '"' + c + '"').join(',');
+            const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
+            const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING bil_claim_submit_id`;
+            const r = await client.query(sql, vals);
+            inserts.push(r.rows[0].bil_claim_submit_id);
+          } else {
+            const setSql = cols.map((c, idx) => '"' + c + '"' + `=$${idx + 1}`).join(',');
+            const sql = `UPDATE api_bil_claim_submit SET ${setSql} WHERE bil_claim_submit_id=$${cols.length + 1}`;
+            await client.query(sql, [...vals, existingId]);
+            updates.push(existingId);
+          }
         }
 
-        // Progress and cancellation checks outside the transaction so UI can poll
+        // Progress and cancellation checks so UI can poll
         processed++;
-        if (processed % Math.max(1, Math.floor(progressStep / 2)) === 0 || processed === total) {
+        if (processed % progressStep === 0 || processed === total) {
           const pct = Math.floor((processed / total) * 100);
-          try {
-            // More frequent progress updates for better real-time feel
-            await pool.query(
-              `UPDATE rcm_file_uploads SET message=$1 WHERE upload_id=$2`,
-              [`Processing ${processed}/${total} (${pct}%)`, upload_id]
-            );
-            // Cancellation: if user requested cancel (status flipped to FAILED), abort
-            const st = await pool.query(`SELECT status FROM rcm_file_uploads WHERE upload_id=$1`, [upload_id]);
-            const cur = st.rows?.[0]?.status;
-            if (cur === 'FAILED') {
-              throw new Error('Cancelled by user');
-            }
-          } catch (e) {
-            // Re-throw to trigger rollback
-            throw e;
+          await pool.query(
+            `UPDATE rcm_file_uploads SET message=$1, updated_at=NOW() WHERE upload_id=$2`,
+            [`Processing ${processed}/${total} (${pct}%)`, upload_id]
+          );
+          // Cancellation: if user requested cancel (status flipped to FAILED), abort
+          const st = await pool.query(`SELECT status FROM rcm_file_uploads WHERE upload_id=$1`, [upload_id]);
+          const cur = st.rows?.[0]?.status;
+          if (cur === 'FAILED') {
+            throw new Error('Cancelled by user');
           }
         }
       }
@@ -360,28 +399,35 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       client.release();
     }
 
-  // Mirror into reimburse table for this upload (per-CPT lines, idempotent)
-  const mirror = await mirrorReimburseForUpload(upload_id);
-  const duration = Date.now() - t0;
+    // Mirror into reimburse table for this upload (per-CPT lines, idempotent)
+    const mirror = await mirrorReimburseForUpload(upload_id);
+    const duration = Date.now() - t0;
     const inserted_count = inserts.length;
     const updated_count = updates.length;
     const skipped_count = skipped;
 
-  const msg = `Committed ${inserted_count + updated_count} rows (inserted ${inserted_count}, updated ${updated_count}, skipped ${skipped_count}); Reimburse: created=${mirror.created}, updated=${mirror.updated}, deleted=${mirror.deleted}`;
-  await pool.query(
+    const msg = `Committed ${inserted_count + updated_count} rows (inserted ${inserted_count}, updated ${updated_count}, skipped ${skipped_count}); Reimburse: created=${mirror.created}, updated=${mirror.updated}, deleted=${mirror.deleted}`;
+    await pool.query(
       `UPDATE rcm_file_uploads
          SET message=$1,
              row_count=COALESCE(row_count, $2),
-       status='COMPLETED',
-             processing_completed_at=NOW()
+             status='COMPLETED',
+             processing_completed_at=NOW(),
+             updated_at=NOW()
        WHERE upload_id=$3`,
       [msg, inserted_count + updated_count, upload_id]
     );
 
-  // Best-effort S3 cleanup after successful commit
-  try { await deleteFromS3({ bucket, key: keyObj }); } catch {}
+    // Optional S3 cleanup after successful commit (controlled by env)
+    try {
+      const delFlag = String(process.env.S3_DELETE_ON_COMMIT || '').trim().toLowerCase();
+      const shouldDelete = delFlag === '1' || delFlag === 'true' || delFlag === 'yes';
+      if (shouldDelete) {
+        await deleteFromS3({ bucket, key: keyObj });
+      }
+    } catch {}
 
-  return res.status(200).json({
+    return res.status(200).json({
       upload_id,
       inserted_count,
       updated_count,
@@ -394,7 +440,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
         updated: mirror.updated,
         deleted: mirror.deleted,
         samples: mirror.samples,
-      }
+      },
     });
   } catch (err: any) {
     console.error('commitSubmitUpload error:', err);
@@ -402,11 +448,13 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       if (upload_id) {
         const meta = await pool.query(`SELECT s3_bucket, s3_key FROM rcm_file_uploads WHERE upload_id=$1`, [upload_id]);
         await pool.query(
-          `UPDATE rcm_file_uploads SET status='FAILED', message=$1 WHERE upload_id=$2`,
+          `UPDATE rcm_file_uploads SET status='FAILED', message=$1, updated_at=NOW() WHERE upload_id=$2`,
           [String(err?.message || 'Commit failed'), upload_id]
         );
         // Best-effort cleanup of source object
-        try { await deleteFromS3({ bucket: meta.rows?.[0]?.s3_bucket, key: meta.rows?.[0]?.s3_key }); } catch {}
+        try {
+          await deleteFromS3({ bucket: meta.rows?.[0]?.s3_bucket, key: meta.rows?.[0]?.s3_key });
+        } catch {}
       }
     } catch {}
     return res.status(500).json({ error: err?.message || 'Internal error' });

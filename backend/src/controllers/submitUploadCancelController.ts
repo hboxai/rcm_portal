@@ -25,7 +25,7 @@ export async function cancelSubmitUpload(req: Request, res: Response) {
   if (row.status !== 'FAILED') {
       await pool.query(
         `UPDATE rcm_file_uploads
-           SET status='FAILED', message=$1, processing_completed_at=COALESCE(processing_completed_at, NOW())
+           SET status='FAILED', message=$1, processing_completed_at=COALESCE(processing_completed_at, NOW()), updated_at=NOW()
          WHERE upload_id=$2`,
         ['Cancelled by user before commit', upload_id]
       );

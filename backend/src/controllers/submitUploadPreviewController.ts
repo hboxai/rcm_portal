@@ -119,7 +119,7 @@ export async function previewSubmitUpload(req: Request, res: Response) {
         s3Url = up.s3Url;
         s3KeyUsed = key;
   s3UploadedHere = true;
-        await pool.query(`UPDATE rcm_file_uploads SET s3_bucket=$1, s3_key=$2, s3_url=$3 WHERE upload_id=$4`, [s3Bucket, key, s3Url, uploadId]);
+  await pool.query(`UPDATE rcm_file_uploads SET s3_bucket=$1, s3_key=$2, s3_url=$3, updated_at=NOW() WHERE upload_id=$4`, [s3Bucket, key, s3Url, uploadId]);
       } else {
         s3KeyUsed = existingKey;
       }
