@@ -217,14 +217,15 @@ export async function submitUploadCancel(upload_id: string): Promise<SubmitCance
 export type SubmitUploadListItem = {
   upload_id: string;
   clinic: string;
-  file_kind: 'SUBMIT_EXCEL';
+  file_kind: 'SUBMIT_EXCEL' | 'REIMBURSE_EXCEL' | 'REIMBURSE_PDF';
   original_filename: string;
   row_count: number | null;
   status: 'PENDING' | 'COMPLETED' | 'COMMITTED' | 'FAILED';
   message: string | null;
   created_by: string | null;
   created_at: string;
-  claims_count: number;
+  claims_count?: number;
+  reimburse_count?: number;
 };
 
 export async function listSubmitUploads(params: { clinic?: string; limit?: number; offset?: number; status?: string; search?: string } = {}): Promise<{ items: SubmitUploadListItem[]; total: number }>{
@@ -263,4 +264,33 @@ export async function getSubmitServerPreview(upload_id: string, rows = 500): Pro
     params: { rows }
   });
   return res.data as ServerPreview;
+}
+
+// Admin-only: delete a submit upload and all related claims
+export async function deleteSubmitUpload(upload_id: string): Promise<{ success: boolean; message?: string }>{
+  try {
+    await axios.delete(`${API_BASE_URL}/submit-uploads/${upload_id}`, {
+      headers: { Authorization: getAuthToken() },
+    });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, message: e?.response?.data?.error || e?.message || 'Delete failed' };
+  }
+}
+
+// Reimburse uploads listing
+export async function listReimburseUploads(params: { limit?: number; offset?: number; search?: string } = {}): Promise<{ items: SubmitUploadListItem[]; total: number }>{
+  const res = await axios.get(`${API_BASE_URL}/reimburse/uploads`, {
+    headers: { Authorization: getAuthToken() },
+    params,
+  });
+  return res.data as { items: SubmitUploadListItem[]; total: number };
+}
+
+// Get impact counts for delete confirmation
+export async function getSubmitUploadDeleteImpact(upload_id: string): Promise<{ upload_id: string; submit_claims: number; reimburse_rows: number }>{
+  const res = await axios.get(`${API_BASE_URL}/submit-uploads/${upload_id}/delete-impact`, {
+    headers: { Authorization: getAuthToken() },
+  });
+  return res.data as { upload_id: string; submit_claims: number; reimburse_rows: number };
 }

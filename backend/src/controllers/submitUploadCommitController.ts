@@ -261,6 +261,45 @@ function genLineId(row: Record<string, any>, line: number): string {
   return `${prefix}-${line}-${h}`;
 }
 
+// Canonicalize a line into a stable JSON-ready shape (ordered fields)
+function canonicalLine(row: Record<string, any>, i: number): Record<string, any> {
+  const out: Record<string, any> = {};
+  const keys = [
+    `fromdateofservice${i}`,
+    `todateofservice${i}`,
+    `cpt${i}`,
+    `modifiera${i}`,
+    `modifierb${i}`,
+    `modifierc${i}`,
+    `modifierd${i}`,
+    `diagcodepointer${i}`,
+    `placeofservice${i}`,
+    `units${i}`,
+    `charges${i}`
+  ];
+  for (const k of keys) out[k] = row[k] ?? null;
+  return out;
+}
+
+function hashLine(obj: Record<string, any>): string {
+  // Deterministic stringify using known key order from canonicalLine
+  const s = JSON.stringify(obj);
+  return crypto.createHash('sha256').update(s).digest('hex');
+}
+
+function diffLine(oldL: Record<string, any> | null, newL: Record<string, any>): Record<string, [any, any]> {
+  const d: Record<string, [any, any]> = {};
+  const keys = Object.keys(newL);
+  for (const k of keys) {
+    const o = oldL ? oldL[k] : undefined;
+    const n = newL[k];
+    const oNorm = o === '' ? null : o;
+    const nNorm = n === '' ? null : n;
+    if (oNorm !== nNorm) d[k] = [o, n];
+  }
+  return d;
+}
+
 async function findExistingSubmit(client: any, business: Record<string, any>): Promise<number | null> {
   // Priority 1: payor_reference_id
   if (business.payor_reference_id) {
@@ -420,17 +459,111 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           const cols = Object.keys(clean);
           const vals = Object.values(clean);
 
+          // Prepare per-line hashes and audit payloads
+          const lineHashes: Array<{ i: number; hash: string; canon: Record<string, any> } > = [];
+          for (let li = 1; li <= 6; li++) {
+            const hasLine = clean[`cpt${li}`] || clean[`fromdateofservice${li}`] || clean[`charges${li}`];
+            if (hasLine) {
+              const canon = canonicalLine(clean, li);
+              const hash = hashLine(canon);
+              lineHashes.push({ i: li, hash, canon });
+            }
+          }
+
           if (!existingId) {
+            // INSERT new submit row
             const colSql = cols.map(c => '"' + c + '"').join(',');
             const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
             const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING bil_claim_submit_id`;
             const r = await client.query(sql, vals);
-            inserts.push(r.rows[0].bil_claim_submit_id);
+            const newId: number = r.rows[0].bil_claim_submit_id;
+            inserts.push(newId);
+
+            // Initialize per-line cycle/hash and updated_at; claim-level cycle = 1
+            if (lineHashes.length) {
+              const setParts: string[] = [];
+              const setVals: any[] = [];
+              let idx = 1;
+              for (const lh of lineHashes) {
+                setParts.push(`cpt_cycle${lh.i}=1`, `cpt_hash${lh.i}=$${idx++}`, `cpt_updated_at${lh.i}=NOW()`);
+                setVals.push(lh.hash);
+              }
+              setParts.push(`cycle=1`);
+              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE bil_claim_submit_id=$${idx}`, [...setVals, newId]);
+            }
+
+            // Audit initial state (cycle 1) for present lines
+            for (const lh of lineHashes) {
+              const sid = clean[`cpt_id${lh.i}`];
+              if (!sid) continue;
+              await client.query(
+                `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                [sid, newId, lh.i, 1, upload_id, null, lh.hash, null, JSON.stringify(lh.canon), JSON.stringify(lh.canon)]
+              );
+            }
           } else {
+            // UPDATE existing row data first
             const setSql = cols.map((c, idx) => '"' + c + '"' + `=$${idx + 1}`).join(',');
-            const sql = `UPDATE api_bil_claim_submit SET ${setSql} WHERE bil_claim_submit_id=$${cols.length + 1}`;
-            await client.query(sql, [...vals, existingId]);
-            updates.push(existingId);
+            await client.query(`UPDATE api_bil_claim_submit SET ${setSql} WHERE bil_claim_submit_id=$${cols.length + 1}`, [...vals, existingId]);
+
+            // Fetch current hashes and line values for diff
+            const old = await client.query(
+              `SELECT bil_claim_submit_id,
+                      ${[1,2,3,4,5,6].map(i=>`cpt_hash${i}, fromdateofservice${i}, todateofservice${i}, cpt${i}, modifiera${i}, modifierb${i}, modifierc${i}, modifierd${i}, diagcodepointer${i}, placeofservice${i}, units${i}, charges${i}`).join(', ')}
+                 FROM api_bil_claim_submit WHERE bil_claim_submit_id=$1`,
+              [existingId]
+            );
+            const prev = old.rows[0] || {};
+
+            // Determine changed lines and build UPDATE for cycles/hashes
+            const changed: Array<{ i:number; oldCanon: Record<string,any>|null; newCanon: Record<string,any>; oldHash: string|null; newHash: string; sid: any }>=[];
+            for (const lh of lineHashes) {
+              const oldHash = prev[`cpt_hash${lh.i}`] ?? null;
+              if (oldHash !== lh.hash) {
+                const oldCanon = canonicalLine(prev, lh.i);
+                const sid = clean[`cpt_id${lh.i}`];
+                changed.push({ i: lh.i, oldCanon, newCanon: lh.canon, oldHash, newHash: lh.hash, sid });
+              }
+            }
+
+            if (changed.length) {
+              // Count this row as updated only if at least one service line actually changed
+              updates.push(existingId);
+              const setParts: string[] = [];
+              const setVals: any[] = [];
+              let p = 1;
+              for (const ch of changed) {
+                setParts.push(`cpt_cycle${ch.i}=COALESCE(cpt_cycle${ch.i},1)+1`);
+                setParts.push(`cpt_hash${ch.i}=$${p++}`);
+                setVals.push(ch.newHash);
+                setParts.push(`cpt_updated_at${ch.i}=NOW()`);
+              }
+              // First update per-line cycles/hashes in one statement
+              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE bil_claim_submit_id=$${p}`, [...setVals, existingId]);
+
+              // Then recompute claim-level cycle from the new per-line values
+              await client.query(
+                `UPDATE api_bil_claim_submit 
+                   SET cycle=GREATEST(COALESCE(cpt_cycle1,1),COALESCE(cpt_cycle2,1),COALESCE(cpt_cycle3,1),COALESCE(cpt_cycle4,1),COALESCE(cpt_cycle5,1),COALESCE(cpt_cycle6,1))
+                 WHERE bil_claim_submit_id=$1`,
+                [existingId]
+              );
+
+              // Write audits
+              const cycRow = await client.query(`SELECT cpt_cycle1,cpt_cycle2,cpt_cycle3,cpt_cycle4,cpt_cycle5,cpt_cycle6 FROM api_bil_claim_submit WHERE bil_claim_submit_id=$1`, [existingId]);
+              const cyc = cycRow.rows[0] || {};
+              for (const ch of changed) {
+                const d = diffLine(ch.oldCanon, ch.newCanon);
+                // Per-line cycle after bump
+                const lineCycle = Number(cyc[`cpt_cycle${ch.i}`]) || 1;
+                await client.query(
+                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
+                   VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,$10)`,
+                  [ch.sid, existingId, ch.i, lineCycle, upload_id, ch.oldHash, ch.newHash, JSON.stringify(ch.oldCanon), JSON.stringify(ch.newCanon), JSON.stringify(d)]
+                );
+              }
+            }
           }
         }
 

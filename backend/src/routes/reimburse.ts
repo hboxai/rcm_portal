@@ -4,6 +4,51 @@ import { z } from 'zod';
 
 const router = Router();
 
+// New: list reimburse uploads from rcm_file_uploads
+router.get('/uploads', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10) || 50, 200);
+    const offset = parseInt(String(req.query.offset ?? '0'), 10) || 0;
+    const search = (req.query.search as string | undefined)?.trim();
+
+    const where: string[] = ["file_kind IN ('REIMBURSE_EXCEL','REIMBURSE_PDF')"]; 
+    const params: any[] = [];
+    if (search) { params.push(`%${search}%`); where.push(`original_filename ILIKE $${params.length}`); }
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+
+    const totalRes = await pool.query(`SELECT COUNT(*)::int AS total FROM rcm_file_uploads ${whereSql}`, params);
+    const total = totalRes.rows[0]?.total ?? 0;
+
+    const itemsRes = await pool.query(
+      `SELECT u.upload_id, u.clinic, u.file_kind, u.original_filename, u.row_count, u.status, u.message, u.created_by, u.created_at,
+              (SELECT COUNT(*)::int FROM api_bil_claim_reimburse r WHERE r.upload_id = u.upload_id) AS reimburse_count
+         FROM rcm_file_uploads u
+         ${whereSql}
+         ORDER BY u.created_at DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+
+    const items = itemsRes.rows.map((r: any) => ({
+      upload_id: String(r.upload_id),
+      clinic: r.clinic ?? '',
+      file_kind: r.file_kind as 'REIMBURSE_EXCEL' | 'REIMBURSE_PDF',
+      original_filename: r.original_filename ?? '',
+      row_count: r.row_count ?? null,
+      status: r.status ?? 'PENDING',
+      message: r.message ?? null,
+      created_by: r.created_by ?? null,
+      created_at: r.created_at,
+      reimburse_count: r.reimburse_count ?? 0,
+    }));
+
+    return res.json({ items, total });
+  } catch (err: any) {
+    console.error('list reimburse uploads error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal error' });
+  }
+});
+
 // GET /api/reimburse/search - parity with claims search
 router.get('/search', async (req, res) => {
   try {
@@ -65,7 +110,6 @@ router.get('/search', async (req, res) => {
         r.sec_denial_code,
         r.pat_amt,
         r.pat_recv_dt,
-        -- Enrichments from submit table
   s.patientfirst AS first_name,
   s.patientlast  AS last_name,
   (s.patientfirst || ' ' || s.patientlast) AS patientname,

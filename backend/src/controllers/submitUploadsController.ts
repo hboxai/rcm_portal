@@ -45,7 +45,7 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const rowsSql = `
       SELECT bil_claim_submit_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid,
         oa_claimid, payor_reference_id, totalcharges, cpt1,
-        facilityname, payor_status
+        facilityname, payor_status, cycle
       FROM api_bil_claim_submit
       ${whereSql}
       ORDER BY bil_claim_submit_id
@@ -64,6 +64,7 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
       cpt_code: r.cpt1 ?? '',
       total_amt: r.totalcharges ?? 0,
       claim_status: '',
+      cycle: r.cycle ?? 1,
       // pass-throughs for preview card
       facilityname: r.facilityname ?? null,
       payor_status: r.payor_status ?? null,
@@ -256,6 +257,53 @@ export async function getClaimsBySubmitUpload(req: Request, res: Response) {
     return res.json({ data, totalCount: total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (err: any) {
     console.error('getClaimsBySubmitUpload error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal error' });
+  }
+}
+
+// New: compute delete impact counts for a submit upload
+export async function getSubmitUploadDeleteImpact(req: Request, res: Response) {
+  try {
+    const { upload_id } = req.params as { upload_id: string };
+    // Ensure the upload exists and is a SUBMIT_EXCEL
+    const meta = await pool.query(
+      `SELECT file_kind FROM rcm_file_uploads WHERE upload_id=$1 LIMIT 1`,
+      [upload_id]
+    );
+    if (!meta.rowCount) return res.status(404).json({ error: 'Upload not found' });
+    if (meta.rows[0].file_kind !== 'SUBMIT_EXCEL') {
+      return res.status(400).json({ error: 'Only SUBMIT_EXCEL uploads are supported' });
+    }
+
+    // Count submit claims
+    const submitCountRes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM api_bil_claim_submit WHERE upload_id=$1`,
+      [upload_id]
+    );
+    const submit_claims = submitCountRes.rows[0]?.n ?? 0;
+
+    // Count reimburse rows that would be affected
+    let reimburse_rows = 0;
+    try {
+      const reimbRes = await pool.query(
+        `WITH s AS (
+           SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE upload_id=$1
+         )
+         SELECT (
+           SELECT COUNT(*)::int FROM api_bil_claim_reimburse r
+           WHERE r.upload_id=$1 OR r.bil_claim_submit_id IN (SELECT bil_claim_submit_id FROM s)
+         ) AS n`,
+        [upload_id]
+      );
+      reimburse_rows = reimbRes.rows[0]?.n ?? 0;
+    } catch (e: any) {
+      // If reimburse table missing, treat as zero without failing
+      if (String(e?.code) !== '42P01') throw e;
+    }
+
+    return res.json({ upload_id, submit_claims, reimburse_rows });
+  } catch (err: any) {
+    console.error('getSubmitUploadDeleteImpact error:', err);
     return res.status(500).json({ error: err?.message || 'Internal error' });
   }
 }

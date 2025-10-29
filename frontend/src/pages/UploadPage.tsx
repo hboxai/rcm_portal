@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
-import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress } from '../services/uploadService';
+import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads } from '../services/uploadService';
 import type { SubmitUploadListItem } from '../services/uploadService';
 import { UploadedFile } from '../types/file';
 import { trackEvent } from '../utils/audit';
 import * as XLSX from 'xlsx';
+import ConfirmPinkModal from '../components/ui/ConfirmPinkModal';
+import { useAuth } from '../contexts/AuthContext';
 
 const UploadPage: React.FC = () => {
   const navigate = useNavigate();
@@ -32,7 +34,10 @@ const UploadPage: React.FC = () => {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   // Delete confirmation state
   const [confirmDelete, setConfirmDelete] = useState<null | { id: string; filename: string }>(null);
+  const [deleteContext, setDeleteContext] = useState<null | 'generic' | 'submit'>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteImpact, setDeleteImpact] = useState<null | { submit_claims: number; reimburse_rows: number }>(null);
+  const { isAdmin } = useAuth();
   // Quick Submit preview/commit state
   const [quickClinic, setQuickClinic] = useState('default');
   const [quickPreview, setQuickPreview] = useState<null | {
@@ -84,8 +89,13 @@ const UploadPage: React.FC = () => {
   const refreshSubmitUploads = useCallback(async () => {
     setLoadingSubmitUploads(true); setSuError(null);
     try {
-      const { items } = await listSubmitUploads({ limit: 50 });
-      setSubmitUploads(items);
+      if (isReimburse) {
+        const { items } = await listReimburseUploads({ limit: 50 });
+        setSubmitUploads(items);
+      } else {
+        const { items } = await listSubmitUploads({ limit: 50 });
+        setSubmitUploads(items);
+      }
     } catch (e: any) {
       setSuError(e?.message || `Failed to load ${fileTypeLabel.toLowerCase()} uploads`);
     } finally {
@@ -97,6 +107,22 @@ const UploadPage: React.FC = () => {
     refreshUploads();
   void refreshSubmitUploads();
   }, [refreshUploads]);
+
+  // When opening delete modal for submit upload, fetch impact counts
+  useEffect(() => {
+    (async () => {
+      if (deleteContext === 'submit' && confirmDelete?.id) {
+        try {
+          const data = await getSubmitUploadDeleteImpact(confirmDelete.id);
+          setDeleteImpact({ submit_claims: data.submit_claims, reimburse_rows: data.reimburse_rows });
+        } catch {
+          setDeleteImpact(null);
+        }
+      } else {
+        setDeleteImpact(null);
+      }
+    })();
+  }, [confirmDelete?.id, deleteContext]);
 
   // Handle ESC key to close modals
   useEffect(() => {
@@ -321,11 +347,20 @@ const UploadPage: React.FC = () => {
     // Called after user confirms in modal
     setDeletingId(fileId);
     try {
-      const result = await deleteUpload(fileId);
+      let result: { success: boolean; message?: string } = { success: false };
+      if (deleteContext === 'submit') {
+        result = await deleteSubmitUpload(fileId);
+      } else {
+        result = await deleteUpload(fileId);
+      }
       if (result.success) {
         setSuccess(`Successfully deleted ${filename}`);
-        trackEvent('upload:delete', { id: fileId });
-        await refreshUploads();
+        trackEvent(deleteContext === 'submit' ? 'submit:delete' : 'upload:delete', { id: fileId });
+        if (deleteContext === 'submit') {
+          await refreshSubmitUploads();
+        } else {
+          await refreshUploads();
+        }
       } else {
         setError(result.message || 'Delete failed');
       }
@@ -334,6 +369,7 @@ const UploadPage: React.FC = () => {
     } finally {
       setDeletingId(null);
       setConfirmDelete(null);
+      setDeleteContext(null);
     }
   };
 
@@ -396,6 +432,7 @@ const UploadPage: React.FC = () => {
       case 'FAILED': return { text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-600' };
       case 'COMMITTED': return { text: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200', dot: 'bg-green-600' };
       case 'COMPLETED': return { text: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-600' };
+      case 'ROLLED_BACK': return { text: 'text-amber-800', bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-600' };
       default: return { text: 'text-gray-700', bg: 'bg-gray-50', border: 'border-gray-200', dot: 'bg-gray-600' };
     }
   };
@@ -639,7 +676,7 @@ const UploadPage: React.FC = () => {
                 <th className="px-4 py-3 text-left">Upload ID</th>
                 <th className="px-4 py-3 text-left">Filename</th>
                 <th className="px-4 py-3 text-left">Clinic</th>
-                <th className="px-4 py-3 text-left">Rows</th>
+                <th className="px-4 py-3 text-left">{isReimburse ? 'Reimburse Rows' : 'Rows'}</th>
                 <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Created</th>
                 <th className="px-4 py-3 text-left">Actions</th>
@@ -655,10 +692,10 @@ const UploadPage: React.FC = () => {
                   <td className="px-4 py-3 align-top font-mono text-xs text-textDark/80">{u.upload_id}</td>
                   <td className="px-4 py-3 align-top">
                     <div className="text-textDark font-medium truncate max-w-[32ch]" title={u.original_filename}>{u.original_filename}</div>
-                    <div className="text-xs text-textDark/60">SUBMIT_EXCEL</div>
+                    <div className="text-xs text-textDark/60">{u.file_kind}</div>
                   </td>
                   <td className="px-4 py-3 align-top"><span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200">{u.clinic}</span></td>
-                  <td className="px-4 py-3 align-top">{u.row_count ?? '—'}</td>
+                  <td className="px-4 py-3 align-top">{isReimburse ? (u as any).reimburse_count ?? '—' : (u.row_count ?? '—')}</td>
                   <td className="px-4 py-3 align-top">
                     {(() => { const s = submitStatusClasses(u.status); return (
                       <span className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-medium border ${s.bg} ${s.text} ${s.border}`}>
@@ -670,12 +707,28 @@ const UploadPage: React.FC = () => {
                   <td className="px-4 py-3 align-top text-textDark/80">{new Date(u.created_at).toLocaleString()}</td>
                   <td className="px-4 py-3 align-top">
                     <div className="flex flex-wrap gap-2">
-                      <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs" onClick={()=>navigate(`/submit-preview/${u.upload_id}`)}>
-                        <Eye size={14} /> Preview
-                      </button>
-                      <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-green-200 text-green-700 hover:bg-green-50 text-xs" onClick={()=>onSubmitDownload(u.upload_id, u.original_filename)}>
-                        <Download size={14} /> Download
-                      </button>
+                      {isReimburse ? (
+                        <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs" onClick={()=>navigate(`/search?upload_id=${u.upload_id}`)}>
+                          <Eye size={14} /> View claims
+                        </button>
+                      ) : (
+                        <>
+                          <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs" onClick={()=>navigate(`/submit-preview/${u.upload_id}`)}>
+                            <Eye size={14} /> Preview
+                          </button>
+                          <button className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-green-200 text-green-700 hover:bg-green-50 text-xs" onClick={()=>onSubmitDownload(u.upload_id, u.original_filename)}>
+                            <Download size={14} /> Download
+                          </button>
+                          {isAdmin && (
+                            <button
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-200 text-red-700 hover:bg-red-50 text-xs"
+                              onClick={()=>{ setConfirmDelete({ id: u.upload_id, filename: u.original_filename }); setDeleteContext('submit'); }}
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -729,54 +782,34 @@ const UploadPage: React.FC = () => {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {confirmDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50"
-            onClick={() => (deletingId ? null : setConfirmDelete(null))}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-6 border-b">
-                <h3 className="text-xl font-semibold text-textDark flex items-center gap-3">
-                  <Trash2 size={20} className="text-red-600" />
-                  Delete file?
-                </h3>
-              </div>
-              <div className="p-6 space-y-3">
-                <p className="text-textDark">You're about to delete:</p>
-                <p className="text-textDark font-medium break-all">{confirmDelete.filename}</p>
-                <p className="text-textDark/70 text-sm">This action cannot be undone.</p>
-              </div>
-              <div className="px-6 py-4 border-t flex items-center justify-end gap-3 bg-gray-50">
-                <button
-                  onClick={() => setConfirmDelete(null)}
-                  disabled={!!deletingId}
-                  className="px-4 py-2 rounded-md border border-gray-300 text-textDark hover:bg-gray-100 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDelete(confirmDelete.id, confirmDelete.filename)}
-                  disabled={!!deletingId}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
-                >
-                  {deletingId ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  {deletingId ? 'Deleting…' : 'Delete'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ConfirmPinkModal
+        isOpen={!!confirmDelete}
+        title="Delete file?"
+        message={
+          <div className="space-y-3 text-base">
+            <p>You're about to delete:</p>
+            <p className="font-medium break-all">{confirmDelete?.filename}</p>
+            <p className="text-sm text-textDark/80">
+              {deleteImpact
+                ? (
+                    <>
+                      This will remove <span className="font-semibold">{deleteImpact.submit_claims.toLocaleString()}</span> claim{deleteImpact.submit_claims === 1 ? '' : 's'}
+                      {` `}and <span className="font-semibold">{deleteImpact.reimburse_rows.toLocaleString()}</span> related reimburse entr{deleteImpact.reimburse_rows === 1 ? 'y' : 'ies'}.
+                      {` `}This action cannot be undone.
+                    </>
+                  )
+                : (
+                    <>All claims inserted by this file will also be permanently removed from the system, including any related reimburse entries. This action cannot be undone.</>
+                  )}
+            </p>
+          </div>
+        }
+        confirmLabel={deletingId ? 'Deleting…' : 'Delete'}
+        confirmIcon={deletingId ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+        onCancel={() => (!deletingId ? setConfirmDelete(null) : undefined)}
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete.id, confirmDelete.filename)}
+        disabled={!!deletingId}
+      />
     </div>
   );
 };

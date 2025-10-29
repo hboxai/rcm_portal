@@ -156,6 +156,7 @@ const SubmitFilesPage: React.FC = () => {
               const payorStatus = raw.payor_status || 'N/A';
               const oaClaimId = raw.oa_claimid || raw.oa_claim_id || 'N/A';
               const payorRefId = raw.payor_reference_id || 'N/A';
+              const cycle = Number(raw.cycle || (claim as any).cycle || 1);
 
               const statusChip = (() => {
                 const s = String(payorStatus || '').toLowerCase();
@@ -182,7 +183,10 @@ const SubmitFilesPage: React.FC = () => {
                           <div className="mt-0.5 text-xl font-semibold text-textDark">{first} {last}</div>
                         </div>
                       </div>
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusChip}`}>{payorStatus}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusChip}`}>{payorStatus}</span>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200" title="Claim cycle">Cycle {isFinite(cycle) && cycle > 0 ? cycle : 1}</span>
+                      </div>
                     </div>
 
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">

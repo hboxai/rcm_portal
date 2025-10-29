@@ -2,11 +2,12 @@ import express from 'express';
 import multer from 'multer';
 import os from 'os';
 import path from 'path';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, authorizeRole } from '../middleware/auth.js';
 import { previewSubmitUpload } from '../controllers/submitUploadPreviewController.js';
 import { commitSubmitUpload } from '../controllers/submitUploadCommitController.js';
-import { listSubmitUploads, getSubmitUploadDownloadUrl, getClaimsBySubmitUpload, serverPreviewFromS3, getAllSubmitClaims, getSubmitClaimById } from '../controllers/submitUploadsController.js';
+import { listSubmitUploads, getSubmitUploadDownloadUrl, getClaimsBySubmitUpload, serverPreviewFromS3, getAllSubmitClaims, getSubmitClaimById, getSubmitUploadDeleteImpact } from '../controllers/submitUploadsController.js';
 import { cancelSubmitUpload } from '../controllers/submitUploadCancelController.js';
+import { deleteSubmitUpload } from '../controllers/submitUploadDeleteController.js';
 
 const router = express.Router();
 
@@ -46,5 +47,9 @@ router.get('/claims/:id', authMiddleware, getSubmitClaimById);
 router.get('/:upload_id/claims', authMiddleware, getClaimsBySubmitUpload);
 router.get('/:upload_id/preview', authMiddleware, serverPreviewFromS3);
 router.get('/:upload_id/download-url', authMiddleware, getSubmitUploadDownloadUrl);
+// Impact counts to show in delete confirmation
+router.get('/:upload_id/delete-impact', authMiddleware, getSubmitUploadDeleteImpact);
+// Admin-only hard delete
+router.delete('/:upload_id', authMiddleware, authorizeRole(['Admin']), deleteSubmitUpload);
 
 export default router;
