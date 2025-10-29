@@ -58,9 +58,9 @@ const SearchResults: React.FC<SearchResultsProps> = ({
       <div className="glass-card min-h-48 flex items-center justify-center rounded-xl bg-white/95 backdrop-blur-sm border border-purple/20">
         <div className="text-center text-textDark/70">
           <AlertCircle className="h-10 w-10 mx-auto mb-4 text-purple/40" />
-          <h3 className="text-lg font-medium mb-1">No results found</h3>
-          <p>Try adjusting your search parameters</p>
-          <p className="mt-3 text-xs text-textDark/50">Check that your backend server is running and accessible via /api</p>
+          <h3 className="text-lg font-medium mb-1">No claims found</h3>
+          <p>No claims match your search criteria</p>
+          <p className="mt-3 text-sm text-textDark/60">Try adjusting your search parameters or check if there are any claims in the system</p>
         </div>
       </div>
     );

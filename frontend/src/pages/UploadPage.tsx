@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
 import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress } from '../services/uploadService';
 import type { SubmitUploadListItem } from '../services/uploadService';
@@ -10,6 +10,13 @@ import * as XLSX from 'xlsx';
 
 const UploadPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const uploadType = searchParams.get('type') || 'submit'; // default to submit
+  
+  // Determine page title and labels based on upload type
+  const isReimburse = uploadType === 'reimburse';
+  const pageTitle = isReimburse ? 'Upload Reimburse File' : 'Upload Submit File';
+  const fileTypeLabel = isReimburse ? 'Reimburse' : 'Submit';
   // Upload state
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -80,7 +87,7 @@ const UploadPage: React.FC = () => {
       const { items } = await listSubmitUploads({ limit: 50 });
       setSubmitUploads(items);
     } catch (e: any) {
-      setSuError(e?.message || 'Failed to load submit uploads');
+      setSuError(e?.message || `Failed to load ${fileTypeLabel.toLowerCase()} uploads`);
     } finally {
       setLoadingSubmitUploads(false);
     }
@@ -396,7 +403,7 @@ const UploadPage: React.FC = () => {
   return (
     <div className="container mx-auto px-6 pt-28 pb-12 min-h-screen">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-semibold text-textDark">File Upload Center</h1>
+        <h1 className="text-3xl font-semibold text-textDark">{pageTitle}</h1>
       </div>
 
       {/* Error/Success Messages */}
@@ -469,7 +476,7 @@ const UploadPage: React.FC = () => {
               <UploadCloud className="mx-auto text-purple" size={64} />
               <div>
                 <p className="text-xl text-textDark mb-3">
-                  Quick Submit: choose an Excel/CSV and we'll preview it automatically.{' '}
+                  Quick {fileTypeLabel}: choose an Excel/CSV and we'll preview it automatically.{' '}
                   <button
                     onClick={handleQuickSelect}
                     className="text-purple hover:text-purple/80 underline font-medium"
@@ -603,14 +610,14 @@ const UploadPage: React.FC = () => {
         </div>
       )}
 
-      {/* Files List (shows Submit Uploads) */}
+      {/* Files List (dynamic based on upload type) */}
       <div className="rounded-lg border border-purple/20 bg-white shadow-sm">
         <div className="p-5 border-b border-purple/20 flex items-center justify-between bg-gradient-to-r from-white to-purple/5 rounded-t-lg">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-md bg-purple/10 text-purple border border-purple/20"><FileText size={18} /></div>
             <div>
-              <div className="text-lg font-semibold text-textDark">Submit Uploads</div>
-              <div className="text-xs text-textDark/60">Recently uploaded submit files</div>
+              <div className="text-lg font-semibold text-textDark">{fileTypeLabel} Uploads</div>
+              <div className="text-xs text-textDark/60">Recently uploaded {fileTypeLabel.toLowerCase()} files</div>
             </div>
             <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple/10 text-purple border border-purple/20">
               {submitUploads.length} items
@@ -642,7 +649,7 @@ const UploadPage: React.FC = () => {
               {loadingSubmitUploads ? (
                 <tr><td colSpan={7} className="px-6 py-6 text-center text-textDark/60"><Loader2 className="inline animate-spin mr-2"/>Loading…</td></tr>
               ) : submitUploads.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-10 text-center text-textDark/60">No submit uploads found.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-10 text-center text-textDark/60">No {fileTypeLabel.toLowerCase()} uploads found.</td></tr>
               ) : submitUploads.map(u => (
                 <tr className="border-t border-textDark/10 hover:bg-purple/5 transition-colors" key={u.upload_id}>
                   <td className="px-4 py-3 align-top font-mono text-xs text-textDark/80">{u.upload_id}</td>

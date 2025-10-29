@@ -227,8 +227,8 @@ const PreviewPage: React.FC = () => {
           {filteredRows.length === 0 ? (
             <div className="p-12 text-center">
               <Search className="mx-auto text-textDark/40 mb-4" size={48} />
-              <h3 className="text-xl font-semibold text-textDark mb-2">No results found</h3>
-              <p className="text-textDark/60">No rows match your search criteria. Try a different search term.</p>
+              <h3 className="text-xl font-semibold text-textDark mb-2">No data found</h3>
+              <p className="text-textDark/60">No records match your search criteria. Try a different search term or clear filters.</p>
             </div>
           ) : (
             <>

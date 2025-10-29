@@ -4,7 +4,7 @@ import SearchResults from '../components/search/SearchResults';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { SearchFilters, VisitClaim, PaginatedClaimsResponse } from '../types/claim';
-import { User2, Building2, FileText, Hash, Copy } from 'lucide-react';
+import { User2, Building2, FileText, Hash, Copy, UploadCloud } from 'lucide-react';
 import { getAllReimburseClaims } from '../services/uploadService';
 
 const SearchPage: React.FC = () => {
@@ -132,9 +132,15 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white pt-24">
       <div className="p-4 md:p-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-8 text-center text-transparent bg-clip-text bg-gradient-to-r from-accent-500 to-accent-300">
-            Reimburse Files
-          </h1>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <h1 className="text-2xl font-semibold text-textDark">Reimburse Files</h1>
+            <button
+              className="inline-flex items-center gap-2 self-start md:self-auto px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
+              onClick={() => navigate('/upload?type=reimburse')}
+            >
+              <UploadCloud size={18} /> Upload Reimburse File
+            </button>
+          </div>
 
           <SearchForm 
             onSearch={handleSearch} 

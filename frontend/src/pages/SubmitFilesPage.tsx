@@ -101,9 +101,9 @@ const SubmitFilesPage: React.FC = () => {
             <h1 className="text-2xl font-semibold text-textDark">Submit Files</h1>
             <button
               className="inline-flex items-center gap-2 self-start md:self-auto px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
-              onClick={() => navigate('/upload')}
+              onClick={() => navigate('/upload?type=submit')}
             >
-              <UploadCloud size={18} /> Upload New File
+              <UploadCloud size={18} /> Upload Submit File
             </button>
           </div>
           <SubmitSearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} onClear={() => { setHasSearched(false); setResults([]); setTotalCount(0); }} />
