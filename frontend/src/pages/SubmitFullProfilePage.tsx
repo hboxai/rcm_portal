@@ -197,9 +197,12 @@ const SubmitFullProfilePage: React.FC = () => {
               { key: 'patient_id' },
               { key: 'clinic_id' },
               { key: 'patient_emr_no' },
-              { key: 'cpt_code_id' },
-              { key: 'cpt_code_id2' },
-              { key: 'cpt_code_id3' },
+              { key: 'cpt_id1' },
+              { key: 'cpt_id2' },
+              { key: 'cpt_id3' },
+              { key: 'cpt_id4' },
+              { key: 'cpt_id5' },
+              { key: 'cpt_id6' },
               { key: 'oaupload' },
               { key: 'oa_fileid' },
               { key: 'oa_claimid' },
@@ -294,6 +297,7 @@ const SubmitFullProfilePage: React.FC = () => {
                     <th className="py-2 pr-4">POS</th>
                     <th className="py-2 pr-4">EMG</th>
                     <th className="py-2 pr-4">CPT</th>
+                    <th className="py-2 pr-4">CPT ID</th>
                     <th className="py-2 pr-4">Mods</th>
                     <th className="py-2 pr-4">Dx Ptr</th>
                     <th className="py-2 pr-4">Units</th>
@@ -316,6 +320,7 @@ const SubmitFullProfilePage: React.FC = () => {
                         <td className="py-2 pr-4">{fmtEmpty(submit[`placeofservice${i}`])}</td>
                         <td className="py-2 pr-4">{fmtEmpty(submit[`emg${i}`])}</td>
                         <td className="py-2 pr-4">{fmtEmpty(submit[`cpt${i}`])}</td>
+                        <td className="py-2 pr-4">{fmtEmpty(submit[`cpt_id${i}`])}</td>
                         <td className="py-2 pr-4">{fmtEmpty([submit[`modifiera${i}`], submit[`modifierb${i}`], submit[`modifierc${i}`], submit[`modifierd${i}`]].filter(Boolean).join(', '))}</td>
                         <td className="py-2 pr-4">{fmtEmpty(submit[`diagcodepointer${i}`])}</td>
                         <td className="py-2 pr-4">{fmtEmpty(submit[`units${i}`])}</td>

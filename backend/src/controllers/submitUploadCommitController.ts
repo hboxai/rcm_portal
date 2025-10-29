@@ -127,6 +127,21 @@ function isDateLikeType(t: string): boolean {
   return /^(date|timestamp|timestamp without time zone|timestamp with time zone)$/i.test(t);
 }
 
+// Convert Excel serial date (e.g., 17242) to YYYY-MM-DD (UTC) string
+function excelSerialToISO(val: number): string | null {
+  if (!Number.isFinite(val)) return null;
+  const days = Math.floor(val);
+  // Excel's 1900 epoch with the historical bug – use 1899-12-30 base
+  const base = Date.UTC(1899, 11, 30);
+  const ms = base + days * 86400000;
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return null;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 function sanitizeByType(row: Record<string, any>, colTypes: Record<string, ColumnTypeInfo>): { clean: Record<string, any>; notes: string[] } {
   const clean: Record<string, any> = {};
   const notes: string[] = [];
@@ -156,8 +171,27 @@ function sanitizeByType(row: Record<string, any>, colTypes: Record<string, Colum
           if (val === null) notes.push(`Field ${k}: invalid boolean -> NULL`);
         }
       } else if (isDateLikeType(t)) {
-        // keep as string; DB will cast if valid
-        if (val instanceof Date) val = val.toISOString().slice(0, 10);
+        // Accept common string date formats as-is; also convert Excel serial numbers
+        if (val instanceof Date) {
+          val = val.toISOString().slice(0, 10);
+        } else if (typeof val === 'number') {
+          const iso = excelSerialToISO(val);
+          if (iso) val = iso; else notes.push(`Field ${k}: invalid Excel serial date -> NULL`), val = null;
+        } else if (typeof val === 'string') {
+          const s = val.trim();
+          if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s) || /^\d{4}-\d{2}-\d{2}$/.test(s) || /^(\d{1,2})\s*[A-Za-z]{3,}\s*\d{2,4}$/.test(s)) {
+            // pass through
+            val = s;
+          } else if (/^\d+(?:\.\d+)?$/.test(s)) {
+            const iso = excelSerialToISO(Number(s));
+            if (iso) val = iso; else notes.push(`Field ${k}: invalid Excel serial date -> NULL`), val = null;
+          } else {
+            // Unknown format: let DB try; if it fails, the row will error – better to null it
+            // To be safe, mark as note and null
+            notes.push(`Field ${k}: unrecognized date format -> NULL`);
+            val = null;
+          }
+        }
       } else {
         // text-like
         if (typeof val !== 'string') val = String(val);
@@ -208,6 +242,23 @@ function listMissingForAnyLine(mapped: Record<string, any>): string[] {
   if (!(mapped.insurancepayerid || mapped.insuranceplanname)) missing.push('payer id or plan name');
   if (!hasAnyServiceLine(mapped)) missing.push('at least one complete service line');
   return missing;
+}
+
+// Deterministic per-line ID generator when input file doesn't supply CPT ID columns
+function genLineId(row: Record<string, any>, line: number): string {
+  const pref = row.payor_reference_id || row.oa_claimid || row.insurerid || row.patient_id || 'UNK';
+  const parts = [
+    String(pref ?? ''),
+    String(row[`fromdateofservice${line}`] ?? ''),
+    String(row[`cpt${line}`] ?? ''),
+    String(row[`units${line}`] ?? ''),
+    String(row[`charges${line}`] ?? ''),
+    String(line)
+  ];
+  const base = parts.join('|');
+  const h = crypto.createHash('sha256').update(base).digest('hex').slice(0, 10);
+  const prefix = String(pref ?? 'UNK').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8) || 'ID';
+  return `${prefix}-${line}-${h}`;
 }
 
 async function findExistingSubmit(client: any, business: Record<string, any>): Promise<number | null> {
@@ -314,6 +365,15 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           const rowObj: Record<string, any> = { ...mapped };
           rowObj.upload_id = upload_id;
           rowObj.source_system = 'OFFICE_ALLY';
+
+          // Ensure CPT ID 1..6 exist when a service line is present; generate if missing
+          for (let li = 1; li <= 6; li++) {
+            const hasLine = rowObj[`cpt${li}`] && rowObj[`fromdateofservice${li}`] && rowObj[`charges${li}`];
+            const cur = rowObj[`cpt_id${li}`];
+            if (hasLine && (cur == null || String(cur).trim() === '')) {
+              rowObj[`cpt_id${li}`] = genLineId(rowObj, li);
+            }
+          }
 
           // Business key (row-level)
           const business = {

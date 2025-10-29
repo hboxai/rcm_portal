@@ -14,6 +14,7 @@
     "db:verify:uploads": "tsx src/scripts/verifyUploadsTable.ts",
     "db:verify:submit-cols": "tsx src/scripts/verifySubmitSystemCols.ts",
     "db:verify:reimburse-cols": "tsx src/scripts/verifyReimburseSystemCols.ts",
+  "db:verify:submit-cpt-ids": "tsx src/scripts/verifySubmitCptIdCols.ts",
     "test:s3": "tsx src/scripts/s3ConnectivityTest.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:columns": "node scripts/list-columns.cjs api_bil_claim_submit",
