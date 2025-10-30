@@ -297,10 +297,22 @@ const UploadPage: React.FC = () => {
               progressTimerRef.current = null;
             }
           }
-        } catch (error) {
-          console.warn('Progress polling error:', error);
+        } catch (error: any) {
+          // Backoff on rate limiting to avoid 429 spam
+          const status = error?.response?.status || error?.status;
+          if (status === 429) {
+            if (progressTimerRef.current) {
+              window.clearInterval(progressTimerRef.current);
+              progressTimerRef.current = null;
+            }
+            setTimeout(() => {
+              if (!progressTimerRef.current) startPolling();
+            }, 1500);
+          } else {
+            console.warn('Progress polling error:', error);
+          }
         }
-      }, 200); // Poll every 200ms for more responsive updates
+      }, 750); // Poll every 750ms to reduce backend load and avoid rate limits
     };
 
     startPolling();

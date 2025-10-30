@@ -300,36 +300,35 @@ function diffLine(oldL: Record<string, any> | null, newL: Record<string, any>): 
   return d;
 }
 
-async function findExistingSubmit(client: any, business: Record<string, any>): Promise<number | null> {
-  // Priority 1: payor_reference_id
-  if (business.payor_reference_id) {
-    const r = await client.query(
-      `SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE payor_reference_id=$1 LIMIT 1`,
-      [business.payor_reference_id]
-    );
-    if (r.rowCount) return r.rows[0].bil_claim_submit_id as number;
+async function findExistingSubmit(client: any, rowObj: Record<string, any>): Promise<number | null> {
+  // CPT-ID only matching: find an existing claim whose set of present cpt_id1..6
+  // exactly matches the set in the incoming row, ignoring order. No patient/insurer keys.
+  const presentCptIds: string[] = [];
+  for (let li = 1; li <= 6; li++) {
+    const v = rowObj[`cpt_id${li}`];
+    if (v != null && String(v).trim() !== '') presentCptIds.push(String(v));
   }
-  // Priority 2: oa_claimid
-  if (business.oa_claimid) {
-    const r = await client.query(
-      `SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE oa_claimid=$1 LIMIT 1`,
-      [business.oa_claimid]
-    );
-    if (r.rowCount) return r.rows[0].bil_claim_submit_id as number;
-  }
-  // Priority 3: composite business key
-  const parts: string[] = [];
-  const vals: any[] = [];
-  let idx = 1;
-  if (business.clinic_id != null) { parts.push(`clinic_id=$${idx++}`); vals.push(business.clinic_id); }
-  if (business.insurerid != null) { parts.push(`insurerid=$${idx++}`); vals.push(business.insurerid); }
-  if (business.fromdateofservice1 != null) { parts.push(`fromdateofservice1=$${idx++}`); vals.push(business.fromdateofservice1); }
-  if (business.cpt1 != null) { parts.push(`cpt1=$${idx++}`); vals.push(business.cpt1); }
-  if (business.totalcharges != null) { parts.push(`totalcharges=$${idx++}`); vals.push(business.totalcharges); }
-  if (parts.length >= 3) {
-    const sql = `SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE ${parts.join(' AND ')} LIMIT 1`;
-    const r = await client.query(sql, vals);
-    if (r.rowCount) return r.rows[0].bil_claim_submit_id as number;
+  if (presentCptIds.length) {
+    const targetSig = presentCptIds.slice().sort().join('|');
+    const arrParam = presentCptIds;
+    const sql = `
+      SELECT bil_claim_submit_id, cpt_id1,cpt_id2,cpt_id3,cpt_id4,cpt_id5,cpt_id6
+        FROM api_bil_claim_submit
+       WHERE (cpt_id1 = ANY($1::text[]) OR cpt_id2 = ANY($1::text[]) OR cpt_id3 = ANY($1::text[])
+           OR cpt_id4 = ANY($1::text[]) OR cpt_id5 = ANY($1::text[]) OR cpt_id6 = ANY($1::text[]))
+       ORDER BY bil_claim_submit_id DESC
+       LIMIT 100`;
+    const cand = await client.query(sql, [arrParam]);
+    for (const r of cand.rows) {
+      const s: string[] = [];
+      for (let li = 1; li <= 6; li++) {
+        const v = r[`cpt_id${li}`];
+        if (v != null && String(v).trim() !== '') s.push(String(v));
+      }
+      if (s.length && s.slice().sort().join('|') === targetSig) {
+        return r.bil_claim_submit_id as number;
+      }
+    }
   }
   return null;
 }
@@ -425,7 +424,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
             totalcharges: rowObj.totalcharges,
           };
 
-          let existingId = await findExistingSubmit(client, business);
+          let existingId = await findExistingSubmit(client, rowObj);
           // Fallback idempotency per upload via content hash of business subset
           let contentHash: string | null = null;
           if (!existingId) {
