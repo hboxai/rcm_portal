@@ -287,6 +287,50 @@ export async function listReimburseUploads(params: { limit?: number; offset?: nu
   return res.data as { items: SubmitUploadListItem[]; total: number };
 }
 
+// Upload Reimburse Excel file
+export async function uploadReimburseExcel(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<{
+  success: boolean;
+  message?: string;
+  stats?: {
+    total_rows: number;
+    matched: number;
+    updated: number;
+    not_found: number;
+    skipped: number;
+  };
+  warnings?: string[];
+  errors?: string[];
+}> {
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    
+    const res = await axios.post(`${API_BASE_URL}/reimburse/upload-excel`, form, {
+      headers: { 
+        Authorization: getAuthToken(), 
+        'Content-Type': 'multipart/form-data' 
+      },
+      onUploadProgress: (evt) => {
+        if (onProgress && evt.total) {
+          const raw = Math.round((evt.loaded / evt.total) * 100);
+          const clamped = Math.max(1, Math.min(99, raw));
+          onProgress(clamped);
+        }
+      }
+    });
+    
+    return { success: true, ...res.data };
+  } catch (e: any) {
+    return { 
+      success: false, 
+      message: e?.response?.data?.error || e?.response?.data?.message || e.message || 'Upload failed' 
+    };
+  }
+}
+
 // Get impact counts for delete confirmation
 export async function getSubmitUploadDeleteImpact(upload_id: string): Promise<{ upload_id: string; submit_claims: number; reimburse_rows: number }>{
   const res = await axios.get(`${API_BASE_URL}/submit-uploads/${upload_id}/delete-impact`, {
@@ -294,3 +338,49 @@ export async function getSubmitUploadDeleteImpact(upload_id: string): Promise<{ 
   });
   return res.data as { upload_id: string; submit_claims: number; reimburse_rows: number };
 }
+
+// Office Ally Status Upload
+export async function uploadOfficeAllyStatus(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<{
+  success: boolean;
+  data?: {
+    stats: {
+      total_rows: number;
+      matched: number;
+      updated: number;
+      not_found: number;
+      skipped: number;
+    };
+    updated_claims: number[];
+    errors: string[];
+    duration_ms: number;
+  };
+  error?: string;
+}> {
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    
+    const res = await axios.post(`${API_BASE_URL}/office-ally/status-upload`, form, {
+      headers: { 
+        Authorization: getAuthToken(), 
+        'Content-Type': 'multipart/form-data' 
+      },
+      onUploadProgress: (evt) => {
+        if (onProgress && evt.total) {
+          const raw = Math.round((evt.loaded / evt.total) * 100);
+          const clamped = Math.max(1, Math.min(99, raw));
+          onProgress(clamped);
+        }
+      }
+    });
+    
+    return { success: true, data: res.data };
+  } catch (e: any) {
+    const errorMsg = e?.response?.data?.error || e?.response?.data?.details || e.message || 'Upload failed';
+    return { success: false, error: errorMsg };
+  }
+}
+

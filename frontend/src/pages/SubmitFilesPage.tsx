@@ -99,12 +99,20 @@ const SubmitFilesPage: React.FC = () => {
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <h1 className="text-2xl font-semibold text-textDark">Submit Files</h1>
-            <button
-              className="inline-flex items-center gap-2 self-start md:self-auto px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
-              onClick={() => navigate('/upload?type=submit')}
-            >
-              <UploadCloud size={18} /> Upload Submit File
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 self-start md:self-auto">
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
+                onClick={() => navigate('/upload?type=submit')}
+              >
+                <UploadCloud size={18} /> Upload Submit File
+              </button>
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
+                onClick={() => navigate('/office-ally-status')}
+              >
+                <FileText size={18} /> Upload OA Status
+              </button>
+            </div>
           </div>
           <SubmitSearchForm onSearch={handleSearch} isLoading={isLoading} filters={filters} setFilters={setFilters} onClear={() => { setHasSearched(false); setResults([]); setTotalCount(0); }} />
           <div className="mt-4 flex items-center justify-end gap-2 text-textDark/80">

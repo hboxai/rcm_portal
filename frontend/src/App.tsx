@@ -22,6 +22,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const FullProfilePage = lazy(() => import('./pages/FullProfilePage'));
+const EraInboxPage = lazy(() => import('./pages/EraInboxPage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 const SubmitFilesPage = lazy(() => import('./pages/SubmitFilesPage'));
@@ -29,6 +30,7 @@ const UploadPage = lazy(() => import('./pages/UploadPage'));
 const PreviewPage = lazy(() => import('./pages/PreviewPage'));
 const SubmitPreviewPage = lazy(() => import('./pages/SubmitPreviewPage'));
 const SubmitFullProfilePage = lazy(() => import('./pages/SubmitFullProfilePage'));
+const OfficeAllyStatusPage = lazy(() => import('./pages/OfficeAllyStatusPage'));
 
 // Protected route component
 const ProtectedRoute = ({ element }: { element: JSX.Element }) => {
@@ -88,8 +90,10 @@ function AppRoutes() {
           <Route path="/upload" element={<ProtectedRoute element={<UploadPage />} />} />
           <Route path="/preview/:fileId" element={<ProtectedRoute element={<PreviewPage />} />} />
           <Route path="/submit-preview/:uploadId" element={<ProtectedRoute element={<SubmitPreviewPage />} />} />
+          <Route path="/office-ally-status" element={<ProtectedRoute element={<OfficeAllyStatusPage />} />} />
           <Route path="/search" element={<ProtectedRoute element={<SearchPage />} />} />
           <Route path="/profile/:id" element={<ProtectedRoute element={<ProfilePage />} />} />
+          <Route path="/era-inbox" element={<ProtectedRoute element={<EraInboxPage />} />} />
             <Route path="/full-profile/:id" element={<ProtectedRoute element={<FullProfilePage />} />} />
           <Route path="/submit-full-profile/:id" element={<ProtectedRoute element={<SubmitFullProfilePage />} />} />
           <Route path="/user-management" element={<ProtectedRoute element={<UserManagementPage />} />} />

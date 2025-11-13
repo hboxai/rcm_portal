@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
-import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads } from '../services/uploadService';
+import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads, uploadReimburseExcel } from '../services/uploadService';
 import type { SubmitUploadListItem } from '../services/uploadService';
 import { UploadedFile } from '../types/file';
 import { trackEvent } from '../utils/audit';
@@ -233,28 +233,51 @@ const UploadPage: React.FC = () => {
       });
     }, 150);
     try {
-      const prev = await submitUploadPreview(f, quickClinic, (pct) => {
-        // update target; animator will smoothly catch up
-        const clamped = Math.max(1, Math.min(99, pct));
-        if (clamped > quickTargetRef.current) quickTargetRef.current = clamped;
-      });
-      if (!prev.can_commit) {
-        setError(prev.errors?.join('\n') || `Missing required headers: ${prev.missing_required.join(', ')}`);
+      if (isReimburse) {
+        // Reimburse upload flow
+        const result = await uploadReimburseExcel(f, (pct) => {
+          const clamped = Math.max(1, Math.min(99, pct));
+          if (clamped > quickTargetRef.current) quickTargetRef.current = clamped;
+        });
+        
+        if (!result.success) {
+          setError(result.message || 'Upload failed');
+        } else {
+          setSuccess(result.message || `Successfully processed ${result.stats?.total_rows || 0} rows`);
+          if (result.warnings && result.warnings.length > 0) {
+            setCommitWarnings(result.warnings);
+          }
+          await refreshSubmitUploads();
+          trackEvent('reimburse:upload', { 
+            matched: result.stats?.matched, 
+            updated: result.stats?.updated 
+          });
+        }
+      } else {
+        // Submit upload flow
+        const prev = await submitUploadPreview(f, quickClinic, (pct) => {
+          // update target; animator will smoothly catch up
+          const clamped = Math.max(1, Math.min(99, pct));
+          if (clamped > quickTargetRef.current) quickTargetRef.current = clamped;
+        });
+        if (!prev.can_commit) {
+          setError(prev.errors?.join('\n') || `Missing required headers: ${prev.missing_required.join(', ')}`);
+        }
+        setQuickPreview({
+          upload_id: prev.upload_id,
+          columns_found: prev.columns_found || [],
+          missing_required: prev.missing_required || [],
+          sample_rows: prev.sample_rows || [],
+          row_count: prev.row_count || 0,
+          original_filename: prev.original_filename,
+          duplicate_of: prev.duplicate_of ?? null,
+          can_commit: !!prev.can_commit,
+          s3_url: prev.s3_url,
+        });
+        trackEvent('submit:preview', { id: prev.upload_id, can_commit: prev.can_commit });
       }
-      setQuickPreview({
-        upload_id: prev.upload_id,
-        columns_found: prev.columns_found || [],
-        missing_required: prev.missing_required || [],
-        sample_rows: prev.sample_rows || [],
-        row_count: prev.row_count || 0,
-        original_filename: prev.original_filename,
-        duplicate_of: prev.duplicate_of ?? null,
-        can_commit: !!prev.can_commit,
-        s3_url: prev.s3_url,
-      });
-      trackEvent('submit:preview', { id: prev.upload_id, can_commit: prev.can_commit });
     } catch (e: any) {
-      setError(e?.message || 'Quick preview failed');
+  setError(e?.message || (isReimburse ? 'Reimburse upload failed' : 'Quick preview failed'));
     } finally {
   // Ensure 100% completion is visible briefly
   quickTargetRef.current = 100;

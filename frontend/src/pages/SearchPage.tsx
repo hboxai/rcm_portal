@@ -134,12 +134,21 @@ const SearchPage: React.FC = () => {
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <h1 className="text-2xl font-semibold text-textDark">Reimburse Files</h1>
-            <button
-              className="inline-flex items-center gap-2 self-start md:self-auto px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
-              onClick={() => navigate('/upload?type=reimburse')}
-            >
-              <UploadCloud size={18} /> Upload Reimburse File
-            </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
+                  onClick={() => navigate('/upload?type=reimburse')}
+                >
+                  <UploadCloud size={18} /> Upload Reimburse File
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
+                  onClick={() => navigate('/era-inbox')}
+                  title="Upload ERA PDF and review matches"
+                >
+                  <FileText size={18} /> ERA Inbox
+                </button>
+              </div>
           </div>
 
           <SearchForm 

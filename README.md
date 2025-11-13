@@ -82,6 +82,21 @@ The application will be available at:
 - Frontend: http://localhost:5173 (Vite dev server)
 - Backend API: http://localhost:5000/api
 
+## ERA OCR Integration
+
+- Docs: docs/ERA_OCR_PIPELINE.md (endpoints, ParsedRow contract, examples)
+- Sample payload: eraParsedRows.sample.json
+- Python helper: scripts/ingest_era_rows.py
+
+Quick start (PowerShell):
+
+```
+$env:BASE_URL = "http://localhost:5000"
+$env:TOKEN = "<jwt>"
+$env:ERA_FILE_ID = "<id from /api/claims/:id/era-pdfs upload>"
+python scripts/ingest_era_rows.py eraParsedRows.sample.json
+```
+
 ## Environment Configuration
 
 All environment variables are consolidated in a single `.env` file in the root directory. This file is automatically copied to the appropriate locations when running with Docker.

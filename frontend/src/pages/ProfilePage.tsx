@@ -84,6 +84,7 @@ const ProfilePage: React.FC = () => {
         
         {/* History Section */}
         <HistorySection claimId={currentClaim.id || currentClaim.claimId} />
+  
           {/* View Full Profile Button with brand colors */}
         <div className="mt-8 flex justify-center">
           <Button 

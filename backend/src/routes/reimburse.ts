@@ -1,8 +1,28 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { z } from 'zod';
+import multer from 'multer';
+import { uploadReimburseExcel } from '../controllers/reimburseUploadController.js';
 
 const router = Router();
+
+// Multer configuration for Excel uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const validExts = ['.xlsx', '.xls', '.csv'];
+    const ext = file.originalname.toLowerCase().slice(file.originalname.lastIndexOf('.'));
+    if (validExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .xlsx, .xls, and .csv files are allowed'));
+    }
+  }
+});
+
+// POST /api/reimburse/upload-excel - Upload reimbursement Excel file
+router.post('/upload-excel', upload.single('file'), uploadReimburseExcel);
 
 // New: list reimburse uploads from rcm_file_uploads
 router.get('/uploads', async (req, res) => {

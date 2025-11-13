@@ -12,6 +12,8 @@ import { authMiddleware } from './middleware/auth.js';
 import auditRouter from './routes/audit.js';
 import submitUploadsRouter from './routes/submitUploads.js';
 import reimburseRouter from './routes/reimburse.js';
+import officeAllyRouter from './routes/officeAlly.js';
+import eraParseRouter from './routes/eraParse.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path'; // Added for static file serving
@@ -107,8 +109,13 @@ app.use('/api/claims', authMiddleware, claimRoutes);
 app.use('/api/uploads', uploadsRouter); // Mount the uploads router
 app.use('/api/submit-uploads', submitUploadsRouter);
 app.use('/api/reimburse', authMiddleware, reimburseRouter);
+app.use('/api/office-ally', authMiddleware, officeAllyRouter); // Office Ally status upload
 app.use('/api/history', authMiddleware, historyRoutes); // Add the history routes to the app
 app.use('/api/users', authMiddleware, userRoutes); // Add the user routes to the app
+app.use('/api/era', (req, res, next) => {
+  console.log(`ERA route: ${req.method} ${req.path}`);
+  next();
+}, authMiddleware, eraParseRouter);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
