@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import pool from '../config/db.js';
 import XLSX from 'xlsx';
+import { uploadToS3 } from '../services/s3.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Normalize header names for flexible matching
 const norm = (s: string): string =>
@@ -12,11 +14,12 @@ const norm = (s: string): string =>
 
 // Flexible header mapping for reimburse Excel files
 const HEADER_MAP: Record<string, string[]> = {
-  submit_cpt_id: ['submit_cpt_id', 'submitcptid', 'cptid', 'lineid', 'claimlineid'],
+  cpt_id: ['cpt_id', 'patient_id', 'submitcptid', 'cptid', 'lineid', 'claimlineid'],
+  submit_cpt_id: ['submit_cpt_id', 'submitcptid'],
   billing_id: ['billing_id', 'billingid', 'claim_id', 'claimid', 'bil_claim_submit_id'],
-  patient_id: ['patient_id', 'patientid', 'patient'],
+  patient_id: ['patient_emr_no', 'patientid', 'patient'],
   cpt_code: ['cpt_code', 'cptcode', 'cpt', 'procedurecode'],
-  dos: ['dos', 'dateofservice', 'servicedate', 'date_of_service', 'service_date'],
+  dos: ['dos', 'dateofservice', 'servicedate', 'date_of_service', 'service_date', 'charge_dt'],
   
   // Payment fields
   prim_amt: ['prim_amt', 'primarypaid', 'primary_paid', 'primary_amount', 'prim_paid', 'insurance_paid'],
@@ -107,12 +110,11 @@ async function logChange(
   username: string
 ): Promise<void> {
   await client.query(
-    `INSERT INTO upl_change_logs (claim_id, username, billing_id, field_name, old_value, new_value, source, timestamp)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+    `INSERT INTO upl_change_logs (claim_id, username, field_name, old_value, new_value, source, timestamp)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
     [
       String(claimId),
       username,
-      null, // billing_id can be populated if needed
       fieldName,
       oldValue == null ? null : String(oldValue),
       newValue == null ? null : String(newValue),
@@ -148,6 +150,7 @@ function calculateBalance(row: any): { bal_amt: number; claim_status: string } {
 
 export async function uploadReimburseExcel(req: Request, res: Response) {
   const client = await pool.connect();
+  let upload_id: string | undefined;
   
   try {
     if (!req.file) {
@@ -155,9 +158,29 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
     }
 
     const username = (req as any).user?.username || 'system';
+    upload_id = uuidv4();
+    const originalFilename = req.file.originalname;
+    const fileBuffer = req.file.buffer;
+    const bucket = process.env.S3_BUCKET || '';
+    
+    // Upload to S3 first
+    const s3Key = `reimburse/${upload_id}/${originalFilename}`;
+    const s3Result = await uploadToS3({
+      bucket,
+      key: s3Key,
+      body: fileBuffer,
+      contentType: req.file.mimetype
+    });
+
+    // Create upload record
+    await pool.query(
+      `INSERT INTO rcm_file_uploads (upload_id, file_kind, original_filename, s3_bucket, s3_key, s3_url, status, created_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+      [upload_id, 'REIMBURSE_EXCEL', originalFilename, bucket, s3Key, s3Result.s3Url, 'PROCESSING', username]
+    );
     
     // Parse Excel file
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: null });
@@ -179,12 +202,16 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
       }
     }
 
-    // Check for required matching field
-    if (!mappedFields.has('submit_cpt_id') && 
+    // Check for required matching field - prioritize cpt_id
+    if (!mappedFields.has('cpt_id') && !mappedFields.has('submit_cpt_id') && 
         !(mappedFields.has('billing_id') || 
           (mappedFields.has('patient_id') && mappedFields.has('cpt_code') && mappedFields.has('dos')))) {
+      await pool.query(
+        `UPDATE rcm_file_uploads SET status='FAILED', message=$1, updated_at=NOW() WHERE upload_id=$2`,
+        ['Missing required matching columns. Need either: cpt_id, submit_cpt_id, billing_id, OR (patient_id + cpt_code + dos)', upload_id]
+      );
       return res.status(400).json({
-        error: 'Missing required matching columns. Need either: submit_cpt_id, OR billing_id, OR (patient_id + cpt_code + dos)',
+        error: 'Missing required matching columns. Need either: cpt_id, submit_cpt_id, billing_id, OR (patient_id + cpt_code + dos)',
         found_columns: Array.from(mappedFields)
       });
     }
@@ -216,11 +243,15 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
         }
       }
 
-      // Find matching reimburse record
+      // Find matching reimburse record - prioritize cpt_id matching
       let findQuery = '';
       let findParams: any[] = [];
       
-      if (mappedRow.submit_cpt_id) {
+      if (mappedRow.cpt_id) {
+        // Match by cpt_id (the primary identifier from CSV)
+        findQuery = `SELECT * FROM api_bil_claim_reimburse WHERE cpt_id = $1`;
+        findParams = [String(mappedRow.cpt_id)];
+      } else if (mappedRow.submit_cpt_id) {
         findQuery = `SELECT * FROM api_bil_claim_reimburse WHERE submit_cpt_id = $1`;
         findParams = [mappedRow.submit_cpt_id];
       } else if (mappedRow.billing_id) {
@@ -327,8 +358,21 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
 
     await client.query('COMMIT');
 
+    // Update upload record with success
+    await pool.query(
+      `UPDATE rcm_file_uploads 
+       SET status='COMPLETED', 
+           row_count=$1,
+           message=$2, 
+           processing_completed_at=NOW(),
+           updated_at=NOW() 
+       WHERE upload_id=$3`,
+      [rawRows.length, `Processed ${rawRows.length} rows: ${matched} matched, ${updated} updated, ${notFound} not found`, upload_id]
+    );
+
     return res.status(200).json({
       success: true,
+      upload_id,
       message: `Processed ${rawRows.length} rows: ${matched} matched, ${updated} updated, ${notFound} not found`,
       stats: {
         total_rows: rawRows.length,
@@ -344,6 +388,15 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Reimburse upload error:', error);
+    
+    // Update upload record with failure
+    try {
+      await pool.query(
+        `UPDATE rcm_file_uploads SET status='FAILED', message=$1, updated_at=NOW() WHERE upload_id=$2`,
+        [error.message || 'Processing failed', upload_id]
+      );
+    } catch {}
+    
     return res.status(500).json({
       error: 'Failed to process reimburse Excel',
       message: error.message

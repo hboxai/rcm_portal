@@ -305,24 +305,29 @@ async function findExistingSubmit(client: any, rowObj: Record<string, any>): Pro
   // exactly matches the set in the incoming row, ignoring order. No patient/insurer keys.
   const presentCptIds: string[] = [];
   for (let li = 1; li <= 6; li++) {
-    const v = rowObj[`cpt_id${li}`];
+    // Check both cpt_code_id and cpt_id fields
+    const v = rowObj[`cpt_code_id${li}`] || rowObj[`cpt_id${li}`];
     if (v != null && String(v).trim() !== '') presentCptIds.push(String(v));
   }
   if (presentCptIds.length) {
     const targetSig = presentCptIds.slice().sort().join('|');
     const arrParam = presentCptIds;
     const sql = `
-      SELECT bil_claim_submit_id, cpt_id1,cpt_id2,cpt_id3,cpt_id4,cpt_id5,cpt_id6
+      SELECT bil_claim_submit_id, cpt_id1,cpt_id2,cpt_id3,cpt_id4,cpt_id5,cpt_id6,
+             cpt_code_id1,cpt_code_id2,cpt_code_id3,cpt_code_id4,cpt_code_id5,cpt_code_id6
         FROM api_bil_claim_submit
        WHERE (cpt_id1 = ANY($1::text[]) OR cpt_id2 = ANY($1::text[]) OR cpt_id3 = ANY($1::text[])
-           OR cpt_id4 = ANY($1::text[]) OR cpt_id5 = ANY($1::text[]) OR cpt_id6 = ANY($1::text[]))
+           OR cpt_id4 = ANY($1::text[]) OR cpt_id5 = ANY($1::text[]) OR cpt_id6 = ANY($1::text[])
+           OR cpt_code_id1 = ANY($1::text[]) OR cpt_code_id2 = ANY($1::text[]) OR cpt_code_id3 = ANY($1::text[])
+           OR cpt_code_id4 = ANY($1::text[]) OR cpt_code_id5 = ANY($1::text[]) OR cpt_code_id6 = ANY($1::text[]))
        ORDER BY bil_claim_submit_id DESC
        LIMIT 100`;
     const cand = await client.query(sql, [arrParam]);
     for (const r of cand.rows) {
       const s: string[] = [];
       for (let li = 1; li <= 6; li++) {
-        const v = r[`cpt_id${li}`];
+        // Check both cpt_code_id and cpt_id in database results
+        const v = r[`cpt_code_id${li}`] || r[`cpt_id${li}`];
         if (v != null && String(v).trim() !== '') s.push(String(v));
       }
       if (s.length && s.slice().sort().join('|') === targetSig) {
