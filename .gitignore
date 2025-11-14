@@ -72,3 +72,9 @@ uploads/
 excel_schema_report.md
 *.xls
 *.xlsx
+PRODUCTION_ENV.md
+**/PRODUCTION_ENV.md
+
+# Temporary upload storage
+backend/temp-uploads/
+temp-uploads/

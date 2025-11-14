@@ -68,6 +68,34 @@ jobs:
             sudo mkdir -p $DEPLOY_DIR
             cd ~
             sudo rsync -avzq --exclude '.env' ~/rcm-portal-upload/ $DEPLOY_DIR/
+            
+            # Create .env file from GitHub secrets
+            sudo tee $DEPLOY_DIR/.env > /dev/null <<EOF
+            # Database Configuration
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_SSL_ENABLED=${{ secrets.DB_SSL_ENABLED }}
+            
+            # JWT Configuration
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN || '24h' }}
+            
+            # AWS/S3 Configuration
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION=${{ secrets.AWS_REGION || 'us-east-1' }}
+            S3_BUCKET=${{ secrets.S3_BUCKET }}
+            
+            # Environment
+            NODE_ENV=production
+            PORT=8082
+            EOF
+            
+            sudo chmod 600 $DEPLOY_DIR/.env
+            
             cd $DEPLOY_DIR
             echo "PWD: $(pwd)"
             if [ -f docker-compose.yml ]; then
