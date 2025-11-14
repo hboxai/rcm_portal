@@ -99,6 +99,10 @@ jobs:
             cd $DEPLOY_DIR
             echo "PWD: $(pwd)"
             if [ -f docker-compose.yml ]; then
+              # Stop and remove existing containers
+              sudo docker-compose down || true
+              
+              # Build and start new containers
               sudo docker-compose build --no-cache
               sudo docker-compose --env-file $DEPLOY_DIR/.env config
               sudo docker-compose --env-file $DEPLOY_DIR/.env up -d
