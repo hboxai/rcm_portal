@@ -99,8 +99,10 @@ jobs:
             cd $DEPLOY_DIR
             echo "PWD: $(pwd)"
             if [ -f docker-compose.yml ]; then
-              # Stop and remove existing containers
-              sudo docker-compose down || true
+              # Force stop and remove existing containers
+              sudo docker-compose down --remove-orphans || true
+              sudo docker rm -f rcm-portal || true
+              sudo docker network prune -f || true
               
               # Build and start new containers
               sudo docker-compose build --no-cache
