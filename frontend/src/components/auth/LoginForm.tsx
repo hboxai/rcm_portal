@@ -288,7 +288,7 @@ const LoginForm: React.FC = () => {
           transition={{ duration: 0.3, ease: "easeInOut", delay: 0.5 }}
           className="text-center mt-4"
         >
-          <span className="text-xs text-gray-500">V0.0.5</span>
+          <span className="text-xs text-gray-500">V0.1.6</span>
         </motion.div>
       </motion.form>
     </motion.div>

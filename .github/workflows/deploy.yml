@@ -108,6 +108,27 @@ jobs:
               sudo docker-compose build --no-cache
               sudo docker-compose --env-file $DEPLOY_DIR/.env config
               sudo docker-compose --env-file $DEPLOY_DIR/.env up -d
+              
+              # Wait for container to start
+              echo "Waiting for container to start..."
+              sleep 10
+              
+              # Diagnostic output
+              echo ""
+              echo "=== DEPLOYMENT DIAGNOSTICS ==="
+              echo "1. Container status:"
+              sudo docker ps | grep rcm-portal
+              echo ""
+              echo "2. Environment variables in container:"
+              sudo docker exec rcm-portal printenv | grep -E "JWT_SECRET|DB_HOST|DB_PASSWORD|DB_NAME" | sed 's/\(.*=\).*/\1***/'
+              echo ""
+              echo "3. Backend logs (last 20 lines):"
+              sudo docker logs rcm-portal 2>&1 | tail -20
+              echo ""
+              echo "4. Test database connection:"
+              sudo docker exec rcm-portal node -e "const {Pool}=require('pg');const p=new Pool({host:process.env.DB_HOST,port:process.env.DB_PORT,database:process.env.DB_NAME,user:process.env.DB_USER,password:process.env.DB_PASSWORD,ssl:process.env.DB_SSL_ENABLED==='true'?{rejectUnauthorized:false}:false});p.query('SELECT COUNT(*) FROM rcm_portal_auth_users').then(r=>{console.log('DB OK - Users:',r.rows[0].count);p.end()}).catch(e=>{console.error('DB Error:',e.message);p.end()});" 2>&1
+              echo ""
+              echo "=== END DIAGNOSTICS ==="
             else
               echo "Error: docker-compose.yml not found in $DEPLOY_DIR"
               ls -la $DEPLOY_DIR
