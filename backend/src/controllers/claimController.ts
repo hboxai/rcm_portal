@@ -477,7 +477,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         console.log(`upl_change_logs table doesn't exist yet, returning mock history data`);
         
         // Get some claims to generate mock history using our optimized query
-        const claimsQuery = `SELECT id, cpt_id AS billing_id, first_name, last_name FROM ${CLAIMS_TABLE} LIMIT 5`;
+        const claimsQuery = `SELECT ${CLAIMS_ID_COLUMN} AS id, cpt_id AS billing_id, first_name, last_name FROM ${CLAIMS_TABLE} LIMIT 5`;
         const claimsResult = await query(claimsQuery, []);
         const claims = claimsResult.rows;
         
