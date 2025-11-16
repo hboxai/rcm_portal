@@ -96,15 +96,14 @@ jobs:
             
             # Create .env file from GitHub secrets
             sudo tee $DEPLOY_DIR/.env > /dev/null <<EOF
-            # Database Configuration
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_SSL_ENABLED=${{ secrets.DB_SSL_ENABLED }}
-            
-            # JWT Configuration
+          # Database Configuration
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_SSL_ENABLED=${{ secrets.DB_SSL_ENABLED }}
+          DB_SSL_REJECT_UNAUTHORIZED=${{ secrets.DB_SSL_REJECT_UNAUTHORIZED }}            # JWT Configuration
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN || '24h' }}
             
