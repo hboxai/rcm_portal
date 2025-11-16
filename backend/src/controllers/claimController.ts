@@ -490,7 +490,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
             {
               id: index * 2 + 1,
               claim_id: claim.id,
-              user_id: userIdFromQuery || 1,
+              user_id: loggedInUser.id,
               username: 'System',
               billing_id: claim.billing_id,
               timestamp: date.toISOString(),
@@ -505,7 +505,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
             {
               id: index * 2 + 2,
               claim_id: claim.id,
-              user_id: userIdFromQuery || 1,
+              user_id: loggedInUser.id,
               username: 'System',
               billing_id: claim.billing_id,
               timestamp: new Date(date.setHours(date.getHours() - 2)).toISOString(),
@@ -526,8 +526,6 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
         // Apply role-based filtering for mock data as well
         if (loggedInUser.role !== 'Admin') {
           filteredHistory = filteredHistory.filter(h => h.user_id === loggedInUser.id);
-        } else if (userIdFromQuery) { // Admin querying a specific user
-          filteredHistory = filteredHistory.filter(h => h.user_id === userIdFromQuery);
         }
         
         if (cptId) {
