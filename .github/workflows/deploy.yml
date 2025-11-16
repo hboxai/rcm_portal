@@ -13,8 +13,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ vars.DEPLOY_BRANCH }}
 
       - name: Set deployment path
         id: set-path
