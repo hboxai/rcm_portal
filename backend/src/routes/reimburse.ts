@@ -3,6 +3,8 @@ import pool from '../config/db.js';
 import { z } from 'zod';
 import multer from 'multer';
 import { uploadReimburseExcel } from '../controllers/reimburseUploadController.js';
+import { previewReimburseUpload } from '../controllers/reimburseUploadPreviewController.js';
+import { commitReimburseUpload } from '../controllers/reimburseUploadCommitController.js';
 
 const router = Router();
 
@@ -21,8 +23,14 @@ const upload = multer({
   }
 });
 
-// POST /api/reimburse/upload-excel - Upload reimbursement Excel file
+// POST /api/reimburse/upload-excel - Upload reimbursement Excel file (old method)
 router.post('/upload-excel', upload.single('file'), uploadReimburseExcel);
+
+// POST /api/reimburse/preview - Preview reimburse upload (new method)
+router.post('/preview', upload.single('file'), previewReimburseUpload);
+
+// POST /api/reimburse/commit - Commit reimburse upload (new method)
+router.post('/commit', commitReimburseUpload);
 
 // New: list reimburse uploads from rcm_file_uploads
 router.get('/uploads', async (req, res) => {
@@ -130,12 +138,26 @@ router.get('/search', async (req, res) => {
         r.sec_denial_code,
         r.pat_amt,
         r.pat_recv_dt,
+        r.oa_claim_id,
+        r.oa_visit_id,
+        r.patient_emr_no,
+        r.first_name AS r_first_name,
+        r.last_name AS r_last_name,
+        r.date_of_birth,
+        r.cpt_code AS r_cpt_code,
+        r.service_start,
+        r.service_end,
+        r.icd_code,
+        r.units,
+        r.provider_name,
+        r.charges_adj_amt,
+        r.status AS r_status,
   s.patientfirst AS first_name,
   s.patientlast  AS last_name,
   (s.patientfirst || ' ' || s.patientlast) AS patientname,
   s.facilityname,
   s.facilityname AS clinicname,
-        s.oa_claimid,
+        s.oa_claimid AS s_oa_claimid,
         s.payor_reference_id
   FROM api_bil_claim_reimburse r
   INNER JOIN api_bil_claim_submit s ON s.claim_id = r.submit_claim_id

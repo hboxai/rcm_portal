@@ -17,9 +17,32 @@ export async function uploadToS3(params: {
   contentType?: string;
 }): Promise<{ s3Url: string }>{
   const { bucket, key, body, contentType } = params;
-  const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType });
-  await s3.send(cmd);
-  return { s3Url: `s3://${bucket}/${key}` };
+  
+  // Case 15: Retry logic with exponential backoff (max 3 attempts)
+  const maxRetries = 3;
+  let lastError: any = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const cmd = new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType });
+      await s3.send(cmd);
+      return { s3Url: `s3://${bucket}/${key}` };
+    } catch (error: any) {
+      lastError = error;
+      console.error(`[S3] Upload attempt ${attempt}/${maxRetries} failed:`, error.message);
+      
+      if (attempt < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delayMs = Math.pow(2, attempt - 1) * 1000;
+        console.log(`[S3] Retrying in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  
+  // All retries failed
+  console.error(`[S3] All ${maxRetries} upload attempts failed:`, lastError);
+  throw new Error(`S3 upload failed after ${maxRetries} attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 async function streamToBuffer(stream: any): Promise<Buffer> {

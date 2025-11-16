@@ -36,11 +36,17 @@ const PORT = process.env.PORT || 60172;
 
 // Security middleware
 app.use(helmet()); // Adds various HTTP headers for security
+
+// Apply rate limiting to most endpoints, but skip progress polling endpoints
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
     message: 'Too many requests from this IP, please try again later',
+    skip: (req) => {
+      // Skip rate limiting for progress polling endpoints
+      return req.path.includes('/progress');
+    }
   })
 );
 

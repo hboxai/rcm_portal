@@ -72,63 +72,20 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
   try {
     await client.query('BEGIN');
 
-    // Scope selection
+    // Scope selection for counting
     const scopeSql = uploadId ? 'WHERE upload_id = $1' : '';
     const params = uploadId ? [uploadId] : [];
-    const sel = await client.query(
-      `SELECT claim_id, upload_id, patient_id, insuranceplanname, payor_reference_id, oa_claimid,
-              cpt1, cpt2, cpt3, cpt4, cpt5, cpt6,
-              cpt_code_id1, cpt_code_id2, cpt_code_id3, cpt_code_id4, cpt_code_id5, cpt_code_id6,
-              charges1, charges2, charges3, charges4, charges5, charges6,
-              fromdateofservice1, fromdateofservice2, fromdateofservice3, fromdateofservice4, fromdateofservice5, fromdateofservice6
-         FROM api_bil_claim_submit
-       ${scopeSql}`, params
+    
+    // Get count of submit rows
+    const countRes = await client.query(
+      `SELECT COUNT(*) as cnt FROM api_bil_claim_submit ${scopeSql}`,
+      params
     );
+    const submit_rows = Number(countRes.rows[0]?.cnt ?? 0);
 
-    const submit_rows = sel.rowCount ?? 0;
-
-    // Build candidate reimburse lines in memory (fast) and stage into a temp table for set-based ops
-    type Cand = {
-      submit_claim_id: number;
-      upload_id: string | null;
-      patient_id: number | null;
-      cpt_id: string;
-      charge_dt: string | null;
-      charge_amt: number;
-      claim_id: string | null;
-      payor_reference_id: string | null;
-      prim_ins: string | null;
-      submit_cpt_id: string | null;
-    };
-
-    const candidates: Cand[] = [];
-    for (const s of sel.rows) {
-      for (let i = 1; i <= 6; i++) {
-        const cpt = normCpt(s[`cpt${i}`]);
-        const amt = parseAmt(s[`charges${i}`]);
-        const dt = toPgDate(s[`fromdateofservice${i}`]);
-        // Only use cpt_code_id, no fallback
-        const sid = normSubmitCptId(s[`cpt_code_id${i}`]);
-        // New rule: consider a claim line only when CPT code is present
-        if (!cpt || amt == null || !sid) continue;
-        candidates.push({
-          submit_claim_id: Number(s.claim_id),
-          upload_id: s.upload_id ?? null,
-          patient_id: s.patient_id == null ? null : Number(s.patient_id),
-          cpt_id: cpt,
-          charge_dt: dt,
-          charge_amt: amt,
-          claim_id: s.oa_claimid ?? null,
-          payor_reference_id: s.payor_reference_id ?? null,
-          prim_ins: s.insuranceplanname ?? null,
-          submit_cpt_id: sid,
-        });
-      }
-    }
-
-    // Create temp table
+    // Create temp table for candidates
     await client.query(`
-      CREATE TEMP TABLE IF NOT EXISTS tmp_reimburse_candidates (
+      CREATE TEMP TABLE tmp_reimburse_candidates (
         submit_claim_id bigint not null,
         upload_id uuid,
         patient_id bigint,
@@ -142,35 +99,139 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
       ) ON COMMIT DROP
     `);
 
-    // Truncate in case it existed
-    await client.query('TRUNCATE tmp_reimburse_candidates');
+    // SQL-based unpivot using UNION ALL - eliminates in-memory processing
+    // This approach is much faster for large datasets as it leverages DB-side filtering
+    const insertSql = `
+      INSERT INTO tmp_reimburse_candidates 
+        (submit_claim_id, upload_id, patient_id, cpt_id, charge_dt, charge_amt, 
+         claim_id, payor_reference_id, prim_ins, submit_cpt_id)
+      SELECT 
+        claim_id::bigint,
+        upload_id,
+        CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
+        UPPER(TRIM(cpt1)) AS cpt_id,
+        CASE 
+          WHEN fromdateofservice1 IS NOT NULL 
+            AND fromdateofservice1::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          THEN fromdateofservice1::date
+          ELSE NULL
+        END AS charge_dt,
+        charges1::numeric AS charge_amt,
+        oa_claimid,
+        payor_reference_id,
+        insuranceplanname,
+        TRIM(cpt_code_id1) AS submit_cpt_id
+      FROM api_bil_claim_submit
+      WHERE UPPER(TRIM(COALESCE(cpt1, ''))) != '' 
+        AND UPPER(TRIM(COALESCE(cpt1, ''))) != '0'
+        AND charges1 IS NOT NULL
+        AND charges1::numeric > 0
+        AND TRIM(COALESCE(cpt_code_id1, '')) != ''
+        ${scopeSql ? 'AND upload_id = $1' : ''}
+      
+      UNION ALL
+      
+      SELECT 
+        claim_id::bigint, upload_id,
+        CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
+        UPPER(TRIM(cpt2)),
+        CASE WHEN fromdateofservice2 IS NOT NULL AND fromdateofservice2::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice2::date ELSE NULL END,
+        charges2::numeric,
+        oa_claimid, payor_reference_id, insuranceplanname,
+        TRIM(cpt_code_id2)
+      FROM api_bil_claim_submit
+      WHERE UPPER(TRIM(COALESCE(cpt2, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt2, ''))) != '0'
+        AND charges2 IS NOT NULL
+        AND charges2::numeric > 0
+        AND TRIM(COALESCE(cpt_code_id2, '')) != ''
+        ${scopeSql ? 'AND upload_id = $1' : ''}
+      
+      UNION ALL
+      
+      SELECT 
+        claim_id::bigint, upload_id,
+        CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
+        UPPER(TRIM(cpt3)),
+        CASE WHEN fromdateofservice3 IS NOT NULL AND fromdateofservice3::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice3::date ELSE NULL END,
+        charges3::numeric,
+        oa_claimid, payor_reference_id, insuranceplanname,
+        TRIM(cpt_code_id3)
+      FROM api_bil_claim_submit
+      WHERE UPPER(TRIM(COALESCE(cpt3, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt3, ''))) != '0'
+        AND charges3 IS NOT NULL
+        AND charges3::numeric > 0
+        AND TRIM(COALESCE(cpt_code_id3, '')) != ''
+        ${scopeSql ? 'AND upload_id = $1' : ''}
+      
+      UNION ALL
+      
+      SELECT 
+        claim_id::bigint, upload_id,
+        CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
+        UPPER(TRIM(cpt4)),
+        CASE WHEN fromdateofservice4 IS NOT NULL AND fromdateofservice4::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice4::date ELSE NULL END,
+        charges4::numeric,
+        oa_claimid, payor_reference_id, insuranceplanname,
+        TRIM(cpt_code_id4)
+      FROM api_bil_claim_submit
+      WHERE UPPER(TRIM(COALESCE(cpt4, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt4, ''))) != '0'
+        AND charges4 IS NOT NULL
+        AND charges4::numeric > 0
+        AND TRIM(COALESCE(cpt_code_id4, '')) != ''
+        ${scopeSql ? 'AND upload_id = $1' : ''}
+      
+      UNION ALL
+      
+      SELECT 
+        claim_id::bigint, upload_id,
+        CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
+        UPPER(TRIM(cpt5)),
+        CASE WHEN fromdateofservice5 IS NOT NULL AND fromdateofservice5::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice5::date ELSE NULL END,
+        charges5::numeric,
+        oa_claimid, payor_reference_id, insuranceplanname,
+        TRIM(cpt_code_id5)
+      FROM api_bil_claim_submit
+      WHERE UPPER(TRIM(COALESCE(cpt5, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt5, ''))) != '0'
+        AND charges5 IS NOT NULL
+        AND charges5::numeric > 0
+        AND TRIM(COALESCE(cpt_code_id5, '')) != ''
+        ${scopeSql ? 'AND upload_id = $1' : ''}
+      
+      UNION ALL
+      
+      SELECT 
+        claim_id::bigint, upload_id,
+        CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
+        UPPER(TRIM(cpt6)),
+        CASE WHEN fromdateofservice6 IS NOT NULL AND fromdateofservice6::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice6::date ELSE NULL END,
+        charges6::numeric,
+        oa_claimid, payor_reference_id, insuranceplanname,
+        TRIM(cpt_code_id6)
+      FROM api_bil_claim_submit
+      WHERE UPPER(TRIM(COALESCE(cpt6, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt6, ''))) != '0'
+        AND charges6 IS NOT NULL
+        AND charges6::numeric > 0
+        AND TRIM(COALESCE(cpt_code_id6, '')) != ''
+        ${scopeSql ? 'AND upload_id = $1' : ''}
+    `;
 
-    // Batch insert candidates into temp table for performance
-    const batchSize = 1000;
-    for (let i = 0; i < candidates.length; i += batchSize) {
-      const batch = candidates.slice(i, i + batchSize);
-      if (batch.length === 0) continue;
-  const cols = ['submit_claim_id','upload_id','patient_id','cpt_id','charge_dt','charge_amt','claim_id','payor_reference_id','prim_ins','submit_cpt_id'];
-      const valuesSql = batch
-        .map((_, rowIdx) => `(${cols.map((__, colIdx) => `$${rowIdx * cols.length + colIdx + 1}`).join(',')})`)
-        .join(',');
-      const values = batch.flatMap(b => [
-        b.submit_claim_id,
-        b.upload_id,
-        b.patient_id,
-        b.cpt_id,
-        b.charge_dt,
-        b.charge_amt,
-        b.claim_id,
-        b.payor_reference_id,
-        b.prim_ins,
-        b.submit_cpt_id,
-      ]);
-      await client.query(
-        `INSERT INTO tmp_reimburse_candidates (${cols.join(',')}) VALUES ${valuesSql}`,
-        values
-      );
-    }
+    await client.query(insertSql, params);
+
+    // Create indexes on temp table for optimal JOIN performance
+    await client.query(`
+      CREATE INDEX idx_tmp_candidates_lookup 
+      ON tmp_reimburse_candidates(submit_claim_id, cpt_id, charge_dt)
+    `);
+    
+    await client.query(`
+      CREATE INDEX idx_tmp_candidates_upload 
+      ON tmp_reimburse_candidates(upload_id)
+    `);
 
     // Set-based UPDATE existing reimburse rows
     const upd = await client.query(

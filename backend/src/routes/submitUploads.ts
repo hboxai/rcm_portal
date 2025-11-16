@@ -5,6 +5,7 @@ import path from 'path';
 import { authMiddleware, authorizeRole } from '../middleware/auth.js';
 import { previewSubmitUpload } from '../controllers/submitUploadPreviewController.js';
 import { commitSubmitUpload } from '../controllers/submitUploadCommitController.js';
+import { downloadSubmitTemplate } from '../controllers/submitUploadTemplateController.js';
 import { listSubmitUploads, getSubmitUploadDownloadUrl, getClaimsBySubmitUpload, serverPreviewFromS3, getAllSubmitClaims, getSubmitClaimById, getSubmitUploadDeleteImpact, processSubmitUploadEndpoint, getClaimChangeHistory, getUploadChangeLog } from '../controllers/submitUploadsController.js';
 import { cancelSubmitUpload } from '../controllers/submitUploadCancelController.js';
 import { deleteSubmitUpload } from '../controllers/submitUploadDeleteController.js';
@@ -16,6 +17,9 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 const upload = multer({ storage });
+
+// Template download (no auth required for easy access)
+router.get('/template', downloadSubmitTemplate);
 
 router.post('/preview', authMiddleware, upload.single('file'), previewSubmitUpload);
 router.post('/commit', authMiddleware, express.json(), commitSubmitUpload);

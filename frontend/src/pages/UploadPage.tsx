@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
-import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads, uploadReimburseExcel } from '../services/uploadService';
+import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads, uploadReimburseExcel, reimburseUploadPreview, reimburseUploadCommit } from '../services/uploadService';
 import type { SubmitUploadListItem } from '../services/uploadService';
 import { UploadedFile } from '../types/file';
 import { trackEvent } from '../utils/audit';
@@ -50,6 +50,15 @@ const UploadPage: React.FC = () => {
     duplicate_of?: string | null;
     can_commit: boolean;
     s3_url?: string;
+    validation_summary?: {
+      total_rows: number;
+      rows_checked: number;
+      valid_rows: number;
+      rows_with_errors: number;
+      error_count: number;
+      errors: Array<{row: number; field: string; message: string}>;
+    };
+    note?: string;
   }>(null);
   const [quickSubmitting, setQuickSubmitting] = useState(false);
   const [quickProgress, setQuickProgress] = useState(0);
@@ -69,8 +78,45 @@ const UploadPage: React.FC = () => {
   const [loadingSubmitUploads, setLoadingSubmitUploads] = useState(false);
   const [suError, setSuError] = useState<string | null>(null);
   // (Removed modal-based submit preview state)
+  
+  // Case 16: Concurrent upload warning using localStorage
+  const [concurrentWarning, setConcurrentWarning] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // Case 16: Monitor localStorage for concurrent uploads
+  useEffect(() => {
+    const checkConcurrentUploads = () => {
+      const uploadInProgress = localStorage.getItem('uploadInProgress');
+      if (uploadInProgress) {
+        const data = JSON.parse(uploadInProgress);
+        const timeDiff = Date.now() - data.timestamp;
+        // Show warning if another tab has an upload less than 5 minutes old
+        if (timeDiff < 5 * 60 * 1000 && data.tabId !== sessionStorage.getItem('tabId')) {
+          setConcurrentWarning(true);
+        } else {
+          setConcurrentWarning(false);
+        }
+      } else {
+        setConcurrentWarning(false);
+      }
+    };
+    
+    // Generate unique tab ID
+    if (!sessionStorage.getItem('tabId')) {
+      sessionStorage.setItem('tabId', `tab-${Date.now()}-${Math.random()}`);
+    }
+    
+    // Check on mount and listen for storage events
+    checkConcurrentUploads();
+    window.addEventListener('storage', checkConcurrentUploads);
+    const interval = setInterval(checkConcurrentUploads, 3000);
+    
+    return () => {
+      window.removeEventListener('storage', checkConcurrentUploads);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Fetch uploads list
   const refreshUploads = useCallback(async () => {
@@ -144,8 +190,28 @@ const UploadPage: React.FC = () => {
     }
   };
 
-  const handleFileSelect = () => {
+  const handleQuickSelect = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const url = `${API_BASE}/submit-uploads/template`;
+      
+      // Create a hidden anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'submit_claims_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setSuccess('Template downloaded successfully!');
+      trackEvent('submit:template_downloaded', {});
+    } catch (e: any) {
+      setError('Failed to download template');
+    }
   };
 
   const handleUpload = async (fileList: File[]) => {
@@ -155,62 +221,13 @@ const UploadPage: React.FC = () => {
       return;
     }
 
-    setError(null);
-    setSuccess(null);
-    setUploading(true);
-    // initialize displayed progress and target at 1%
-    setProgress(1);
-    uploadTargetRef.current = 1;
-
-    try {
-      for (const file of validFiles) {
-        // restart smoothing animator per file
-        if (uploadTimerRef.current) { window.clearInterval(uploadTimerRef.current); uploadTimerRef.current = null; }
-        setProgress(1);
-        uploadTargetRef.current = 1;
-    uploadTimerRef.current = window.setInterval(() => {
-          setProgress((p) => {
-            const target = uploadTargetRef.current;
-            if (p >= target) return p;
-      // Ease towards target similar to commit animation (~3% of remaining)
-      const step = Math.max(1, Math.round((target - p) * 0.03));
-            return Math.min(target, p + step);
-          });
-    }, 150);
-
-        trackEvent('upload:start', { name: file.name, size: file.size });
-        const result = await uploadMetabaseExport(file, (pct) => {
-          // update the target, animator will smoothly catch up
-          const clamped = Math.max(1, Math.min(99, pct));
-          if (clamped > uploadTargetRef.current) uploadTargetRef.current = clamped;
-        });
-        
-        if (!result.success) {
-          setError(result.message || 'Upload failed');
-          break;
-        }
-        
-        trackEvent('upload:success', { id: result.file?.id, name: file.name });
-        setSuccess(`Successfully uploaded ${file.name}`);
-        // complete: jump target to 100, snap and hold briefly like commit animation
-        uploadTargetRef.current = 100;
-        setProgress(100);
-  await new Promise(r => setTimeout(r, 300));
-        
-        // Refresh the uploads list
-        await refreshUploads();
-      }
-    } catch (e: any) {
-      setError(e.message || 'Upload failed');
-    } finally {
-      if (uploadTimerRef.current) { window.clearInterval(uploadTimerRef.current); uploadTimerRef.current = null; }
-      setUploading(false);
-      setProgress(0);
+    // Both submit and reimburse now use the quick preview-commit flow
+    for (const file of validFiles) {
+      await onQuickFileChange([file] as any);
     }
   };
 
   // Quick Submit flow: run submit preview immediately when user selects a single file with Alt held or when clicking special button
-  const handleQuickSelect = () => fileInputRef.current?.click();
   const onQuickFileChange = async (files?: FileList | null) => {
     const f = files && files[0];
     if (!f) return;
@@ -234,25 +251,36 @@ const UploadPage: React.FC = () => {
     }, 150);
     try {
       if (isReimburse) {
-        // Reimburse upload flow
-        const result = await uploadReimburseExcel(f, (pct) => {
+        // Reimburse upload flow - NEW preview-commit pattern
+        const prev = await reimburseUploadPreview(f, (pct) => {
           const clamped = Math.max(1, Math.min(99, pct));
           if (clamped > quickTargetRef.current) quickTargetRef.current = clamped;
         });
         
-        if (!result.success) {
-          setError(result.message || 'Upload failed');
-        } else {
-          setSuccess(result.message || `Successfully processed ${result.stats?.total_rows || 0} rows`);
-          if (result.warnings && result.warnings.length > 0) {
-            setCommitWarnings(result.warnings);
-          }
-          await refreshSubmitUploads();
-          trackEvent('reimburse:upload', { 
-            matched: result.stats?.matched, 
-            updated: result.stats?.updated 
-          });
+        if (!prev.can_commit) {
+          setError(prev.errors?.join('\n') || `Validation failed: ${prev.invalid_count} invalid rows`);
         }
+        
+        setQuickPreview({
+          upload_id: prev.upload_id,
+          columns_found: Object.keys(prev.columns_mapped || {}),
+          missing_required: prev.errors || [],
+          sample_rows: prev.sample_valid || [],
+          row_count: prev.row_count || 0,
+          original_filename: prev.original_filename,
+          duplicate_of: null,
+          can_commit: !!prev.can_commit,
+          s3_url: undefined,
+          validation_summary: {
+            total_rows: prev.row_count || 0,
+            rows_checked: prev.row_count || 0,
+            valid_rows: prev.valid_count || 0,
+            rows_with_errors: prev.invalid_count || 0,
+            error_count: prev.invalid_count || 0,
+            errors: []
+          }
+        });
+        trackEvent('reimburse:preview', { id: prev.upload_id, can_commit: prev.can_commit });
       } else {
         // Submit upload flow
         const prev = await submitUploadPreview(f, quickClinic, (pct) => {
@@ -270,9 +298,11 @@ const UploadPage: React.FC = () => {
           sample_rows: prev.sample_rows || [],
           row_count: prev.row_count || 0,
           original_filename: prev.original_filename,
-          duplicate_of: prev.duplicate_of ?? null,
+          duplicate_of: prev.duplicate_of,
           can_commit: !!prev.can_commit,
           s3_url: prev.s3_url,
+          validation_summary: prev.validation_summary,
+          note: prev.note
         });
         trackEvent('submit:preview', { id: prev.upload_id, can_commit: prev.can_commit });
       }
@@ -328,27 +358,41 @@ const UploadPage: React.FC = () => {
               window.clearInterval(progressTimerRef.current);
               progressTimerRef.current = null;
             }
+            // Wait 3 seconds before resuming polling after rate limit
             setTimeout(() => {
               if (!progressTimerRef.current) startPolling();
-            }, 1500);
+            }, 3000);
           } else {
             console.warn('Progress polling error:', error);
           }
         }
-      }, 750); // Poll every 750ms to reduce backend load and avoid rate limits
+      }, 500); // Poll every 500ms - balanced for real-time feel without hitting rate limits
     };
 
     startPolling();
 
     try {
-      const r = await submitUploadCommit(quickPreview.upload_id);
-      setCommitWarnings(r.warnings || []);
-      setCommitDone(true);
-      setCommitSummary({ inserted: r.inserted_count, updated: r.updated_count, skipped: r.skipped_count });
-      setSuccess(`Claims committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
-      await refreshUploads();
-      await refreshSubmitUploads();
-      trackEvent('submit:commit', { id: r.upload_id, inserted: r.inserted_count, updated: r.updated_count });
+      if (isReimburse) {
+        // Reimburse commit flow
+        const r = await reimburseUploadCommit(quickPreview.upload_id);
+        setCommitWarnings(r.warnings || []);
+        setCommitDone(true);
+        setCommitSummary({ inserted: r.inserted_count, updated: r.updated_count, skipped: r.skipped_count });
+        setSuccess(`Reimburse committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
+        await refreshUploads();
+        await refreshSubmitUploads();
+        trackEvent('reimburse:commit', { id: r.upload_id, inserted: r.inserted_count, updated: r.updated_count });
+      } else {
+        // Submit commit flow
+        const r = await submitUploadCommit(quickPreview.upload_id);
+        setCommitWarnings(r.warnings || []);
+        setCommitDone(true);
+        setCommitSummary({ inserted: r.inserted_count, updated: r.updated_count, skipped: r.skipped_count });
+        setSuccess(`Claims committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
+        await refreshUploads();
+        await refreshSubmitUploads();
+        trackEvent('submit:commit', { id: r.upload_id, inserted: r.inserted_count, updated: r.updated_count });
+      }
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || 'Commit failed');
     } finally {
@@ -478,6 +522,57 @@ const UploadPage: React.FC = () => {
         <h1 className="text-3xl font-semibold text-textDark">{pageTitle}</h1>
       </div>
 
+      {/* Case 11: Processing Upload Alert */}
+      {submitUploads.some(u => u.status === 'PROCESSING') && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded-lg"
+        >
+          <div className="flex items-start gap-3">
+            <Loader2 className="text-blue-600 animate-spin mt-0.5" size={20} />
+            <div className="flex-1">
+              <div className="font-semibold text-blue-800">Upload in Progress</div>
+              <div className="text-sm text-blue-700 mt-1">
+                {submitUploads.find(u => u.status === 'PROCESSING')?.original_filename || 'A file'} is currently being processed. 
+                Please wait for it to complete before uploading another file.
+              </div>
+              {submitUploads.find(u => u.status === 'PROCESSING')?.message && (
+                <div className="text-xs text-blue-600 mt-2 italic">
+                  {submitUploads.find(u => u.status === 'PROCESSING')?.message}
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+      
+      {/* Case 16: Concurrent Upload Warning */}
+      {concurrentWarning && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-amber-600 mt-0.5" size={20} />
+            <div className="flex-1">
+              <div className="font-semibold text-amber-800">Upload in Another Tab</div>
+              <div className="text-sm text-amber-700 mt-1">
+                You have an upload in progress in another tab or window. Concurrent uploads may cause conflicts.
+                Please complete or cancel the other upload before starting a new one.
+              </div>
+            </div>
+            <button
+              onClick={() => setConcurrentWarning(false)}
+              className="text-amber-600 hover:text-amber-800"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Error/Success Messages */}
       <AnimatePresence>
         {error && (
@@ -513,6 +608,18 @@ const UploadPage: React.FC = () => {
 
       {/* Upload Area */}
       <div className="mb-8">
+        {/* Template Download Button */}
+        {!isReimburse && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple border border-purple rounded-lg hover:bg-purple/5 transition-colors"
+            >
+              <Download size={16} />
+              Download Excel Template
+            </button>
+          </div>
+        )}
         <div
           className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
             dragOver ? 'border-purple bg-purple/5' : 'border-gray-300 hover:border-purple/50'
@@ -583,12 +690,67 @@ const UploadPage: React.FC = () => {
       {quickPreview && (
         <div className="mb-8 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="flex-1">
               <div className="font-semibold text-textDark">Submit Preview</div>
               <div className="text-sm text-textDark/70">{quickPreview.original_filename || 'Selected file'} · Rows: {quickPreview.row_count}</div>
               {quickPreview.duplicate_of && (
                 <div className="text-xs text-textDark/60 mt-1">Duplicate of upload {quickPreview.duplicate_of}</div>
               )}
+              {quickPreview.note && (
+                <div className="text-xs text-blue-600 mt-1 font-medium">{quickPreview.note}</div>
+              )}
+              
+              {/* Validation Summary Stats */}
+              {quickPreview.validation_summary && (
+                <div className="mt-4 p-3 bg-white rounded-lg border border-gray-200">
+                  <div className="text-sm font-semibold text-textDark mb-2">Validation Summary</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-textDark/70">Total Rows:</span>
+                      <span className="font-medium text-textDark">{quickPreview.validation_summary.total_rows}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-textDark/70">Sample Validated:</span>
+                      <span className="font-medium text-textDark">{quickPreview.validation_summary.rows_checked} rows</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-green-700">Valid Rows:</span>
+                      <span className="font-semibold text-green-700">{quickPreview.validation_summary.valid_rows} / {quickPreview.validation_summary.rows_checked}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-red-700">Rows with Errors:</span>
+                      <span className="font-semibold text-red-700">{quickPreview.validation_summary.rows_with_errors}</span>
+                    </div>
+                  </div>
+                  {quickPreview.validation_summary.rows_checked < quickPreview.validation_summary.total_rows && (
+                    <div className="mt-2 text-xs text-blue-600 italic">
+                      ℹ️ Preview validated first {quickPreview.validation_summary.rows_checked} rows. Full validation happens during commit.
+                    </div>
+                  )}
+                  
+                  {/* Error Details */}
+                  {quickPreview.validation_summary.errors && quickPreview.validation_summary.errors.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="text-xs font-semibold text-red-700 mb-2">
+                        Validation Errors (showing first {Math.min(quickPreview.validation_summary.errors.length, 10)})
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {quickPreview.validation_summary.errors.slice(0, 10).map((err, idx) => (
+                          <div key={idx} className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                            <span className="font-medium">Row {err.row}:</span> {err.field} - {err.message}
+                          </div>
+                        ))}
+                      </div>
+                      {quickPreview.validation_summary.errors.length > 10 && (
+                        <div className="text-xs text-red-600 mt-2">
+                          ...and {quickPreview.validation_summary.errors.length - 10} more errors
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="mt-3">
                 <div className="text-sm font-medium text-textDark">Missing headers:</div>
                 {quickPreview.missing_required.length ? (

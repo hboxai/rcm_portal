@@ -14,33 +14,49 @@ const norm = (s: string): string =>
 
 // Flexible header mapping for reimburse Excel files
 const HEADER_MAP: Record<string, string[]> = {
-  cpt_id: ['cpt_id', 'patient_id', 'submitcptid', 'cptid', 'lineid', 'claimlineid'],
-  submit_cpt_id: ['submit_cpt_id', 'submitcptid'],
-  billing_id: ['billing_id', 'billingid', 'claim_id', 'claimid', 'bil_claim_submit_id'],
-  patient_id: ['patient_emr_no', 'patientid', 'patient'],
+  patient_id: ['patient_id', 'patientid', 'patient'],
+  cpt_id: ['cpt_id', 'cptid', 'lineid', 'claimlineid', 'submitcptid'],
+  patient_emr_no: ['patient_emr_no', 'patientemrno', 'emr_no', 'emrno', 'mrn'],
+  first_name: ['first_name', 'firstname', 'patient_first', 'patientfirst'],
+  last_name: ['last_name', 'lastname', 'patient_last', 'patientlast'],
+  date_of_birth: ['date_of_birth', 'dateofbirth', 'dob', 'birthdate'],
   cpt_code: ['cpt_code', 'cptcode', 'cpt', 'procedurecode'],
-  dos: ['dos', 'dateofservice', 'servicedate', 'date_of_service', 'service_date', 'charge_dt'],
-  
-  // Payment fields
-  prim_amt: ['prim_amt', 'primarypaid', 'primary_paid', 'primary_amount', 'prim_paid', 'insurance_paid'],
-  prim_chk_det: ['prim_chk_det', 'primarycheck', 'primary_check', 'check_number', 'checknumber', 'prim_check'],
-  prim_recv_dt: ['prim_recv_dt', 'primarycheckdate', 'primary_check_date', 'check_date', 'checkdate', 'prim_date'],
-  prim_denial_code: ['prim_denial_code', 'primarydenial', 'primary_denial', 'denial_code', 'denialcode'],
-  
-  sec_amt: ['sec_amt', 'secondarypaid', 'secondary_paid', 'secondary_amount', 'sec_paid'],
-  sec_chk_det: ['sec_chk_det', 'secondarycheck', 'secondary_check', 'sec_check'],
-  sec_recv_dt: ['sec_recv_dt', 'secondarycheckdate', 'secondary_check_date', 'sec_date'],
-  sec_denial_code: ['sec_denial_code', 'secondarydenial', 'secondary_denial', 'sec_denial'],
-  
-  pat_amt: ['pat_amt', 'patientpaid', 'patient_paid', 'patient_amount', 'copay'],
-  pat_recv_dt: ['pat_recv_dt', 'patientpaymentdate', 'patient_payment_date', 'pat_date'],
-  
-  // Adjustment fields
-  allowed_amt: ['allowed_amt', 'allowedamount', 'allowed_amount', 'allowed'],
-  write_off_amt: ['write_off_amt', 'writeoff', 'write_off', 'adjustment', 'contractual'],
-  
-  // Status
-  claim_status: ['claim_status', 'status', 'paymentstatus', 'payment_status'],
+  service_start: ['service_start', 'servicestart', 'dos', 'dateofservice', 'service_date'],
+  service_end: ['service_end', 'serviceend', 'enddate'],
+  icd_code: ['icd_code', 'icdcode', 'diagnosis', 'dx'],
+  units: ['units', 'quantity', 'qty'],
+  provider_name: ['provider_name', 'providername', 'provider', 'rendering_provider'],
+  oa_claim_id: ['oa_claim_id', 'oaclaimid', 'officeallyclaimid'],
+  oa_visit_id: ['oa_visit_id', 'oavisitid', 'visitid'],
+  charge_dt: ['charge_dt', 'chargedt', 'charge_date', 'chargedate'],
+  charge_amt: ['charge_amt', 'chargeamt', 'charge_amount', 'charges'],
+  allowed_amt: ['allowed_amt', 'allowedamt', 'allowed_amount', 'allowed'],
+  allowed_add_amt: ['allowed_add_amt', 'allowedaddamt', 'additional_allowed'],
+  allowed_exp_amt: ['allowed_exp_amt', 'allowedexpamt', 'expected_allowed'],
+  prim_ins: ['prim_ins', 'primins', 'primary_insurance', 'primaryins'],
+  prim_amt: ['prim_amt', 'primamt', 'primary_paid', 'primarypaid', 'prim_paid'],
+  prim_post_dt: ['prim_post_dt', 'primpostdt', 'primary_post_date'],
+  prim_chk_det: ['prim_chk_det', 'primchkdet', 'primary_check', 'primarycheck'],
+  prim_recv_dt: ['prim_recv_dt', 'primrecvdt', 'primary_received_date'],
+  prim_chk_amt: ['prim_chk_amt', 'primchkamt', 'primary_check_amount'],
+  prim_cmt: ['prim_cmt', 'primcmt', 'primary_comment', 'primary_comments'],
+  sec_ins: ['sec_ins', 'secins', 'secondary_insurance', 'secondaryins'],
+  sec_amt: ['sec_amt', 'secamt', 'secondary_paid', 'secondarypaid'],
+  sec_post_dt: ['sec_post_dt', 'secpostdt', 'secondary_post_date'],
+  sec_chk_det: ['sec_chk_det', 'secchkdet', 'secondary_check'],
+  sec_recv_dt: ['sec_recv_dt', 'secrecvdt', 'secondary_received_date'],
+  sec_chk_amt: ['sec_chk_amt', 'secchkamt', 'secondary_check_amount'],
+  sec_cmt: ['sec_cmt', 'seccmt', 'secondary_comment', 'secondary_comments'],
+  pat_amt: ['pat_amt', 'patamt', 'patient_paid', 'patientpaid', 'copay'],
+  pat_recv_dt: ['pat_recv_dt', 'patrecvdt', 'patient_received_date'],
+  total_amt: ['total_amt', 'totalamt', 'total_amount', 'total_paid'],
+  write_off_amt: ['write_off_amt', 'writeoffamt', 'writeoff', 'adjustment'],
+  charges_adj_amt: ['charges_adj_amt', 'chargesadjamt', 'charge_adjustment'],
+  bal_amt: ['bal_amt', 'balamt', 'balance', 'balance_amount'],
+  reimb_pct: ['reimb_pct', 'reimbpct', 'reimbursement_percent', 'reimbursement_pct'],
+  claim_status: ['claim_status', 'claimstatus', 'payment_status'],
+  claim_status_type: ['claim_status_type', 'claimstatustype', 'status_type'],
+  status: ['status', 'final_status', 'current_status'],
 };
 
 // Map Excel header to database column
@@ -202,16 +218,14 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
       }
     }
 
-    // Check for required matching field - prioritize cpt_id
-    if (!mappedFields.has('cpt_id') && !mappedFields.has('submit_cpt_id') && 
-        !(mappedFields.has('billing_id') || 
-          (mappedFields.has('patient_id') && mappedFields.has('cpt_code') && mappedFields.has('dos')))) {
+    // Check for required field - cpt_id is the primary key from CSV
+    if (!mappedFields.has('cpt_id')) {
       await pool.query(
         `UPDATE rcm_file_uploads SET status='FAILED', message=$1, updated_at=NOW() WHERE upload_id=$2`,
-        ['Missing required matching columns. Need either: cpt_id, submit_cpt_id, billing_id, OR (patient_id + cpt_code + dos)', upload_id]
+        ['Missing required column: cpt_id (CPT Code ID)', upload_id]
       );
       return res.status(400).json({
-        error: 'Missing required matching columns. Need either: cpt_id, submit_cpt_id, billing_id, OR (patient_id + cpt_code + dos)',
+        error: 'Missing required column: cpt_id (CPT Code ID)',
         found_columns: Array.from(mappedFields)
       });
     }
@@ -243,26 +257,16 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
         }
       }
 
-      // Find matching reimburse record - prioritize cpt_id matching
+      // Find matching reimburse record using cpt_id (primary key from CSV)
       let findQuery = '';
       let findParams: any[] = [];
       
       if (mappedRow.cpt_id) {
-        // Match by cpt_id (the primary identifier from CSV)
+        // Match by cpt_id (CPT Code ID - the unique identifier)
         findQuery = `SELECT * FROM api_bil_claim_reimburse WHERE cpt_id = $1`;
-        findParams = [String(mappedRow.cpt_id)];
-      } else if (mappedRow.submit_cpt_id) {
-        findQuery = `SELECT * FROM api_bil_claim_reimburse WHERE submit_cpt_id = $1`;
-        findParams = [mappedRow.submit_cpt_id];
-      } else if (mappedRow.billing_id) {
-        findQuery = `SELECT * FROM api_bil_claim_reimburse WHERE bil_claim_submit_id = $1`;
-        findParams = [mappedRow.billing_id];
-      } else if (mappedRow.patient_id && mappedRow.cpt_code && mappedRow.dos) {
-        findQuery = `SELECT * FROM api_bil_claim_reimburse 
-                     WHERE patient_id = $1 AND cpt_id = $2 AND charge_dt = $3`;
-        findParams = [mappedRow.patient_id, mappedRow.cpt_code, mappedRow.dos];
+        findParams = [String(mappedRow.cpt_id).trim()];
       } else {
-        warnings.push(`Row ${i + 2}: Missing matching criteria, skipped`);
+        warnings.push(`Row ${i + 2}: Missing cpt_id, skipped`);
         continue;
       }
 
@@ -287,12 +291,17 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
       const updateFields: string[] = [];
       const changes: Array<{ field: string; oldValue: any; newValue: any }> = [];
 
-      // Payment fields
+      // All updatable fields from CSV
       const paymentFields = [
-        'prim_amt', 'prim_chk_det', 'prim_recv_dt', 'prim_denial_code',
-        'sec_amt', 'sec_chk_det', 'sec_recv_dt', 'sec_denial_code',
+        'patient_emr_no', 'first_name', 'last_name', 'date_of_birth',
+        'cpt_code', 'service_start', 'service_end', 'icd_code', 'units', 'provider_name',
+        'oa_claim_id', 'oa_visit_id', 'charge_dt', 'charge_amt',
+        'allowed_amt', 'allowed_add_amt', 'allowed_exp_amt',
+        'prim_ins', 'prim_amt', 'prim_post_dt', 'prim_chk_det', 'prim_recv_dt', 'prim_chk_amt', 'prim_cmt',
+        'sec_ins', 'sec_amt', 'sec_post_dt', 'sec_chk_det', 'sec_recv_dt', 'sec_chk_amt', 'sec_cmt',
         'pat_amt', 'pat_recv_dt',
-        'allowed_amt', 'write_off_amt', 'claim_status'
+        'total_amt', 'write_off_amt', 'charges_adj_amt', 'bal_amt',
+        'reimb_pct', 'claim_status', 'claim_status_type', 'status'
       ];
 
       for (const field of paymentFields) {

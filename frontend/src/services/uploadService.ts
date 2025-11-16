@@ -287,7 +287,60 @@ export async function listReimburseUploads(params: { limit?: number; offset?: nu
   return res.data as { items: SubmitUploadListItem[]; total: number };
 }
 
-// Upload Reimburse Excel file
+// Reimburse Upload Preview (new flow)
+export type ReimbursePreviewResponse = {
+  upload_id: string;
+  original_filename?: string;
+  row_count: number;
+  valid_count: number;
+  invalid_count: number;
+  columns_mapped: Record<string, string | null>;
+  sample_valid: any[];
+  sample_invalid: any[];
+  warnings: string[];
+  can_commit: boolean;
+  errors?: string[];
+};
+
+export async function reimburseUploadPreview(
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<ReimbursePreviewResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await axios.post(`${API_BASE_URL}/reimburse/preview`, form, {
+    headers: { Authorization: getAuthToken(), 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (evt) => {
+      if (onProgress && evt.total) {
+        const raw = Math.round((evt.loaded / evt.total) * 100);
+        const clamped = Math.max(1, Math.min(99, raw));
+        onProgress(clamped);
+      }
+    }
+  });
+  return res.data;
+}
+
+// Reimburse Upload Commit (new flow)
+export type ReimburseCommitResponse = {
+  upload_id: string;
+  inserted_count: number;
+  updated_count: number;
+  skipped_count: number;
+  warnings: string[];
+  duration_ms: number;
+};
+
+export async function reimburseUploadCommit(upload_id: string): Promise<ReimburseCommitResponse> {
+  const res = await axios.post(
+    `${API_BASE_URL}/reimburse/commit`,
+    { upload_id },
+    { headers: { Authorization: getAuthToken(), 'Content-Type': 'application/json' } }
+  );
+  return res.data;
+}
+
+// Upload Reimburse Excel file (OLD - deprecated, kept for compatibility)
 export async function uploadReimburseExcel(
   file: File,
   onProgress?: (pct: number) => void

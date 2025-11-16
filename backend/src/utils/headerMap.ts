@@ -105,6 +105,9 @@ for (let i = 1; i <= 6; i++) {
   alias[norm(`CPT Line ${i} ID`)] = `cpt_code_id${i}`;
   // Normalizer produces cpt_code_id_1 for spaced form; map to cpt_code_id1
   alias[norm(`cpt_code_id_${i}`)] = `cpt_code_id${i}`;
+  // Direct underscore forms that norm() preserves as-is
+  alias[`cpt_code_id${i}`] = `cpt_code_id${i}`;
+  alias[`cpt_id${i}`] = `cpt_code_id${i}`;
 }
 
 // Additional aliases (typo and variant guards)

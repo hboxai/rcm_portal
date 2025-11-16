@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import pool from '../config/db.js';
-import { downloadFromS3, deleteFromS3 } from '../services/s3.js';
+import { downloadFromS3, deleteFromS3, uploadToS3 } from '../services/s3.js';
 import XLSX from 'xlsx';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { alias, norm as normHdr } from '../utils/headerMap.js';
 import { coerce, colType } from '../utils/coerce.js';
 import { mirrorReimburseForUpload } from '../services/reimburse.js';
@@ -261,6 +263,16 @@ function genLineId(row: Record<string, any>, line: number): string {
   return `${prefix}-${line}-${h}`;
 }
 
+/**
+ * NO SPLITTING - Each Excel row = 1 submit claim (keeps all CPT1-6 in same row)
+ * Reimburse service will extract individual CPT lines using UNION ALL
+ */
+function prepareClaimFromRow(excelRow: Record<string, any>): Record<string, any> {
+  // Return row as-is - no splitting needed
+  // Each Excel row becomes 1 claim in api_bil_claim_submit with CPT1-6 populated
+  return { ...excelRow };
+}
+
 // Canonicalize a line into a stable JSON-ready shape (ordered fields)
 function canonicalLine(row: Record<string, any>, i: number): Record<string, any> {
   const out: Record<string, any> = {};
@@ -298,6 +310,21 @@ function diffLine(oldL: Record<string, any> | null, newL: Record<string, any>): 
     if (oNorm !== nNorm) d[k] = [o, n];
   }
   return d;
+}
+
+/**
+ * Find existing claim by cpt_code_id1 (split-row model)
+ * Returns claim_id if found, null otherwise
+ */
+async function findClaimByCptCodeId(client: any, cptCodeId: string): Promise<number | null> {
+  if (!cptCodeId || String(cptCodeId).trim() === '') return null;
+  
+  const result = await client.query(
+    `SELECT claim_id FROM api_bil_claim_submit WHERE cpt_code_id1 = $1 LIMIT 1`,
+    [cptCodeId]
+  );
+  
+  return result.rowCount > 0 ? result.rows[0].claim_id : null;
 }
 
 async function findExistingSubmit(client: any, rowObj: Record<string, any>): Promise<number | null> {
@@ -346,20 +373,68 @@ export async function commitSubmitUpload(req: Request, res: Response) {
 
   try {
     const up = await pool.query(
-      `SELECT upload_id, file_kind, status, s3_bucket, s3_key, s3_url, clinic
+      `SELECT upload_id, file_kind, status, s3_bucket, s3_key, s3_url, clinic, temp_file_path, original_filename
        FROM rcm_file_uploads WHERE upload_id=$1 LIMIT 1`,
       [upload_id]
     );
     if (!up.rowCount) return res.status(422).json({ error: 'Upload not found' });
     const row = up.rows[0];
     if (row.file_kind !== 'SUBMIT_EXCEL') return res.status(422).json({ error: 'Wrong upload kind' });
-    if (row.status !== 'COMPLETED') return res.status(422).json({ error: 'Upload status not COMPLETED' });
+    if (row.status !== 'PENDING' && row.status !== 'COMPLETED') return res.status(422).json({ error: 'Upload status must be PENDING or COMPLETED' });
 
-    // Fetch file content
-    const bucket: string = row.s3_bucket;
-    const keyObj: string = row.s3_key;
-    if (!bucket || !keyObj) return res.status(422).json({ error: 'Upload has no S3 location' });
-    const buf = await downloadFromS3({ bucket, key: keyObj });
+    let buf: Buffer;
+    let bucket: string;
+    let keyObj: string;
+
+    // Check if file is in temp storage (preview phase) or already in S3 (re-commit)
+    if (row.temp_file_path && fs.existsSync(row.temp_file_path)) {
+      // File is in temp storage - upload to S3 now during commit
+      console.log('[COMMIT] Uploading from temp storage to S3:', row.temp_file_path);
+      
+      buf = fs.readFileSync(row.temp_file_path);
+      bucket = process.env.S3_BUCKET || '';
+      
+      // Generate S3 key: submit/{clinic}/{year}/{month}/{upload_id}.ext
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const ext = path.extname(row.original_filename || '.xlsx');
+      keyObj = `submit/${row.clinic}/${year}/${month}/${upload_id}${ext}`;
+      
+      // Upload to S3
+      const s3Result = await uploadToS3({ 
+        bucket, 
+        key: keyObj, 
+        body: buf, 
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      // Update database with S3 location
+      await pool.query(
+        `UPDATE rcm_file_uploads 
+         SET s3_bucket=$1, s3_key=$2, s3_url=$3, temp_file_path=NULL, updated_at=NOW() 
+         WHERE upload_id=$4`,
+        [bucket, keyObj, s3Result.s3Url, upload_id]
+      );
+      
+      // Delete temp file
+      try {
+        fs.unlinkSync(row.temp_file_path);
+        console.log('[COMMIT] Deleted temp file:', row.temp_file_path);
+      } catch (err) {
+        console.warn('[COMMIT] Failed to delete temp file:', err);
+      }
+      
+      console.log('[COMMIT] File uploaded to S3:', s3Result.s3Url);
+    } else if (row.s3_bucket && row.s3_key) {
+      // File already in S3 (re-commit or old upload)
+      console.log('[COMMIT] Downloading from S3:', row.s3_url);
+      bucket = row.s3_bucket;
+      keyObj = row.s3_key;
+      buf = await downloadFromS3({ bucket, key: keyObj });
+    } else {
+      return res.status(422).json({ error: 'Upload has no file location (neither temp nor S3)' });
+    }
 
     // Parse workbook
     const wb = XLSX.read(buf, { type: 'buffer', cellDates: false, raw: false });
@@ -371,6 +446,22 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       const headers = Object.keys(rows[0]);
       console.log('[COMMIT] All headers:', headers);
       console.log('[COMMIT] CPT-related headers:', headers.filter(h => h.toLowerCase().includes('cpt')));
+    }
+
+    // Case 14: Re-validate critical data during commit
+    let criticalValidationErrors = 0;
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const r = rows[i];
+      if (!r.PatientFirst || !r.PatientLast || !r.PatientDOB) criticalValidationErrors++;
+      if (!r.InsurancePlanName && !r.InsurancePayerID) criticalValidationErrors++;
+      if (!r.CPT1 || !r.FromDateOfService1) criticalValidationErrors++;
+    }
+    if (criticalValidationErrors > 5) {
+      await pool.query(
+        `UPDATE rcm_file_uploads SET status='FAILED', message='Data validation requirements have changed. Please preview the file again before committing.', updated_at=NOW() WHERE upload_id=$1`,
+        [upload_id]
+      );
+      return res.status(400).json({ status: 'error', message: 'Data validation requirements have changed. Please preview the file again before committing.' });
     }
 
     // Validate mandatory fields
@@ -436,8 +527,8 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       const schemaColumns = new Set(Object.keys(colTypes));
       let processed = 0;
       const total = rows.length || 1;
-  // Update progress roughly every 2% to reduce DB chatter
-  const progressStep = Math.max(1, Math.floor(total / 50));
+  // Update progress every 1% for real-time feedback
+  const progressStep = Math.max(1, Math.floor(total / 100));
       console.log('[COMMIT] Processing', total, 'rows, progress step:', progressStep);
       
       // Optimization: check if table is empty to skip findExistingSubmit queries
@@ -445,16 +536,18 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       const tableIsEmpty = parseInt(countResult.rows[0].count) === 0;
       console.log('[COMMIT] Table has', countResult.rows[0].count, 'existing rows, empty:', tableIsEmpty);
 
-      // FAST PATH: If table is empty, use bulk INSERT
+      // FAST PATH: If table is empty, use bulk INSERT with split-row model
       if (tableIsEmpty) {
-        console.log('[COMMIT] Using fast bulk insert path');
+        console.log('[COMMIT] Using fast bulk insert path with split-row model');
         const batchSize = 100;
-        let batchCount = 0;
+        let claimCount = 0;
+        let inserted = 0;
         
         for (let i = 0; i < rows.length; i++) {
           const raw = rows[i];
           const mapped = mapRow(raw, schemaColumns, warnings);
           
+          // Basic validation
           const hasPayerId = mapped.insurancepayerid != null && mapped.insurancepayerid !== '';
           const hasPlanName = mapped.insuranceplanname != null && mapped.insuranceplanname !== '';
           const hasInsurer = mapped.insurerid != null && mapped.insurerid !== '';
@@ -470,20 +563,20 @@ export async function commitSubmitUpload(req: Request, res: Response) {
             continue;
           }
           
-          const rowObj: Record<string, any> = { ...mapped };
+          // NO SPLIT: Each Excel row = 1 claim (keeps all CPT1-6)
+          const rowObj: Record<string, any> = prepareClaimFromRow(mapped);
           rowObj.upload_id = upload_id;
           rowObj.source_system = 'OFFICE_ALLY';
           rowObj.cycle = 1;
           
-          // Generate CPT IDs
+          // Generate cpt_code_id for each CPT position that has data
           for (let li = 1; li <= 6; li++) {
-            const hasLine = rowObj[`cpt${li}`] && rowObj[`fromdateofservice${li}`] && rowObj[`charges${li}`];
-            const cur = rowObj[`cpt_id${li}`];
-            if (hasLine && (cur == null || String(cur).trim() === '')) {
-              rowObj[`cpt_id${li}`] = genLineId(rowObj, li);
+            if (rowObj[`cpt${li}`] && (!rowObj[`cpt_code_id${li}`] || String(rowObj[`cpt_code_id${li}`]).trim() === '')) {
+              rowObj[`cpt_code_id${li}`] = genLineId(rowObj, li);
+              rowObj[`cpt_id${li}`] = rowObj[`cpt_code_id${li}`];
             }
-            // Set initial cycle and hash for present lines
-            if (hasLine) {
+            // Set cycle and hash for each populated CPT
+            if (rowObj[`cpt${li}`]) {
               rowObj[`cpt_cycle${li}`] = 1;
               const canon = canonicalLine(rowObj, li);
               rowObj[`cpt_hash${li}`] = hashLine(canon);
@@ -499,256 +592,221 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING claim_id`;
           const r = await client.query(sql, vals);
           inserts.push(r.rows[0].claim_id);
+          claimCount++;
           
-          batchCount++;
-          if (batchCount % batchSize === 0) {
-            const pct = Math.floor((batchCount / total) * 100);
+          // Audit initial state for each CPT line
+          for (let li = 1; li <= 6; li++) {
+            if (clean[`cpt${li}`] && clean[`cpt_code_id${li}`]) {
+              const canon = canonicalLine(clean, li);
+              await client.query(
+                `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                [clean[`cpt_code_id${li}`], r.rows[0].claim_id, li, 1, upload_id, null, clean[`cpt_hash${li}`], null, JSON.stringify(canon), JSON.stringify(canon)]
+              );
+            }
+          }
+          
+          inserted++;
+          
+          if (claimCount % batchSize === 0) {
+            const pct = Math.floor((claimCount / rows.length) * 100);
             await pool.query(
               `UPDATE rcm_file_uploads SET message=$1, updated_at=NOW() WHERE upload_id=$2`,
-              [`Bulk inserting ${batchCount}/${total} (${pct}%)`, upload_id]
+              [`Bulk inserting ${claimCount} claims from ${i + 1}/${rows.length} rows (${pct}%)`, upload_id]
             );
-            console.log(`[COMMIT] Bulk insert progress: ${batchCount}/${total}`);
+            console.log(`[COMMIT] Bulk insert progress: ${claimCount} claims from ${i + 1}/${rows.length} rows`);
           }
         }
         
-        console.log(`[COMMIT] Bulk insert complete: ${inserts.length} rows`);
+        console.log(`[COMMIT] Bulk insert complete: ${inserts.length} claims from ${rows.length} Excel rows`);
       } else {
-        // SLOW PATH: Table has data, need to check for duplicates
-        console.log('[COMMIT] Using row-by-row path with duplicate detection');
+        // SLOW PATH: Table has data, check for updates with split-row model
+        console.log('[COMMIT] Using row-by-row path with split-row model and update detection');
+        
+        let inserted = 0;
+        let updated = 0;
+        const skips: number[] = [];
 
       for (let i = 0; i < rows.length; i++) {
         if (i === 0 || i === 10 || i === 50 || i % 100 === 0) {
-          console.log(`[COMMIT] Processing row ${i + 1}/${total}`);
+          console.log(`[COMMIT] Processing Excel row ${i + 1}/${total}`);
         }
         const raw = rows[i];
         const mapped = mapRow(raw, schemaColumns, warnings);
 
-        // Row-level preconditions: basic patient/insurance + at least one complete service line exists
+        // Basic validation
         const hasPayerId = mapped.insurancepayerid != null && mapped.insurancepayerid !== '';
         const hasPlanName = mapped.insuranceplanname != null && mapped.insuranceplanname !== '';
         const hasInsurer = mapped.insurerid != null && mapped.insurerid !== '';
         const hasPatient = mapped.patientfirst && mapped.patientlast && mapped.patientdob;
         const hasAnyLine = hasAnyServiceLine(mapped);
+        
         if (!hasInsurer || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
           skipped++;
           if (warnings.length < 50) {
             const miss = listMissingForAnyLine(mapped);
             warnings.push(`Row ${i + 2} skipped: missing ${miss.join(', ')}`);
           }
-          // progress and continue
+          // Continue to progress tracking
         } else {
-          // System fields (no per-CPT splitting for submit)
-          const rowObj: Record<string, any> = { ...mapped };
+          // NO SPLIT: Each Excel row = 1 claim (keeps all CPT1-6)
+          const rowObj: Record<string, any> = prepareClaimFromRow(mapped);
           rowObj.upload_id = upload_id;
           rowObj.source_system = 'OFFICE_ALLY';
-
-          // Ensure CPT ID 1..6 exist when a service line is present; generate if missing
+          
+          // Generate cpt_code_id for each CPT position
+          const cptCodeIds: string[] = [];
           for (let li = 1; li <= 6; li++) {
-            const hasLine = rowObj[`cpt${li}`] && rowObj[`fromdateofservice${li}`] && rowObj[`charges${li}`];
-            const cur = rowObj[`cpt_id${li}`];
-            if (hasLine && (cur == null || String(cur).trim() === '')) {
-              rowObj[`cpt_id${li}`] = genLineId(rowObj, li);
+            if (rowObj[`cpt${li}`] && (!rowObj[`cpt_code_id${li}`] || String(rowObj[`cpt_code_id${li}`]).trim() === '')) {
+              rowObj[`cpt_code_id${li}`] = genLineId(rowObj, li);
+              rowObj[`cpt_id${li}`] = rowObj[`cpt_code_id${li}`];
+            }
+            if (rowObj[`cpt_code_id${li}`]) {
+              cptCodeIds.push(rowObj[`cpt_code_id${li}`]);
             }
           }
-
-          // Business key (row-level)
-          const business = {
-            payor_reference_id: rowObj.payor_reference_id ?? null,
-            oa_claimid: rowObj.oa_claimid ?? null,
-            clinic_id: rowObj.clinic_id ?? null,
-            insurerid: rowObj.insurerid,
-            fromdateofservice1: rowObj.fromdateofservice1,
-            cpt1: rowObj.cpt1,
-            totalcharges: rowObj.totalcharges,
-          };
-
-          let existingId = tableIsEmpty ? null : await findExistingSubmit(client, rowObj);
-          if (i < 5) console.log(`[COMMIT] Row ${i}: existingId from findExistingSubmit:`, existingId);
-          // Fallback idempotency per upload via content hash of business subset
-          let contentHash: string | null = null;
-          if (!existingId && !tableIsEmpty) {
-            const subset = {
-              upload_id,
-              insurerid: rowObj.insurerid,
-              fromdateofservice1: rowObj.fromdateofservice1,
-              cpt1: rowObj.cpt1,
-              totalcharges: rowObj.totalcharges,
-            };
-            contentHash = crypto.createHash('sha256').update(JSON.stringify(subset)).digest('hex');
-            const er = await client.query(
-              'SELECT claim_id FROM api_bil_claim_submit WHERE upload_id=$1 AND content_sha256=$2 LIMIT 1',
-              [upload_id, contentHash]
-            );
-            if (er.rowCount) existingId = er.rows[0].claim_id;
-          }
-
-          // type sanitization against DB column types
+          
+          // Check if ANY of the cpt_code_ids exist (this row exists)
+          const existingId = cptCodeIds.length > 0 ? await findClaimByCptCodeId(client, cptCodeIds[0]) : null;
+          
           const { clean, notes } = sanitizeByType(rowObj, colTypes);
           if (notes.length) {
             const remain = Math.max(0, 100 - warnings.length);
             if (remain > 0) warnings.push(...notes.slice(0, remain).map((n: string) => `Row ${i + 2}: ${n}`));
           }
-
-          // Ensure idempotency metadata
-          if (!('upload_id' in clean)) clean.upload_id = upload_id;
-          if (!('source_system' in clean)) clean.source_system = 'OFFICE_ALLY';
-          if (contentHash && !('content_sha256' in clean)) clean.content_sha256 = contentHash;
-
-          const cols = Object.keys(clean);
-          const vals = Object.values(clean);
-
-          // Prepare per-line hashes and audit payloads
-          const lineHashes: Array<{ i: number; hash: string; canon: Record<string, any> } > = [];
-          for (let li = 1; li <= 6; li++) {
-            const hasLine = clean[`cpt${li}`] || clean[`fromdateofservice${li}`] || clean[`charges${li}`];
-            if (hasLine) {
-              const canon = canonicalLine(clean, li);
-              const hash = hashLine(canon);
-              lineHashes.push({ i: li, hash, canon });
-            }
-          }
-
+          
+          const cols = Object.keys(clean).filter(c => schemaColumns.has(c));
+          const vals = cols.map(c => clean[c]);
+          
           if (!existingId) {
-            // INSERT new submit row
-            const colSql = cols.map(c => '"' + c + '"').join(',');
-            const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
-            const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING claim_id`;
-            const r = await client.query(sql, vals);
-            const newId: number = r.rows[0].claim_id;
-            inserts.push(newId);
-
-            // Initialize per-line cycle/hash and updated_at; claim-level cycle = 1
-            if (lineHashes.length) {
-              const setParts: string[] = [];
-              const setVals: any[] = [];
-              let idx = 1;
-              for (const lh of lineHashes) {
-                setParts.push(`cpt_cycle${lh.i}=1`, `cpt_hash${lh.i}=$${idx++}`, `cpt_updated_at${lh.i}=NOW()`);
-                setVals.push(lh.hash);
+            // INSERT new claim with all CPT lines
+            clean.cycle = 1;
+            for (let li = 1; li <= 6; li++) {
+              if (clean[`cpt${li}`]) {
+                clean[`cpt_cycle${li}`] = 1;
+                const canon = canonicalLine(clean, li);
+                clean[`cpt_hash${li}`] = hashLine(canon);
               }
-              setParts.push(`cycle=1`);
-              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE claim_id=$${idx}`, [...setVals, newId]);
             }
-
-            // Audit initial state (cycle 1) for present lines
-            for (const lh of lineHashes) {
-              const sid = clean[`cpt_id${lh.i}`];
-              if (!sid) continue;
-              await client.query(
-                `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-                [sid, newId, lh.i, 1, upload_id, null, lh.hash, null, JSON.stringify(lh.canon), JSON.stringify(lh.canon)]
-              );
+            
+            const insertCols = Object.keys(clean).filter(c => schemaColumns.has(c));
+            const insertVals = insertCols.map(c => clean[c]);
+            
+            const colSql = insertCols.map(c => '"' + c + '"').join(',');
+            const ph = insertVals.map((_, idx) => `$${idx + 1}`).join(',');
+            const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING claim_id`;
+            const r = await client.query(sql, insertVals);
+            inserts.push(r.rows[0].claim_id);
+            
+            // Audit each CPT line
+            const newId = r.rows[0].claim_id;
+            for (let li = 1; li <= 6; li++) {
+              if (clean[`cpt${li}`] && clean[`cpt_code_id${li}`]) {
+                const canon = canonicalLine(clean, li);
+                await client.query(
+                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                  [clean[`cpt_code_id${li}`], newId, li, 1, upload_id, null, clean[`cpt_hash${li}`], null, JSON.stringify(canon), JSON.stringify(canon)]
+                );
+              }
             }
+            inserted++;
           } else {
-            // UPDATE existing row - fetch old data for comparison
+            // UPDATE existing claim - fetch old data for comparison
             const oldData = await client.query(
               `SELECT * FROM api_bil_claim_submit WHERE claim_id=$1`,
               [existingId]
             );
             const oldRow = oldData.rows[0] || {};
-
-            // Update the row
-            const setSql = cols.map((c, idx) => '"' + c + '"' + `=$${idx + 1}`).join(',');
-            await client.query(`UPDATE api_bil_claim_submit SET ${setSql} WHERE claim_id=$${cols.length + 1}`, [...vals, existingId]);
-
-            // Track field-level changes in upl_change_logs
-            const fieldsToTrack = cols.filter(c => !['upload_id', 'source_system', 'content_sha256', 'created_at', 'updated_at'].includes(c));
-            let changesFound = 0;
-            for (let idx = 0; idx < fieldsToTrack.length; idx++) {
-              const fieldName = fieldsToTrack[idx];
-              const oldVal = oldRow[fieldName];
-              const newVal = clean[fieldName];
-              
-              // Compare values (handle null/undefined/empty string as equivalent)
+            
+            // Check if anything actually changed
+            let hasChanges = false;
+            const fieldsToTrack = cols.filter(c => !['upload_id', 'source_system', 'created_at', 'updated_at'].includes(c));
+            for (const col of fieldsToTrack) {
+              const oldVal = oldRow[col];
+              const newVal = clean[col];
               const oldStr = oldVal == null ? '' : String(oldVal);
               const newStr = newVal == null ? '' : String(newVal);
-              
               if (oldStr !== newStr) {
-                changesFound++;
-                if (i < 3) {
-                  console.log(`[COMMIT] Row ${i}: Field "${fieldName}" changed: "${oldStr}" → "${newStr}"`);
-                }
-                await client.query(
-                  `INSERT INTO upl_change_logs (claim_id, upload_id, username, field_name, old_value, new_value)
-                   VALUES ($1, $2, $3, $4, $5, $6)`,
-                  [existingId, upload_id, 'SYSTEM', fieldName, oldStr || null, newStr || null]
-                );
+                hasChanges = true;
+                break;
               }
             }
-            if (changesFound > 0 && i < 3) {
-              console.log(`[COMMIT] Row ${i}: Total ${changesFound} field(s) changed`);
-            }
-
-            // Fetch current hashes and line values for CPT line diff
-            const old = await client.query(
-              `SELECT claim_id,
-                      ${[1,2,3,4,5,6].map(i=>`cpt_hash${i}, fromdateofservice${i}, todateofservice${i}, cpt${i}, modifiera${i}, modifierb${i}, modifierc${i}, modifierd${i}, diagcodepointer${i}, placeofservice${i}, units${i}, charges${i}`).join(', ')}
-                 FROM api_bil_claim_submit WHERE claim_id=$1`,
-              [existingId]
-            );
-            const prev = old.rows[0] || {};
-
-            // Determine changed lines and build UPDATE for cycles/hashes
-            const changed: Array<{ i:number; oldCanon: Record<string,any>|null; newCanon: Record<string,any>; oldHash: string|null; newHash: string; sid: any }>=[];
-            for (const lh of lineHashes) {
-              const oldHash = prev[`cpt_hash${lh.i}`] ?? null;
-              if (oldHash !== lh.hash) {
-                const oldCanon = canonicalLine(prev, lh.i);
-                const sid = clean[`cpt_id${lh.i}`];
-                changed.push({ i: lh.i, oldCanon, newCanon: lh.canon, oldHash, newHash: lh.hash, sid });
-              }
-            }
-
-            if (changed.length) {
-              // Count this row as updated only if at least one service line actually changed
-              updates.push(existingId);
-              const setParts: string[] = [];
-              const setVals: any[] = [];
-              let p = 1;
-              for (const ch of changed) {
-                setParts.push(`cpt_cycle${ch.i}=COALESCE(cpt_cycle${ch.i},1)+1`);
-                setParts.push(`cpt_hash${ch.i}=$${p++}`);
-                setVals.push(ch.newHash);
-                setParts.push(`cpt_updated_at${ch.i}=NOW()`);
-              }
-              // First update per-line cycles/hashes in one statement
-              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE claim_id=$${p}`, [...setVals, existingId]);
-
-              // Then recompute claim-level cycle from the new per-line values
+            
+            if (!hasChanges) {
+              // No changes, skip (Case 5: three-way logic)
+              skips.push(existingId);
+              skipped++;
+            } else {
+              // Has changes, UPDATE (Case 5: three-way logic)
+              const setSql = cols.map((c, idx) => '"' + c + '"' + `=$${idx + 1}`).join(',');
               await client.query(
-                `UPDATE api_bil_claim_submit 
-                   SET cycle=GREATEST(COALESCE(cpt_cycle1,1),COALESCE(cpt_cycle2,1),COALESCE(cpt_cycle3,1),COALESCE(cpt_cycle4,1),COALESCE(cpt_cycle5,1),COALESCE(cpt_cycle6,1))
-                 WHERE claim_id=$1`,
-                [existingId]
+                `UPDATE api_bil_claim_submit SET ${setSql} WHERE claim_id=$${cols.length + 1}`,
+                [...vals, existingId]
               );
-
-              // Write audits
-              const cycRow = await client.query(`SELECT cpt_cycle1,cpt_cycle2,cpt_cycle3,cpt_cycle4,cpt_cycle5,cpt_cycle6 FROM api_bil_claim_submit WHERE claim_id=$1`, [existingId]);
-              const cyc = cycRow.rows[0] || {};
-              for (const ch of changed) {
-                const d = diffLine(ch.oldCanon, ch.newCanon);
-                // Per-line cycle after bump
-                const lineCycle = Number(cyc[`cpt_cycle${ch.i}`]) || 1;
-                await client.query(
-                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
-                   VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,$10)`,
-                  [ch.sid, existingId, ch.i, lineCycle, upload_id, ch.oldHash, ch.newHash, JSON.stringify(ch.oldCanon), JSON.stringify(ch.newCanon), JSON.stringify(d)]
-                );
+              updates.push(existingId);
+              updated++;
+              
+              // Update cycle and hash for each changed CPT line
+              for (let li = 1; li <= 6; li++) {
+                if (clean[`cpt${li}`]) {
+                  const newCanon = canonicalLine(clean, li);
+                  const newHash = hashLine(newCanon);
+                  await client.query(
+                    `UPDATE api_bil_claim_submit 
+                     SET cpt_cycle${li} = COALESCE(cpt_cycle${li}, 1) + 1, 
+                         cpt_hash${li} = $1, 
+                         cpt_updated_at${li} = NOW(),
+                         cycle = COALESCE(cycle, 1) + 1
+                     WHERE claim_id = $2`,
+                    [newHash, existingId]
+                  );
+                  
+                  // Audit line change
+                  const oldCanon = canonicalLine(oldRow, li);
+                  const oldHash = oldRow[`cpt_hash${li}`] || null;
+                  const diff = diffLine(oldCanon, newCanon);
+                  const newCycle = await client.query(`SELECT cpt_cycle${li} FROM api_bil_claim_submit WHERE claim_id=$1`, [existingId]);
+                  const lineCycle = Number(newCycle.rows[0]?.[`cpt_cycle${li}`] || 1);
+                  
+                  if (clean[`cpt_code_id${li}`]) {
+                    await client.query(
+                      `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
+                       VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,$10)`,
+                      [clean[`cpt_code_id${li}`], existingId, li, lineCycle, upload_id, oldHash, newHash, JSON.stringify(oldCanon), JSON.stringify(newCanon), JSON.stringify(diff)]
+                    );
+                  }
+                }
+              }
+              
+              // Log field-level changes (Case 5: track changes)
+              for (const fieldName of fieldsToTrack) {
+                const oldVal = oldRow[fieldName];
+                const newVal = clean[fieldName];
+                const oldStr = oldVal == null ? '' : String(oldVal);
+                const newStr = newVal == null ? '' : String(newVal);
+                
+                if (oldStr !== newStr) {
+                  await client.query(
+                    `INSERT INTO upl_change_logs (claim_id, upload_id, username, field_name, old_value, new_value)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [existingId, upload_id, 'SYSTEM', fieldName, oldStr || null, newStr || null]
+                  );
+                }
               }
             }
           }
         }
 
-        // Progress and cancellation checks so UI can poll
+        // Progress and cancellation checks
         processed++;
         if (processed % progressStep === 0 || processed === total) {
           const pct = Math.floor((processed / total) * 100);
           await pool.query(
             `UPDATE rcm_file_uploads SET message=$1, updated_at=NOW() WHERE upload_id=$2`,
-            [`Processing ${processed}/${total} (${pct}%)`, upload_id]
+            [`Processing ${processed}/${total} Excel rows (${pct}%)`, upload_id]
           );
-          // Cancellation: if user requested cancel (status flipped to FAILED), abort
+          // Cancellation: if user requested cancel, abort
           const st = await pool.query(`SELECT status FROM rcm_file_uploads WHERE upload_id=$1`, [upload_id]);
           const cur = st.rows?.[0]?.status;
           if (cur === 'FAILED') {
@@ -772,12 +830,28 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     console.log('[COMMIT] Starting reimburse mirroring...');
     const mirror = await mirrorReimburseForUpload(upload_id);
     console.log('[COMMIT] Reimburse mirror complete:', mirror);
+    
+    // Case 17: Verify reimburse mirroring (1:1 with split-row model)
+    const expectedReimburseRows = inserts.length + updates.length;
+    const actualReimburseRows = mirror.created + mirror.updated;
+    console.log(`[COMMIT] Reimburse verification: Expected ${expectedReimburseRows}, Got ${actualReimburseRows}`);
+    
+    // Allow some tolerance for edge cases, but flag significant mismatches
+    const discrepancy = Math.abs(expectedReimburseRows - actualReimburseRows);
+    const discrepancyPct = expectedReimburseRows > 0 ? (discrepancy / expectedReimburseRows) * 100 : 0;
+    
+    if (discrepancyPct > 10 && discrepancy > 5) {
+      console.error(`[COMMIT] Reimburse sync mismatch: Expected ${expectedReimburseRows}, got ${actualReimburseRows}`);
+      // Log warning but don't rollback (reimburse can be re-synced)
+      warnings.push(`Warning: Reimburse synchronization count mismatch (expected ${expectedReimburseRows}, got ${actualReimburseRows}). Claims saved successfully.`);
+    }
+    
     const duration = Date.now() - t0;
     const inserted_count = inserts.length;
     const updated_count = updates.length;
     const skipped_count = skipped;
 
-    const msg = `Committed ${inserted_count + updated_count} rows (inserted ${inserted_count}, updated ${updated_count}, skipped ${skipped_count}); Reimburse: created=${mirror.created}, updated=${mirror.updated}, deleted=${mirror.deleted}`;
+    const msg = `Committed ${inserted_count + updated_count} rows (inserted ${inserted_count}, updated ${updated_count}, skipped ${skipped_count}); Reimburse: created=${mirror.created}, updated=${mirror.updated}, deleted=${mirror.deleted}${discrepancyPct > 10 ? ' [sync warning]' : ''}`;
     await pool.query(
       `UPDATE rcm_file_uploads
          SET message=$1,
