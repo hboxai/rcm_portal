@@ -34,36 +34,28 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - name: Prepare remote directories
+      - name: Upload project to EC2 via rsync
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Remove old upload directory
+            # Ensure upload directory exists and is empty
             rm -rf ~/rcm-portal-upload
-            
-            # Create fresh upload directory with proper permissions
             mkdir -p ~/rcm-portal-upload
-            chmod 755 ~/rcm-portal-upload
             
-            # Ensure deployment directories exist
-            sudo mkdir -p ~/rcm-portal
-            sudo mkdir -p ~/rcm-portal-stage
-            sudo chown -R $USER:$USER ~/rcm-portal
-            sudo chown -R $USER:$USER ~/rcm-portal-stage
-
-      - name: Upload project to EC2
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "."
-          target: "~/rcm-portal-upload"
-          overwrite: true
-          strip_components: 0
+      - name: Sync files to EC2
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > /tmp/ssh_key
+          chmod 600 /tmp/ssh_key
+          rsync -avz --delete \
+            -e "ssh -i /tmp/ssh_key -o StrictHostKeyChecking=no" \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.env' \
+            ./ ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/rcm-portal-upload/
+          rm /tmp/ssh_key
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
