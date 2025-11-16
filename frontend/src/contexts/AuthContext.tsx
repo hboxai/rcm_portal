@@ -86,7 +86,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Login error:', error);
       // Ensure we do NOT trigger a loading state on error; leave other auth data untouched
       setAuthState(prev => ({ ...prev, isLoading: false }));
-      return false;
+      // Re-throw the error so the component can display it
+      throw error;
     }
   };
 

@@ -169,17 +169,9 @@ const LoginForm: React.FC = () => {
         setErrors({});
         setLoginResult({ success: true });
         console.log("Login successful, showing loading state and preparing to navigate");
-      } else {
-        // Login failed - show error immediately, stay on same screen
-        console.log("Login failed, showing error message - staying on login screen");
-        const form = e.target as HTMLFormElement;
-        form.classList.add('animate-shake');
-        setTimeout(() => form.classList.remove('animate-shake'), 500);
-        
-  setErrors({ form: 'Invalid password. Please try again.' });
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login form submission error:', error);
       
       // Show error immediately, stay on same screen
@@ -188,7 +180,9 @@ const LoginForm: React.FC = () => {
       form.classList.add('animate-shake');
       setTimeout(() => form.classList.remove('animate-shake'), 500);
       
-  setErrors({ form: 'An error occurred during login. Please try again.' });
+      // Display the actual error message from the service
+      const errorMessage = error?.message || 'An error occurred during login. Please try again.';
+      setErrors({ form: errorMessage });
     }
   };
 

@@ -42,7 +42,11 @@ export const authService = {
       console.error('Login error (full details):', error);
       
       // Provide user-friendly error messages
-      if (error.response?.status === 401) {
+      if (error.response?.status === 429) {
+        // Rate limit error
+        const retryAfter = error.response?.data?.retryAfter || '5 minutes';
+        throw new Error(`Too many login attempts. Please try again in ${retryAfter}.`);
+      } else if (error.response?.status === 401) {
         throw new Error('Invalid email or password');
       } else if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
