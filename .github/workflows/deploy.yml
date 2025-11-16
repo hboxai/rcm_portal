@@ -34,27 +34,47 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
 
-      - name: Upload project to EC2 via rsync
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            # Ensure upload directory exists and is empty
-            rm -rf ~/rcm-portal-upload
-            mkdir -p ~/rcm-portal-upload
-            
-      - name: Sync files to EC2
+      - name: Clean disk and sync files to EC2
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > /tmp/ssh_key
           chmod 600 /tmp/ssh_key
+          
+          # First, clean up disk space on EC2
+          ssh -i /tmp/ssh_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'CLEANUP'
+            echo "=== Disk space BEFORE cleanup ==="
+            df -h
+            
+            # Remove old upload directory
+            rm -rf ~/rcm-portal-upload
+            
+            # Clean Docker system (unused images, containers, networks)
+            sudo docker system prune -af --volumes || true
+            
+            # Remove old Docker images  
+            sudo docker images -q | xargs -r sudo docker rmi -f || true
+            
+            # Clean apt cache
+            sudo apt-get clean || true
+            
+            # Remove old logs
+            sudo journalctl --vacuum-time=7d || true
+            sudo find /var/log -type f -name "*.log" -mtime +7 -delete || true
+            
+            echo "=== Disk space AFTER cleanup ==="
+            df -h
+            
+            # Create fresh upload directory
+            mkdir -p ~/rcm-portal-upload
+          CLEANUP
+          
+          # Now sync files
           rsync -avz --delete \
             -e "ssh -i /tmp/ssh_key -o StrictHostKeyChecking=no" \
             --exclude '.git' \
             --exclude 'node_modules' \
             --exclude '.env' \
             ./ ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/rcm-portal-upload/
+          
           rm /tmp/ssh_key
 
       - name: Deploy to EC2
