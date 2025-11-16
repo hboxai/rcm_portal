@@ -88,17 +88,23 @@ for (let i = 1; i <= 6; i++) {
   }
 }
 
-// Map CPT ID line identifiers 1..6 to submit table columns cpt_id1..cpt_id6
+// Map CPT Code ID line identifiers 1..6 to submit table columns cpt_code_id1..cpt_code_id6
 for (let i = 1; i <= 6; i++) {
   // Common variants
-  alias[norm(`CPT ID ${i}`)] = `cpt_id${i}`;
-  alias[norm(`CPTID${i}`)] = `cpt_id${i}`;
-  alias[norm(`CPT_ID${i}`)] = `cpt_id${i}`;
-  alias[norm(`CPT Id ${i}`)] = `cpt_id${i}`;
-  alias[norm(`CPT Line ID ${i}`)] = `cpt_id${i}`;
-  alias[norm(`CPT Line ${i} ID`)] = `cpt_id${i}`;
-  // Normalizer produces cpt_id_1 for spaced form; map to cpt_id1
-  alias[norm(`cpt_id_${i}`)] = `cpt_id${i}`;
+  alias[norm(`CPT CODEID ${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT Code ID ${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT Code ID${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPTCodeID${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT_Code_ID${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT Code Id ${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT ID ${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPTID${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT_ID${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT Id ${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT Line ID ${i}`)] = `cpt_code_id${i}`;
+  alias[norm(`CPT Line ${i} ID`)] = `cpt_code_id${i}`;
+  // Normalizer produces cpt_code_id_1 for spaced form; map to cpt_code_id1
+  alias[norm(`cpt_code_id_${i}`)] = `cpt_code_id${i}`;
 }
 
 // Additional aliases (typo and variant guards)

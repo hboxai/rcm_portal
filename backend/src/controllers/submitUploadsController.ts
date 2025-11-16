@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import pool from '../config/db.js';
 import { getPresignedGetUrl, downloadFromS3, headObject } from '../services/s3.js';
+import { processSubmitUpload } from '../services/submitProcessor.js';
+import { getClaimHistory, getUploadChanges } from '../services/auditLog.js';
 
 // New: fetch submit claims across all uploads with optional filters
 export async function getAllSubmitClaims(req: Request, res: Response) {
@@ -23,7 +25,7 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const where: string[] = [];
     const params: any[] = [];
     if (claimId) { params.push(`%${claimId}%`); where.push(`CAST(oa_claimid AS TEXT) ILIKE $${params.length}`); }
-    if (billingId) { params.push(`%${billingId}%`); where.push(`CAST(bil_claim_submit_id AS TEXT) ILIKE $${params.length}`); }
+    if (billingId) { params.push(`%${billingId}%`); where.push(`CAST(claim_id AS TEXT) ILIKE $${params.length}`); }
     if (patientId) { params.push(`%${patientId}%`); where.push(`CAST(patient_id AS TEXT) ILIKE $${params.length}`); }
   if (patientName) { params.push(`%${patientName}%`); where.push(`(COALESCE(patientfirst,'') || ' ' || COALESCE(patientlast,'')) ILIKE $${params.length}`); }
     if (clinicName) { params.push(`%${clinicName}%`); where.push(`COALESCE(facilityname,'') ILIKE $${params.length}`); }
@@ -43,18 +45,18 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const total = totalRes.rows[0]?.total ?? 0;
 
     const rowsSql = `
-      SELECT bil_claim_submit_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid,
+      SELECT claim_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid,
         oa_claimid, payor_reference_id, totalcharges, cpt1,
         facilityname, payor_status, cycle
       FROM api_bil_claim_submit
       ${whereSql}
-      ORDER BY bil_claim_submit_id
+      ORDER BY claim_id
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
     const rowsRes = await pool.query(rowsSql, [...params, limit, offset]);
 
     const data = rowsRes.rows.map((r: any) => ({
-      claimId: String(r.bil_claim_submit_id),
+      claimId: String(r.claim_id),
       oa_claim_id: r.oa_claimid ?? null,
       payor_reference_id: r.payor_reference_id ?? null,
       patientfirst: r.patientfirst ?? '',
@@ -83,7 +85,7 @@ export async function getSubmitClaimById(req: Request, res: Response) {
     const idRaw = (req.params as any).id;
     const id = parseInt(String(idRaw), 10);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
-    const r = await pool.query(`SELECT * FROM api_bil_claim_submit WHERE bil_claim_submit_id=$1 LIMIT 1`, [id]);
+    const r = await pool.query(`SELECT * FROM api_bil_claim_submit WHERE claim_id=$1 LIMIT 1`, [id]);
     if (!r.rowCount) return res.status(404).json({ error: 'Not found' });
     return res.json({ data: r.rows[0] });
   } catch (err: any) {
@@ -229,17 +231,17 @@ export async function getClaimsBySubmitUpload(req: Request, res: Response) {
     const total = totalRes.rows[0]?.total ?? 0;
 
     const rowsRes = await pool.query(
-      `SELECT bil_claim_submit_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid, oa_claimid, payor_reference_id, totalcharges, cpt1,
+      `SELECT claim_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid, oa_claimid, payor_reference_id, totalcharges, cpt1,
        facilityname, payor_status
        FROM api_bil_claim_submit
        WHERE upload_id=$1
-       ORDER BY bil_claim_submit_id
+       ORDER BY claim_id
        LIMIT $2 OFFSET $3`,
       [upload_id, limit, offset]
     );
 
   const data = rowsRes.rows.map((r: any) => ({
-      claimId: String(r.bil_claim_submit_id),
+      claimId: String(r.claim_id),
       oa_claim_id: r.oa_claimid ?? null,
       payor_reference_id: r.payor_reference_id ?? null,
       patientfirst: r.patientfirst ?? '',
@@ -287,11 +289,11 @@ export async function getSubmitUploadDeleteImpact(req: Request, res: Response) {
     try {
       const reimbRes = await pool.query(
         `WITH s AS (
-           SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE upload_id=$1
+           SELECT claim_id FROM api_bil_claim_submit WHERE upload_id=$1
          )
          SELECT (
            SELECT COUNT(*)::int FROM api_bil_claim_reimburse r
-           WHERE r.upload_id=$1 OR r.bil_claim_submit_id IN (SELECT bil_claim_submit_id FROM s)
+           WHERE r.upload_id=$1 OR r.claim_id IN (SELECT claim_id FROM s)
          ) AS n`,
         [upload_id]
       );
@@ -304,6 +306,100 @@ export async function getSubmitUploadDeleteImpact(req: Request, res: Response) {
     return res.json({ upload_id, submit_claims, reimburse_rows });
   } catch (err: any) {
     console.error('getSubmitUploadDeleteImpact error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal error' });
+  }
+}
+
+// New: Process a submit upload (parse Excel, detect duplicates, update/insert claims)
+export async function processSubmitUploadEndpoint(req: Request, res: Response) {
+  try {
+    const { upload_id } = req.params as { upload_id: string };
+    const username = (req as any).user?.username || 'SYSTEM';
+
+    // Get upload metadata
+    const uploadRes = await pool.query(
+      `SELECT upload_id, s3_bucket, s3_key, file_kind, status FROM rcm_file_uploads WHERE upload_id=$1 LIMIT 1`,
+      [upload_id]
+    );
+
+    if (!uploadRes.rowCount) {
+      return res.status(404).json({ error: 'Upload not found' });
+    }
+
+    const upload = uploadRes.rows[0];
+
+    if (upload.file_kind !== 'SUBMIT_EXCEL') {
+      return res.status(400).json({ error: 'Only SUBMIT_EXCEL uploads can be processed' });
+    }
+
+    if (!upload.s3_bucket || !upload.s3_key) {
+      return res.status(400).json({ error: 'Upload missing S3 location' });
+    }
+
+    if (upload.status === 'PROCESSING') {
+      return res.status(409).json({ error: 'Upload is already being processed' });
+    }
+
+    // Update status to PROCESSING
+    await pool.query(
+      `UPDATE rcm_file_uploads SET status='PROCESSING', processing_started_at=NOW() WHERE upload_id=$1`,
+      [upload_id]
+    );
+
+    // Process the upload (async background processing would be better in production)
+    const result = await processSubmitUpload(
+      upload.upload_id,
+      upload.s3_bucket,
+      upload.s3_key,
+      username
+    );
+
+    return res.json({
+      upload_id,
+      success: result.success,
+      processed: result.processed,
+      inserted: result.inserted,
+      updated: result.updated,
+      skipped: result.skipped,
+      errors: result.errors,
+    });
+  } catch (err: any) {
+    console.error('processSubmitUploadEndpoint error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal error' });
+  }
+}
+
+// New: Get change history for a specific claim
+export async function getClaimChangeHistory(req: Request, res: Response) {
+  try {
+    const { claim_id } = req.params as { claim_id: string };
+    const claimId = parseInt(claim_id, 10);
+
+    if (!Number.isFinite(claimId)) {
+      return res.status(400).json({ error: 'Invalid claim_id' });
+    }
+
+    const limit = Math.min(parseInt(String(req.query.limit ?? '100'), 10) || 100, 500);
+    const history = await getClaimHistory(claimId, limit);
+
+    return res.json({ claim_id: claimId, history });
+  } catch (err: any) {
+    console.error('getClaimChangeHistory error:', err);
+    return res.status(500).json({ error: err?.message || 'Internal error' });
+  }
+}
+
+// New: Get all changes from a specific upload
+export async function getUploadChangeLog(req: Request, res: Response) {
+  try {
+    const { upload_id } = req.params as { upload_id: string };
+    const limit = Math.min(parseInt(String(req.query.limit ?? '1000'), 10) || 1000, 5000);
+    
+    const changes = await getUploadChanges(upload_id, limit);
+
+    return res.json({ upload_id, changes });
+  } catch (err: any) {
+    console.error('getUploadChangeLog error:', err);
     return res.status(500).json({ error: err?.message || 'Internal error' });
   }
 }

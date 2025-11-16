@@ -313,25 +313,25 @@ async function findExistingSubmit(client: any, rowObj: Record<string, any>): Pro
     const targetSig = presentCptIds.slice().sort().join('|');
     const arrParam = presentCptIds;
     const sql = `
-      SELECT bil_claim_submit_id, cpt_id1,cpt_id2,cpt_id3,cpt_id4,cpt_id5,cpt_id6,
+      SELECT claim_id, cpt1,cpt2,cpt3,cpt4,cpt5,cpt6,
              cpt_code_id1,cpt_code_id2,cpt_code_id3,cpt_code_id4,cpt_code_id5,cpt_code_id6
         FROM api_bil_claim_submit
-       WHERE (cpt_id1 = ANY($1::text[]) OR cpt_id2 = ANY($1::text[]) OR cpt_id3 = ANY($1::text[])
-           OR cpt_id4 = ANY($1::text[]) OR cpt_id5 = ANY($1::text[]) OR cpt_id6 = ANY($1::text[])
+       WHERE (cpt1 = ANY($1::text[]) OR cpt2 = ANY($1::text[]) OR cpt3 = ANY($1::text[])
+           OR cpt4 = ANY($1::text[]) OR cpt5 = ANY($1::text[]) OR cpt6 = ANY($1::text[])
            OR cpt_code_id1 = ANY($1::text[]) OR cpt_code_id2 = ANY($1::text[]) OR cpt_code_id3 = ANY($1::text[])
            OR cpt_code_id4 = ANY($1::text[]) OR cpt_code_id5 = ANY($1::text[]) OR cpt_code_id6 = ANY($1::text[]))
-       ORDER BY bil_claim_submit_id DESC
+       ORDER BY claim_id DESC
        LIMIT 100`;
     const cand = await client.query(sql, [arrParam]);
     for (const r of cand.rows) {
       const s: string[] = [];
       for (let li = 1; li <= 6; li++) {
-        // Check both cpt_code_id and cpt_id in database results
-        const v = r[`cpt_code_id${li}`] || r[`cpt_id${li}`];
+        // Check both cpt_code_id and cpt in database results
+        const v = r[`cpt_code_id${li}`] || r[`cpt${li}`];
         if (v != null && String(v).trim() !== '') s.push(String(v));
       }
       if (s.length && s.slice().sort().join('|') === targetSig) {
-        return r.bil_claim_submit_id as number;
+        return r.claim_id as number;
       }
     }
   }
@@ -341,6 +341,7 @@ async function findExistingSubmit(client: any, rowObj: Record<string, any>): Pro
 export async function commitSubmitUpload(req: Request, res: Response) {
   const t0 = Date.now();
   const { upload_id } = req.body || {};
+  console.log('[COMMIT] Starting commit for upload_id:', upload_id);
   if (!upload_id) return res.status(400).json({ error: 'upload_id required' });
 
   try {
@@ -363,6 +364,57 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     // Parse workbook
     const wb = XLSX.read(buf, { type: 'buffer', cellDates: false, raw: false });
     const { rows } = pickBestSheet(wb);
+    console.log('[COMMIT] Parsed Excel, rows:', rows.length);
+
+    // Debug: Log first row headers to see exact column names
+    if (rows.length > 0) {
+      const headers = Object.keys(rows[0]);
+      console.log('[COMMIT] All headers:', headers);
+      console.log('[COMMIT] CPT-related headers:', headers.filter(h => h.toLowerCase().includes('cpt')));
+    }
+
+    // Validate mandatory fields
+    const mandatoryFields = [
+      'PatientLast',
+      'PatientFirst', 
+      'PatientDOB',
+      'FromDateOfService1',
+      'ToDateOfService1',
+      'CPT1',
+      'CPT CODEID 1'
+    ];
+    
+    const missingFieldErrors: string[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2; // Excel row number (1-indexed + header)
+      
+      for (const field of mandatoryFields) {
+        const value = row[field];
+        if (value == null || value === '' || (typeof value === 'string' && value.trim() === '')) {
+          missingFieldErrors.push(`Row ${rowNum}: Missing required field "${field}" (value: ${JSON.stringify(value)})`);
+        }
+      }
+      
+      // Limit error messages to first 20 to avoid overwhelming response
+      if (missingFieldErrors.length >= 20) {
+        missingFieldErrors.push(`... and more errors (${rows.length - i - 1} rows remaining)`);
+        break;
+      }
+    }
+    
+    if (missingFieldErrors.length > 0) {
+      console.log('[COMMIT] Validation failed. Available headers:', rows.length > 0 ? Object.keys(rows[0]) : 'No rows');
+      console.log('[COMMIT] First 5 errors:', missingFieldErrors.slice(0, 5));
+      await pool.query(
+        `UPDATE rcm_file_uploads SET status=$1, message=$2, updated_at=NOW() WHERE upload_id=$3`,
+        ['FAILED', `Validation failed: Missing mandatory fields\n${missingFieldErrors.join('\n')}`, upload_id]
+      );
+      return res.status(422).json({ 
+        error: 'Validation failed: Missing mandatory fields',
+        details: missingFieldErrors 
+      });
+    }
 
     // Counters
     const inserts: number[] = [];
@@ -377,6 +429,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     );
 
     const client = await pool.connect();
+    console.log('[COMMIT] DB client connected, starting transaction');
     try {
       await client.query('BEGIN');
       const colTypes = await getTableColumnTypes(client, 'api_bil_claim_submit');
@@ -385,8 +438,88 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       const total = rows.length || 1;
   // Update progress roughly every 2% to reduce DB chatter
   const progressStep = Math.max(1, Math.floor(total / 50));
+      console.log('[COMMIT] Processing', total, 'rows, progress step:', progressStep);
+      
+      // Optimization: check if table is empty to skip findExistingSubmit queries
+      const countResult = await client.query('SELECT COUNT(*) as count FROM api_bil_claim_submit');
+      const tableIsEmpty = parseInt(countResult.rows[0].count) === 0;
+      console.log('[COMMIT] Table has', countResult.rows[0].count, 'existing rows, empty:', tableIsEmpty);
+
+      // FAST PATH: If table is empty, use bulk INSERT
+      if (tableIsEmpty) {
+        console.log('[COMMIT] Using fast bulk insert path');
+        const batchSize = 100;
+        let batchCount = 0;
+        
+        for (let i = 0; i < rows.length; i++) {
+          const raw = rows[i];
+          const mapped = mapRow(raw, schemaColumns, warnings);
+          
+          const hasPayerId = mapped.insurancepayerid != null && mapped.insurancepayerid !== '';
+          const hasPlanName = mapped.insuranceplanname != null && mapped.insuranceplanname !== '';
+          const hasInsurer = mapped.insurerid != null && mapped.insurerid !== '';
+          const hasPatient = mapped.patientfirst && mapped.patientlast && mapped.patientdob;
+          const hasAnyLine = hasAnyServiceLine(mapped);
+          
+          if (!hasInsurer || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
+            skipped++;
+            if (warnings.length < 50) {
+              const miss = listMissingForAnyLine(mapped);
+              warnings.push(`Row ${i + 2} skipped: missing ${miss.join(', ')}`);
+            }
+            continue;
+          }
+          
+          const rowObj: Record<string, any> = { ...mapped };
+          rowObj.upload_id = upload_id;
+          rowObj.source_system = 'OFFICE_ALLY';
+          rowObj.cycle = 1;
+          
+          // Generate CPT IDs
+          for (let li = 1; li <= 6; li++) {
+            const hasLine = rowObj[`cpt${li}`] && rowObj[`fromdateofservice${li}`] && rowObj[`charges${li}`];
+            const cur = rowObj[`cpt_id${li}`];
+            if (hasLine && (cur == null || String(cur).trim() === '')) {
+              rowObj[`cpt_id${li}`] = genLineId(rowObj, li);
+            }
+            // Set initial cycle and hash for present lines
+            if (hasLine) {
+              rowObj[`cpt_cycle${li}`] = 1;
+              const canon = canonicalLine(rowObj, li);
+              rowObj[`cpt_hash${li}`] = hashLine(canon);
+            }
+          }
+          
+          const { clean } = sanitizeByType(rowObj, colTypes);
+          const cols = Object.keys(clean).filter(c => schemaColumns.has(c));
+          const vals = cols.map(c => clean[c]);
+          
+          const colSql = cols.map(c => '"' + c + '"').join(',');
+          const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
+          const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING claim_id`;
+          const r = await client.query(sql, vals);
+          inserts.push(r.rows[0].claim_id);
+          
+          batchCount++;
+          if (batchCount % batchSize === 0) {
+            const pct = Math.floor((batchCount / total) * 100);
+            await pool.query(
+              `UPDATE rcm_file_uploads SET message=$1, updated_at=NOW() WHERE upload_id=$2`,
+              [`Bulk inserting ${batchCount}/${total} (${pct}%)`, upload_id]
+            );
+            console.log(`[COMMIT] Bulk insert progress: ${batchCount}/${total}`);
+          }
+        }
+        
+        console.log(`[COMMIT] Bulk insert complete: ${inserts.length} rows`);
+      } else {
+        // SLOW PATH: Table has data, need to check for duplicates
+        console.log('[COMMIT] Using row-by-row path with duplicate detection');
 
       for (let i = 0; i < rows.length; i++) {
+        if (i === 0 || i === 10 || i === 50 || i % 100 === 0) {
+          console.log(`[COMMIT] Processing row ${i + 1}/${total}`);
+        }
         const raw = rows[i];
         const mapped = mapRow(raw, schemaColumns, warnings);
 
@@ -429,10 +562,11 @@ export async function commitSubmitUpload(req: Request, res: Response) {
             totalcharges: rowObj.totalcharges,
           };
 
-          let existingId = await findExistingSubmit(client, rowObj);
+          let existingId = tableIsEmpty ? null : await findExistingSubmit(client, rowObj);
+          if (i < 5) console.log(`[COMMIT] Row ${i}: existingId from findExistingSubmit:`, existingId);
           // Fallback idempotency per upload via content hash of business subset
           let contentHash: string | null = null;
-          if (!existingId) {
+          if (!existingId && !tableIsEmpty) {
             const subset = {
               upload_id,
               insurerid: rowObj.insurerid,
@@ -442,10 +576,10 @@ export async function commitSubmitUpload(req: Request, res: Response) {
             };
             contentHash = crypto.createHash('sha256').update(JSON.stringify(subset)).digest('hex');
             const er = await client.query(
-              'SELECT bil_claim_submit_id FROM api_bil_claim_submit WHERE upload_id=$1 AND content_sha256=$2 LIMIT 1',
+              'SELECT claim_id FROM api_bil_claim_submit WHERE upload_id=$1 AND content_sha256=$2 LIMIT 1',
               [upload_id, contentHash]
             );
-            if (er.rowCount) existingId = er.rows[0].bil_claim_submit_id;
+            if (er.rowCount) existingId = er.rows[0].claim_id;
           }
 
           // type sanitization against DB column types
@@ -478,9 +612,9 @@ export async function commitSubmitUpload(req: Request, res: Response) {
             // INSERT new submit row
             const colSql = cols.map(c => '"' + c + '"').join(',');
             const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
-            const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING bil_claim_submit_id`;
+            const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING claim_id`;
             const r = await client.query(sql, vals);
-            const newId: number = r.rows[0].bil_claim_submit_id;
+            const newId: number = r.rows[0].claim_id;
             inserts.push(newId);
 
             // Initialize per-line cycle/hash and updated_at; claim-level cycle = 1
@@ -493,7 +627,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
                 setVals.push(lh.hash);
               }
               setParts.push(`cycle=1`);
-              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE bil_claim_submit_id=$${idx}`, [...setVals, newId]);
+              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE claim_id=$${idx}`, [...setVals, newId]);
             }
 
             // Audit initial state (cycle 1) for present lines
@@ -501,21 +635,56 @@ export async function commitSubmitUpload(req: Request, res: Response) {
               const sid = clean[`cpt_id${lh.i}`];
               if (!sid) continue;
               await client.query(
-                `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
+                `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
                  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
                 [sid, newId, lh.i, 1, upload_id, null, lh.hash, null, JSON.stringify(lh.canon), JSON.stringify(lh.canon)]
               );
             }
           } else {
-            // UPDATE existing row data first
-            const setSql = cols.map((c, idx) => '"' + c + '"' + `=$${idx + 1}`).join(',');
-            await client.query(`UPDATE api_bil_claim_submit SET ${setSql} WHERE bil_claim_submit_id=$${cols.length + 1}`, [...vals, existingId]);
+            // UPDATE existing row - fetch old data for comparison
+            const oldData = await client.query(
+              `SELECT * FROM api_bil_claim_submit WHERE claim_id=$1`,
+              [existingId]
+            );
+            const oldRow = oldData.rows[0] || {};
 
-            // Fetch current hashes and line values for diff
+            // Update the row
+            const setSql = cols.map((c, idx) => '"' + c + '"' + `=$${idx + 1}`).join(',');
+            await client.query(`UPDATE api_bil_claim_submit SET ${setSql} WHERE claim_id=$${cols.length + 1}`, [...vals, existingId]);
+
+            // Track field-level changes in upl_change_logs
+            const fieldsToTrack = cols.filter(c => !['upload_id', 'source_system', 'content_sha256', 'created_at', 'updated_at'].includes(c));
+            let changesFound = 0;
+            for (let idx = 0; idx < fieldsToTrack.length; idx++) {
+              const fieldName = fieldsToTrack[idx];
+              const oldVal = oldRow[fieldName];
+              const newVal = clean[fieldName];
+              
+              // Compare values (handle null/undefined/empty string as equivalent)
+              const oldStr = oldVal == null ? '' : String(oldVal);
+              const newStr = newVal == null ? '' : String(newVal);
+              
+              if (oldStr !== newStr) {
+                changesFound++;
+                if (i < 3) {
+                  console.log(`[COMMIT] Row ${i}: Field "${fieldName}" changed: "${oldStr}" → "${newStr}"`);
+                }
+                await client.query(
+                  `INSERT INTO upl_change_logs (claim_id, upload_id, username, field_name, old_value, new_value)
+                   VALUES ($1, $2, $3, $4, $5, $6)`,
+                  [existingId, upload_id, 'SYSTEM', fieldName, oldStr || null, newStr || null]
+                );
+              }
+            }
+            if (changesFound > 0 && i < 3) {
+              console.log(`[COMMIT] Row ${i}: Total ${changesFound} field(s) changed`);
+            }
+
+            // Fetch current hashes and line values for CPT line diff
             const old = await client.query(
-              `SELECT bil_claim_submit_id,
+              `SELECT claim_id,
                       ${[1,2,3,4,5,6].map(i=>`cpt_hash${i}, fromdateofservice${i}, todateofservice${i}, cpt${i}, modifiera${i}, modifierb${i}, modifierc${i}, modifierd${i}, diagcodepointer${i}, placeofservice${i}, units${i}, charges${i}`).join(', ')}
-                 FROM api_bil_claim_submit WHERE bil_claim_submit_id=$1`,
+                 FROM api_bil_claim_submit WHERE claim_id=$1`,
               [existingId]
             );
             const prev = old.rows[0] || {};
@@ -544,25 +713,25 @@ export async function commitSubmitUpload(req: Request, res: Response) {
                 setParts.push(`cpt_updated_at${ch.i}=NOW()`);
               }
               // First update per-line cycles/hashes in one statement
-              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE bil_claim_submit_id=$${p}`, [...setVals, existingId]);
+              await client.query(`UPDATE api_bil_claim_submit SET ${setParts.join(', ')} WHERE claim_id=$${p}`, [...setVals, existingId]);
 
               // Then recompute claim-level cycle from the new per-line values
               await client.query(
                 `UPDATE api_bil_claim_submit 
                    SET cycle=GREATEST(COALESCE(cpt_cycle1,1),COALESCE(cpt_cycle2,1),COALESCE(cpt_cycle3,1),COALESCE(cpt_cycle4,1),COALESCE(cpt_cycle5,1),COALESCE(cpt_cycle6,1))
-                 WHERE bil_claim_submit_id=$1`,
+                 WHERE claim_id=$1`,
                 [existingId]
               );
 
               // Write audits
-              const cycRow = await client.query(`SELECT cpt_cycle1,cpt_cycle2,cpt_cycle3,cpt_cycle4,cpt_cycle5,cpt_cycle6 FROM api_bil_claim_submit WHERE bil_claim_submit_id=$1`, [existingId]);
+              const cycRow = await client.query(`SELECT cpt_cycle1,cpt_cycle2,cpt_cycle3,cpt_cycle4,cpt_cycle5,cpt_cycle6 FROM api_bil_claim_submit WHERE claim_id=$1`, [existingId]);
               const cyc = cycRow.rows[0] || {};
               for (const ch of changed) {
                 const d = diffLine(ch.oldCanon, ch.newCanon);
                 // Per-line cycle after bump
                 const lineCycle = Number(cyc[`cpt_cycle${ch.i}`]) || 1;
                 await client.query(
-                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
+                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
                    VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,$10)`,
                   [ch.sid, existingId, ch.i, lineCycle, upload_id, ch.oldHash, ch.newHash, JSON.stringify(ch.oldCanon), JSON.stringify(ch.newCanon), JSON.stringify(d)]
                 );
@@ -587,9 +756,12 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           }
         }
       }
+      } // End of if-else tableIsEmpty
 
       await client.query('COMMIT');
+      console.log('[COMMIT] Transaction committed successfully');
     } catch (e) {
+      console.error('[COMMIT] Transaction error:', e);
       await client.query('ROLLBACK');
       throw e;
     } finally {
@@ -597,7 +769,9 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     }
 
     // Mirror into reimburse table for this upload (per-CPT lines, idempotent)
+    console.log('[COMMIT] Starting reimburse mirroring...');
     const mirror = await mirrorReimburseForUpload(upload_id);
+    console.log('[COMMIT] Reimburse mirror complete:', mirror);
     const duration = Date.now() - t0;
     const inserted_count = inserts.length;
     const updated_count = updates.length;

@@ -176,7 +176,7 @@ export async function uploadReimburseExcel(req: Request, res: Response) {
     await pool.query(
       `INSERT INTO rcm_file_uploads (upload_id, file_kind, original_filename, s3_bucket, s3_key, s3_url, status, created_by, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
-      [upload_id, 'REIMBURSE_EXCEL', originalFilename, bucket, s3Key, s3Result.s3Url, 'PROCESSING', username]
+      [upload_id, 'REIMBURSE_EXCEL', originalFilename, bucket, s3Key, s3Result.s3Url, 'PENDING', username]
     );
     
     // Parse Excel file

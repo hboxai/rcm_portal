@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "1.0.0",
+  "version": "0.8.0",
   "description": "Backend API for claims management system",
   "main": "dist/index.js",
   "type": "module",

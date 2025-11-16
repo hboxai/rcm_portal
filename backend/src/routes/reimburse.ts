@@ -81,7 +81,7 @@ router.get('/search', async (req, res) => {
     const cpt_code = req.query.cpt_code ? String(req.query.cpt_code) : undefined; // maps to cpt_id
     const dos = req.query.dos ? String(req.query.dos) : undefined; // maps to charge_dt
     const upload_id = req.query.upload_id ? String(req.query.upload_id) : undefined;
-    const billingId = req.query.billingId ? String(req.query.billingId) : undefined; // maps to bil_claim_submit_id
+    const billingId = req.query.billingId ? String(req.query.billingId) : undefined; // maps to submit_claim_id
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -91,14 +91,14 @@ router.get('/search', async (req, res) => {
     if (cpt_code)   { conditions.push(`cpt_id::text = $${i++}`); params.push(cpt_code.trim()); }
     if (dos)        { conditions.push(`charge_dt = $${i++}::date`); params.push(dos); }
     if (upload_id)  { conditions.push(`upload_id = $${i++}`); params.push(upload_id); }
-    if (billingId)  { conditions.push(`bil_claim_submit_id::text = $${i++}`); params.push(billingId.trim()); }
+    if (billingId)  { conditions.push(`submit_claim_id::text = $${i++}`); params.push(billingId.trim()); }
 
     const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const baseSelect = `
       SELECT 
         r.bil_claim_reimburse_id AS id,
-        r.bil_claim_submit_id   AS billing_id,
+        r.submit_claim_id   AS billing_id,
         r.upload_id,
         r.patient_id,
         r.cpt_id::text          AS cpt_code,
@@ -138,10 +138,10 @@ router.get('/search', async (req, res) => {
         s.oa_claimid,
         s.payor_reference_id
   FROM api_bil_claim_reimburse r
-  INNER JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id
+  INNER JOIN api_bil_claim_submit s ON s.claim_id = r.submit_claim_id
       ${whereSql ? whereSql.replace(/\b(\w+)\b/g, (m) => {
         // Qualify unqualified column names in whereSql to r.* to avoid ambiguity
-        const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','bil_claim_submit_id'];
+        const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','submit_claim_id'];
         return cols.includes(m) ? `r.${m}` : m;
       }) : ''}
       ORDER BY r.bil_claim_reimburse_id DESC
@@ -153,9 +153,9 @@ router.get('/search', async (req, res) => {
       pool.query(
         `SELECT COUNT(*)::int AS n 
          FROM api_bil_claim_reimburse r 
-         INNER JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id 
+         INNER JOIN api_bil_claim_submit s ON s.claim_id = r.submit_claim_id 
          ${whereSql ? whereSql.replace(/\b(\w+)\b/g, (m) => {
-           const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','bil_claim_submit_id'];
+           const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','submit_claim_id'];
            return cols.includes(m) ? `r.${m}` : m;
          }) : ''}
         `,

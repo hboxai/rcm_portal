@@ -45,7 +45,7 @@ export const getClaims = async (req: Request, res: Response) => {
   const cpt_code = req.query.cpt_code ? String(req.query.cpt_code) : undefined; // maps to cpt_id
     const dos = req.query.dos ? String(req.query.dos) : undefined; // maps to charge_dt
     const upload_id = req.query.upload_id ? String(req.query.upload_id) : undefined;
-  const billingId = req.query.billingId ? String(req.query.billingId) : undefined; // maps to bil_claim_submit_id
+  const billingId = req.query.billingId ? String(req.query.billingId) : undefined; // maps to submit_claim_id
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -55,14 +55,14 @@ export const getClaims = async (req: Request, res: Response) => {
     if (cpt_code)   { conditions.push(`cpt_id::text = $${i++}`); params.push(cpt_code.trim()); }
     if (dos)        { conditions.push(`charge_dt = $${i++}::date`); params.push(dos); }
   if (upload_id)  { conditions.push(`upload_id = $${i++}`); params.push(upload_id); }
-  if (billingId)  { conditions.push(`bil_claim_submit_id::text = $${i++}`); params.push(billingId.trim()); }
+  if (billingId)  { conditions.push(`submit_claim_id::text = $${i++}`); params.push(billingId.trim()); }
 
     const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const baseSelect = `
       SELECT 
         r.bil_claim_reimburse_id AS id,
-        r.bil_claim_submit_id   AS billing_id,
+        r.submit_claim_id   AS billing_id,
         r.upload_id,
         r.patient_id,
         r.cpt_id::text          AS cpt_code,
@@ -103,9 +103,9 @@ export const getClaims = async (req: Request, res: Response) => {
         s.oa_claimid,
         s.payor_reference_id
       FROM ${CLAIMS_TABLE} r
-      LEFT JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id
+      LEFT JOIN api_bil_claim_submit s ON s.claim_id = r.submit_claim_id
       ${whereSql ? whereSql.replace(/\b(\w+)\b/g, (m) => {
-        const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','bil_claim_submit_id'];
+        const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','submit_claim_id'];
         return cols.includes(m) ? `r.${m}` : m;
       }) : ''}
       ORDER BY r.bil_claim_reimburse_id DESC
@@ -116,9 +116,9 @@ export const getClaims = async (req: Request, res: Response) => {
       query(
         `SELECT COUNT(*)::int AS n 
          FROM ${CLAIMS_TABLE} r 
-         LEFT JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id 
+         LEFT JOIN api_bil_claim_submit s ON s.claim_id = r.submit_claim_id 
          ${whereSql ? whereSql.replace(/\b(\w+)\b/g, (m) => {
-           const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','bil_claim_submit_id'];
+           const cols = ['patient_id','prim_ins','cpt_id','charge_dt','upload_id','submit_claim_id'];
            return cols.includes(m) ? `r.${m}` : m;
          }) : ''}
         `,
@@ -155,7 +155,7 @@ export const getClaimById = async (req: Request, res: Response) => {
     const sql = `
       SELECT 
         r.bil_claim_reimburse_id AS id,
-        r.bil_claim_submit_id   AS billing_id,
+        r.submit_claim_id   AS billing_id,
         r.upload_id,
         r.patient_id,
         r.cpt_id::text          AS cpt_code,
@@ -196,7 +196,7 @@ export const getClaimById = async (req: Request, res: Response) => {
         s.oa_claimid,
         s.payor_reference_id
       FROM ${CLAIMS_TABLE} r
-      LEFT JOIN api_bil_claim_submit s ON s.bil_claim_submit_id = r.bil_claim_submit_id
+      LEFT JOIN api_bil_claim_submit s ON s.claim_id = r.submit_claim_id
       WHERE r.${CLAIMS_ID_COLUMN} = $1
     `;
     const r = await query(sql, [id]);
@@ -385,12 +385,10 @@ export const getClaimHistory = async (req: Request, res: Response) => {
 export const getAllChangeHistory = async (req: Request, res: Response) => {
   try {
     requestCounter++;
-    // const requestId = requestCounter; // Commented out as requestId is not used
 
     // User information from authMiddleware
-    const loggedInUser = req.user as { id: number; role: string; email: string }; // Adjust type as per your JWT payload
+    const loggedInUser = req.user as { id: number; role: string; email: string };
 
-    let userIdFromQuery = req.query.user_id ? parseInt(req.query.user_id as string) : undefined;
     const cptId = req.query.billing_id ? parseInt(req.query.billing_id as string) : undefined;
     const startDate = req.query.start_date ? req.query.start_date as string : undefined;
     const endDate = req.query.end_date ? req.query.end_date as string : undefined;
@@ -403,23 +401,11 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
     const queryParams: any[] = [];
     let paramIndex = 1;
 
-    // Role-based filtering for user_id
-    if (loggedInUser.role === 'Admin') {
-      if (userIdFromQuery) {
-        conditions.push(`cl.user_id = $${paramIndex++}`);
-        queryParams.push(userIdFromQuery);
-      }
-      // Admin can see all logs if no specific user_id is queried
-    } else {
-      // Non-admin users can only see their own logs
-      conditions.push(`cl.user_id = $${paramIndex++}`);
-      queryParams.push(loggedInUser.id);
-      // Ignore any user_id passed in query by non-admin
-      userIdFromQuery = loggedInUser.id; // For cache key consistency
-    }
+    // Note: user_id column was removed in migration 025
+    // History is now filtered by upload_id or username if needed
 
     if (cptId) {
-      conditions.push(`cl.cpt_id = $${paramIndex++}`); // Assuming upl_change_logs has cpt_id
+      conditions.push(`cl.cpt_id = $${paramIndex++}`);
       queryParams.push(cptId);
     }
 
@@ -433,9 +419,7 @@ export const getAllChangeHistory = async (req: Request, res: Response) => {
       queryParams.push(endDate);
     }
     
-    // Create a cache key that reflects the actual user ID being filtered
-    const effectiveUserIdForCache = loggedInUser.role === 'Admin' ? (userIdFromQuery || 'all') : loggedInUser.id;
-    const cacheKey = `all-history-${effectiveUserIdForCache}-${cptId || 'all'}-${startDate || 'none'}-${endDate || 'none'}-${page}-${limit}`;
+    const cacheKey = `all-history-${cptId || 'all'}-${startDate || 'none'}-${endDate || 'none'}-${page}-${limit}`;
     const now = Date.now();
     
     // Check if we have cached data for this query (cache for 60 seconds)
