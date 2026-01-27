@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Loader2, CheckCircle, AlertCircle, FileText, Eye, Download, Trash2, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, FileText, Eye, Download, Trash2, RefreshCw, PlayCircle } from 'lucide-react';
 import type { SubmitUploadListItem } from '../../services/uploadService';
 
 interface UploadHistoryTableProps {
@@ -12,6 +12,7 @@ interface UploadHistoryTableProps {
   isAdmin: boolean;
   onDownload: (uploadId: string, filename: string) => void;
   onDelete: (uploadId: string, filename: string) => void;
+  onCommit?: (uploadId: string) => void;
   onRefresh?: () => void;
   fileTypeLabel?: string;
 }
@@ -24,6 +25,7 @@ export const UploadHistoryTable: React.FC<UploadHistoryTableProps> = ({
   isAdmin,
   onDownload,
   onDelete,
+  onCommit,
   onRefresh,
   fileTypeLabel = isReimburse ? 'Reimburse' : 'Submit',
 }) => {
@@ -197,6 +199,15 @@ export const UploadHistoryTable: React.FC<UploadHistoryTableProps> = ({
                             onClick={() => navigate(`/submit-preview/${u.upload_id}`)}
                             variant="blue"
                           />
+                          {/* Show Commit button for PENDING/COMPLETED uploads that haven't been committed yet */}
+                          {onCommit && (u.status === 'PENDING' || u.status === 'COMPLETED') && (
+                            <ActionButton
+                              icon={<PlayCircle size={14} />}
+                              label="Commit"
+                              onClick={() => onCommit(u.upload_id)}
+                              variant="purple"
+                            />
+                          )}
                           <ActionButton
                             icon={<Download size={14} />}
                             label="Download"
@@ -229,7 +240,7 @@ interface ActionButtonProps {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
-  variant: 'blue' | 'green' | 'red';
+  variant: 'blue' | 'green' | 'red' | 'purple';
 }
 
 const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick, variant }) => {
@@ -237,6 +248,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick, varia
     blue: 'border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30',
     green: 'border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/30',
     red: 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30',
+    purple: 'border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-900/30',
   };
 
   return (
