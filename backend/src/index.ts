@@ -101,7 +101,7 @@ app.use('/api/submit-uploads', submitUploadsRouter);
 app.use('/api/reimburse', authMiddleware, reimburseRouter);
 app.use('/api/office-ally', authMiddleware, officeAllyRouter); // Office Ally status upload
 app.use('/api/history', authMiddleware, historyRoutes); // Add the history routes to the app
-app.use('/api/users', authMiddleware, userRoutes); // Add the user routes to the app
+app.use('/api/users', userRoutes); // User routes - auth handled per-route in router
 app.use('/api/era', (req, res, next) => {
   console.log(`ERA route: ${req.method} ${req.path}`);
   next();
