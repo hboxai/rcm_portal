@@ -2,6 +2,104 @@
 
 ## What Changed and Why (For Everyone)
 
+---
+
+## 🆕 Part 2: New Features Added Today
+
+### 📋 5. Activity Audit Logging
+**What it does:** The system now keeps a detailed log of all important actions.
+
+**Why it matters to you:**
+- Know who logged in and when
+- Track when users are created, updated, or deleted
+- Required for healthcare compliance (HIPAA audit trails)
+- Helps investigate if something goes wrong
+
+**What gets logged:**
+| Action | Example |
+|--------|---------|
+| Login success | "John logged in at 2:30 PM" |
+| Login failed | "Someone tried wrong password for john@email.com" |
+| User created | "Admin created new user Jane" |
+| User updated | "Admin changed Jane's role to Admin" |
+| User deleted | "Admin removed user Bob" |
+| Password changed | "Jane changed her password" |
+
+**For admins:** View audit logs at the Audit section in the portal.
+
+---
+
+### 🛡️ 6. Safer File Uploads
+**What it does:** Files are now thoroughly checked before being accepted.
+
+**Why it matters to you:**
+- Blocks potentially dangerous files from being uploaded
+- Verifies files are actually what they claim to be (not just renamed)
+- Protects against hackers trying to upload malware
+- Only allows Excel (.xlsx, .xls), CSV, and PDF files
+
+**Security checks performed:**
+- ✅ Filename cleaned (removes dangerous characters)
+- ✅ File extension verified against whitelist
+- ✅ File content verified (magic bytes check)
+- ✅ File size limits enforced (50MB spreadsheets, 25MB PDFs)
+- ✅ Blocks files with suspicious patterns
+
+---
+
+### 📝 7. Better System Logging
+**What it does:** Replaced basic logging with professional structured logging.
+
+**Why it matters to you:**
+- Every request gets a unique ID for tracking
+- Errors are easier to diagnose and fix
+- Logs are organized by category (auth, database, uploads, etc.)
+- Sensitive data (passwords, tokens) is automatically hidden in logs
+
+**For IT/Support:**
+- Look for the `X-Request-ID` header in responses to track issues
+- Logs include timing information for performance monitoring
+- Set `LOG_LEVEL=debug` for more detailed logging during troubleshooting
+
+---
+
+### 🔑 8. Password Strength Indicator (Visual)
+**What it does:** When creating users, you now see real-time password feedback.
+
+**Why it matters to you:**
+- See instantly if your password meets requirements
+- Visual strength bar shows weak → fair → good → strong
+- Checkmarks show which requirements are met
+- Eye icon to show/hide password while typing
+
+**What you'll see:**
+- 🔴 **Weak** - Password needs more work
+- 🟡 **Fair** - Getting better
+- 🔵 **Good** - Almost there
+- 🟢 **Strong** - Perfect!
+
+---
+
+### 📚 9. Interactive API Documentation
+**What it does:** Developers can now explore and test all API endpoints.
+
+**Why it matters to you:**
+- Complete documentation of all available features
+- Test API calls directly in your browser
+- See example requests and responses
+- Understand what data each endpoint needs
+
+**How to access:** Visit `http://localhost:5000/api-docs`
+
+**For developers:**
+- Try out endpoints with the "Try it out" button
+- Authenticate with your JWT token
+- Download the OpenAPI spec at `/api-docs.json`
+
+---
+
+## Part 1: Earlier Changes Today
+
 ### 🔒 1. Stronger Password Security
 **What it does:** When creating new user accounts, passwords now must be strong.
 
@@ -70,6 +168,11 @@
 | Console cleanup | Cleaner experience | All users |
 | API configuration | Easier deployment | Developers |
 | Health endpoints | Better monitoring | IT/DevOps |
+| **Audit logging** | **Compliance & tracking** | **Admins, Compliance** |
+| **File upload security** | **Block malicious files** | **All users** |
+| **Structured logging** | **Faster troubleshooting** | **IT/Support** |
+| **Password UI feedback** | **Easier password creation** | **All users** |
+| **API documentation** | **Developer productivity** | **Developers** |
 
 ---
 
@@ -77,4 +180,4 @@
 
 If you have questions about these changes, contact the development team.
 
-*These updates were part of Issues #2, #3, #18, and #21 in our GitHub project.*
+*Part 1: Issues #2, #3, #18, #21 | Part 2: Issues #6, #7, #20, #22, #30*
