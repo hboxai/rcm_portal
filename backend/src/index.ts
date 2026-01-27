@@ -21,6 +21,7 @@ import path from 'path'; // Added for static file serving
 import { fileURLToPath } from 'url'; // Added for __dirname
 import logger from './utils/logger.js'; // Structured logging
 import { setupRequestLogging } from './middleware/requestLogging.js'; // Request logging middleware
+import { setupSwagger } from './config/swagger.js'; // Swagger API documentation
 
 // Added for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -82,9 +83,12 @@ app.use(express.urlencoded({ limit: '100mb', extended: true }));
 // Serve static files from the 'uploads' directory
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'))); // Adjusted path for ES modules
 
+// Setup Swagger API documentation (available at /api-docs)
+setupSwagger(app);
+
 // Basic route for testing
 app.get('/', (req, res) => {
-  res.send('API is running...');
+  res.send('API is running... Visit /api-docs for API documentation.');
 });
 
 // Health check endpoints (no auth required)
