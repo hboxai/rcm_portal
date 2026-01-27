@@ -2,6 +2,31 @@ import pool from './db.js';
 import createAuditLogsTable from '../migrations/createAuditLogsTable.js';
 
 /**
+ * Create refresh tokens table for JWT refresh token rotation
+ */
+const createRefreshTokensTable = async () => {
+  const createTableQuery = `
+    CREATE TABLE IF NOT EXISTS rcm_portal_refresh_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES rcm_portal_auth_users(id) ON DELETE CASCADE,
+      token_hash VARCHAR(64) NOT NULL UNIQUE,
+      expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      revoked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+      user_agent TEXT,
+      ip_address VARCHAR(45)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON rcm_portal_refresh_tokens(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON rcm_portal_refresh_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON rcm_portal_refresh_tokens(expires_at);
+  `;
+  
+  await pool.query(createTableQuery);
+  console.log('Refresh tokens table created or already exists');
+};
+
+/**
  * Database initialization script
  * Creates necessary tables if they don't exist
  */
@@ -73,6 +98,9 @@ export const initializeDatabase = async () => {
     
     // Create audit logs table
     await createAuditLogsTable();
+    
+    // Create refresh tokens table for JWT refresh token rotation
+    await createRefreshTokensTable();
     
     return { success: true };
   } catch (error) {
