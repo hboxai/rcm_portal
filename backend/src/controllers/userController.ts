@@ -3,6 +3,13 @@ import { query } from '../config/db.js';
 import { ApiUser } from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import { validatePassword, getPasswordRequirementsMessage } from '../utils/passwordValidation.js';
+import { logAudit, getClientInfo, AuditActions } from '../services/auditService.js';
+
+// Helper to get current user from request (set by auth middleware)
+const getCurrentUser = (req: any) => ({
+  userId: req.user?.id,
+  username: req.user?.username || req.user?.email,
+});
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -82,6 +89,18 @@ export const createUser = async (req: Request, res: Response) => {
     
     const newUser = result.rows[0];
     
+    // Log user creation
+    const currentUser = getCurrentUser(req);
+    await logAudit({
+      ...currentUser,
+      action: AuditActions.USER_CREATE,
+      resource: 'users',
+      resourceId: String(newUser.id),
+      details: { createdUser: newUser.username, email: newUser.email, role: newUser.role },
+      ...getClientInfo(req),
+      status: 'success',
+    });
+    
     res.status(201).json({
       success: true,
       data: {
@@ -109,7 +128,7 @@ export const updateUser = async (req: Request, res: Response) => {
     const { username, email, role, status } = req.body;
     
     // Check if user exists
-    const existingUser = await query('SELECT id FROM rcm_portal_auth_users WHERE id = $1', [id]);
+    const existingUser = await query('SELECT id, username FROM rcm_portal_auth_users WHERE id = $1', [id]);
     if (existingUser.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -130,6 +149,21 @@ export const updateUser = async (req: Request, res: Response) => {
     `, [id, username, email, role, status]);
     
     const updatedUser = result.rows[0];
+    
+    // Log user update
+    const currentUser = getCurrentUser(req);
+    await logAudit({
+      ...currentUser,
+      action: AuditActions.USER_UPDATE,
+      resource: 'users',
+      resourceId: String(id),
+      details: { 
+        targetUser: existingUser.rows[0].username,
+        changes: { username, email, role, status } 
+      },
+      ...getClientInfo(req),
+      status: 'success',
+    });
     
     res.status(200).json({
       success: true,
@@ -157,7 +191,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     const { id } = req.params;
     
     // Check if user exists
-    const existingUser = await query('SELECT id FROM rcm_portal_auth_users WHERE id = $1', [id]);
+    const existingUser = await query('SELECT id, username FROM rcm_portal_auth_users WHERE id = $1', [id]);
     if (existingUser.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -171,6 +205,18 @@ export const deleteUser = async (req: Request, res: Response) => {
       SET status = 'deleted', updated_at = NOW()
       WHERE id = $1
     `, [id]);
+    
+    // Log user deletion
+    const currentUser = getCurrentUser(req);
+    await logAudit({
+      ...currentUser,
+      action: AuditActions.USER_DELETE,
+      resource: 'users',
+      resourceId: String(id),
+      details: { deletedUser: existingUser.rows[0].username },
+      ...getClientInfo(req),
+      status: 'success',
+    });
     
     res.status(200).json({
       success: true,
