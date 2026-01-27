@@ -1,22 +1,18 @@
 import express from 'express';
 import multer from 'multer';
 import { uploadOfficeAllyStatus } from '../controllers/officeAllyStatusController.js';
+import { createFileFilter, MAX_FILE_SIZES } from '../utils/fileSanitization.js';
 
 const router = express.Router();
 
-// Use memory storage for file upload (no need to save to disk)
-const storage = multer.memoryStorage();
+// Use memory storage for file upload - with enhanced sanitization
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: MAX_FILE_SIZES.spreadsheet, // 50MB max for spreadsheets
+    files: 1,
   },
-  fileFilter: (req, file, cb) => {
-    const ext = file.originalname.toLowerCase();
-    const ok = ext.endsWith('.xlsx') || ext.endsWith('.xls') || ext.endsWith('.csv');
-    if (ok) return cb(null, true);
-    cb(new Error('Only .xlsx, .xls, .csv files are allowed'));
-  }
+  fileFilter: createFileFilter(['.xlsx', '.xls', '.csv']),
 });
 
 /**

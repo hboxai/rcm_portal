@@ -9,16 +9,25 @@ import { downloadSubmitTemplate } from '../controllers/submitUploadTemplateContr
 import { listSubmitUploads, getSubmitUploadDownloadUrl, getClaimsBySubmitUpload, serverPreviewFromS3, getAllSubmitClaims, getSubmitClaimById, getSubmitUploadDeleteImpact, processSubmitUploadEndpoint, getClaimChangeHistory, getUploadChangeLog } from '../controllers/submitUploadsController.js';
 import { cancelSubmitUpload } from '../controllers/submitUploadCancelController.js';
 import { deleteSubmitUpload } from '../controllers/submitUploadDeleteController.js';
+import { sanitizeFilename, createFileFilter, MAX_FILE_SIZES } from '../utils/fileSanitization.js';
 
 const router = express.Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(os.tmpdir())),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  filename: (req, file, cb) => {
+    // Sanitize the filename before saving
+    const sanitized = sanitizeFilename(file.originalname);
+    cb(null, `${Date.now()}-${sanitized}`);
+  }
 });
 const upload = multer({ 
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+  limits: { 
+    fileSize: MAX_FILE_SIZES.spreadsheet, // 50MB max for spreadsheets
+    files: 1,
+  },
+  fileFilter: createFileFilter(['.xlsx', '.xls', '.csv']),
 });
 
 // Template download (no auth required for easy access)
