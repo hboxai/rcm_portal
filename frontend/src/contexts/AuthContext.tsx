@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { User, AuthState, LoginCredentials } from '../types/auth';
 import { authService } from '../services/authService';
+import { clearCsrfToken } from '../utils/axiosSetup';
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<boolean>;
@@ -94,6 +95,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     authService.logout();
     setToken(null); // Clear token state
+    clearCsrfToken(); // Clear CSRF token on logout
     
     setAuthState({
       user: null,

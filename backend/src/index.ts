@@ -22,6 +22,8 @@ import { fileURLToPath } from 'url'; // Added for __dirname
 import logger from './utils/logger.js'; // Structured logging
 import { setupRequestLogging } from './middleware/requestLogging.js'; // Request logging middleware
 import { setupSwagger } from './config/swagger.js'; // Swagger API documentation
+import csrfMiddleware from './middleware/csrf.js'; // CSRF protection
+import cookieParser from 'cookie-parser'; // Cookie parser for CSRF tokens
 
 // Added for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -67,7 +69,8 @@ app.use(cors({
     ...extraOrigins
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Origin', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Origin', 'Accept', 'X-CSRF-Token'],
+  exposedHeaders: ['X-CSRF-Token'],
   credentials: true
 }));
 
@@ -77,8 +80,15 @@ app.options('*', cors());
 // Request logging - adds request ID and logs requests/responses
 app.use(setupRequestLogging);
 
+// Cookie parser for CSRF tokens
+app.use(cookieParser());
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// CSRF protection middleware - applies to all routes
+// Note: Auth routes (login, register) are exempt
+app.use(csrfMiddleware);
 
 // Serve static files from the 'uploads' directory
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads'))); // Adjusted path for ES modules
