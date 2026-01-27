@@ -294,7 +294,7 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
         </label>
       )}
       
-  <div className="relative pb-5" ref={containerRef}>
+  <div className="relative" ref={containerRef}>
         {/* Calendar Icon */}
         <div 
           className="absolute left-3 top-1/2 z-10 cursor-pointer" 
@@ -324,11 +324,6 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
           inputMode="numeric"
           className="w-full pl-12 pr-12 border border-purple/30 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue/50 bg-white/90 text-textDark placeholder-purple/50 transition-all duration-200"
         />
-
-        {/* Format hint below input */}
-        <div className="absolute -bottom-5 left-0 text-xs text-textDark/50">
-          Format: DD-MM-YYYY
-        </div>
 
         {/* Date picker icon */}
         <div 

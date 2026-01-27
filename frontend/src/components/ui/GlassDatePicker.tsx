@@ -20,7 +20,7 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({
   value,
   onChange,
   error,
-  placeholder = 'Select a date',
+  placeholder = 'DD-MM-YYYY',
   className = '',
   disabled = false,
   name,
