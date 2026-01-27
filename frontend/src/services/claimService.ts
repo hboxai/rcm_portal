@@ -1,8 +1,6 @@
 import axios from '../utils/axiosSetup';
 import { SearchFilters, PaginatedClaimsResponse, VisitClaim, HistoryFilters } from '../types/claim';
-
-// Use a direct string to avoid any environment variable issues
-const API_BASE_URL = '/api';
+import { API_BASE_URL } from '../config/api';
 
 // Helper to get the auth token from localStorage
 const getAuthToken = () => {

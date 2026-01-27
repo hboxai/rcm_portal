@@ -1,6 +1,5 @@
 import axios from './axiosSetup';
-
-const API_BASE_URL = '/api';
+import { API_BASE_URL } from '../config/api';
 
 export async function trackEvent(event: string, details?: Record<string, any>) {
   try {

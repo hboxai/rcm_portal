@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { User } from '../types/user';
+import { API_BASE_URL } from '../config/api';
 
-// Use a direct string to avoid any environment variable issues
-const API_URL = '/api';
+// Use API_URL as alias for backward compatibility
+const API_URL = API_BASE_URL;
 
 interface GetUsersResponse {
   success: boolean;
