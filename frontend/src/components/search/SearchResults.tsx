@@ -77,7 +77,6 @@ const SearchResults: React.FC<SearchResultsProps> = ({
     );
   }
 
-  console.log('Rendering search results:', results);
   return (
     <div className="glass-card min-h-48 rounded-xl p-6 bg-white/90 backdrop-blur-sm border border-purple/20">
       {/* Page summary */}

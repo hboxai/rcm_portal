@@ -39,14 +39,12 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
     if (!forceRefresh && 
         historyCache[cacheKey] && 
         now - historyCache[cacheKey].timestamp < CACHE_EXPIRY) {
-      console.log(`Using cached history data for claim ${cacheKey}`);
       setHistory(historyCache[cacheKey].data);
       return;
     }
     
     // Don't fetch if we've fetched recently (within last 10 seconds) unless forced
     if (!forceRefresh && now - lastFetchTime < 10000) {
-      console.log('Skipping history fetch - throttled');
       return;
     }
     
@@ -79,7 +77,6 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
           setError('Network error. Please check your connection and try again.');
         } else {
           // Don't show error for empty datasets
-          console.log('API response indicates no history data available');
         }
         setHistory([]);
       }

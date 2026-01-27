@@ -23,17 +23,11 @@ const SearchPage: React.FC = () => {
 
   // Auth gate + initial auto-load of reimburse claims (page 1) so list isn't empty
   useEffect(() => {
-    console.log('SearchPage: Component mounted');
-    console.log('SearchPage: Auth state -', { isAuthenticated, authLoading });
-    
     if (!isAuthenticated && !authLoading) {
-      console.log('SearchPage: Not authenticated, redirecting to login');
       navigate('/login');
     } else if (isAuthenticated) {
-      console.log('SearchPage: Authentication confirmed, can load claims');
       // Verify token is still valid by checking for auth errors
       if (error && error.includes('Authentication required')) {
-        console.log('SearchPage: Auth error detected, redirecting to login');
         navigate('/login');
       }
       // Auto-load first page if user hasn't searched yet

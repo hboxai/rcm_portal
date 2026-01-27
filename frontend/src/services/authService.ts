@@ -14,19 +14,10 @@ export const authService = {
    */
   async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
     try {
-      console.log('Attempting to login with credentials:', {
-        email: credentials.email,
-        passwordLength: credentials.password?.length || 0
-      });
-      
       // Always connect to real backend - no mock login
-      console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
-      
       const response = await axios.post(`${API_BASE_URL}/auth/login`, credentials);
-      console.log('Login response status:', response.status);
       
       const data = response.data;
-      console.log('Login successful, received token and user data');
       
       // Store token in localStorage
       if (data.data.token) {

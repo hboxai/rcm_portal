@@ -35,10 +35,8 @@ export const fetchClaims = async (
     // Use the explicit page and limit arguments for pagination
     if (pageInput) params.append('page', pageInput.toString());
     if (limitInput) params.append('limit', limitInput.toString());    
-    console.log('Sending search parameters to backend:', Object.fromEntries(params));
 
     const authToken = getAuthToken();
-    console.log('Using auth token:', authToken ? 'Token exists' : 'No token');
 
     const response = await axios.get(`${API_BASE_URL}/claims`, {
       headers: { 
