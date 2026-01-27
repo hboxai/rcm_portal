@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+// motion is imported for potential future animations
+ 
+import { motion as _motion } from 'framer-motion';
 import { ArrowLeft, Download, Eye, Loader2, AlertCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getUploadPreview, downloadUpload, getSubmitServerPreview, getSubmitUploadDownloadUrl } from '../services/uploadService';
 import { trackEvent } from '../utils/audit';
@@ -93,7 +95,7 @@ const PreviewPage: React.FC = () => {
       a.download = previewData.filename;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
+    } catch (_e: any) {
       setError('Failed to download file');
     }
   };

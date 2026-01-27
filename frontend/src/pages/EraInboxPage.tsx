@@ -106,7 +106,7 @@ export default function EraInboxPage() {
     } catch (err: any) {
       error(`Failed to parse PDF: ${err?.response?.data?.message || err?.message || 'Unknown error'}`);
       // Still load whatever batch exists
-      try { await loadLatestBatch(id); } catch {}
+      try { await loadLatestBatch(id); } catch { /* ignore - best effort */ }
     } finally {
       setBusy(false);
     }

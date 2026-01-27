@@ -212,7 +212,7 @@ const SearchPage: React.FC = () => {
               })();
 
               const copy = async (val: string) => {
-                try { await navigator.clipboard.writeText(val); } catch {}
+                try { await navigator.clipboard.writeText(val); } catch { /* clipboard may be unavailable */ }
               };
 
               return (

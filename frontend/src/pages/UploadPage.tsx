@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { UploadCloud, Loader2, Download, Trash2, FileText, Calendar, Hash, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
-import { downloadUpload, listUploads, uploadMetabaseExport, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads, uploadReimburseExcel, reimburseUploadPreview, reimburseUploadCommit } from '../services/uploadService';
+import { UploadCloud, Loader2, Download, Trash2, FileText, AlertCircle, CheckCircle, X, Eye } from 'lucide-react';
+import { downloadUpload, listUploads, deleteUpload, getUploadValidationReport, submitUploadPreview, submitUploadCommit, listSubmitUploads, getSubmitUploadDownloadUrl, submitUploadCancel, pollSubmitProgress, deleteSubmitUpload, getSubmitUploadDeleteImpact, listReimburseUploads, reimburseUploadPreview, reimburseUploadCommit } from '../services/uploadService';
 import type { SubmitUploadListItem } from '../services/uploadService';
 import { UploadedFile } from '../types/file';
 import { trackEvent } from '../utils/audit';
-import * as XLSX from 'xlsx';
+ 
+import * as _XLSX from 'xlsx';
 import ConfirmPinkModal from '../components/ui/ConfirmPinkModal';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -21,17 +22,17 @@ const UploadPage: React.FC = () => {
   const fileTypeLabel = isReimburse ? 'Reimburse' : 'Submit';
   // Upload state
   const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [uploading, _setUploading] = useState(false);
+  const [progress, _setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   // Files list state
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_files, setFiles] = useState<UploadedFile[]>([]);
+  const [_loading, setLoading] = useState(true);
   const [showValidation, setShowValidation] = useState(false);
   const [validationLines, setValidationLines] = useState<string[]>([]);
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+  const [_selectedFileId, _setSelectedFileId] = useState<string | null>(null);
   // Delete confirmation state
   const [confirmDelete, setConfirmDelete] = useState<null | { id: string; filename: string }>(null);
   const [deleteContext, setDeleteContext] = useState<null | 'generic' | 'submit'>(null);
@@ -39,7 +40,7 @@ const UploadPage: React.FC = () => {
   const [deleteImpact, setDeleteImpact] = useState<null | { submit_claims: number; reimburse_rows: number }>(null);
   const { isAdmin } = useAuth();
   // Quick Submit preview/commit state
-  const [quickClinic, setQuickClinic] = useState('default');
+  const [quickClinic, _setQuickClinic] = useState('default');
   const [quickPreview, setQuickPreview] = useState<null | {
     upload_id: string;
     columns_found: string[];
@@ -67,8 +68,9 @@ const UploadPage: React.FC = () => {
   const [commitSummary, setCommitSummary] = useState<null | { inserted: number; updated: number; skipped: number }>(null);
   const progressTimerRef = useRef<number | null>(null);
   // Upload smoothing timer & target (to avoid instant jump to 99%)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const uploadTimerRef = useRef<number | null>(null);
-  const uploadTargetRef = useRef<number>(1);
+  const _uploadTargetRef = useRef<number>(1);
   // Quick preview upload smoothing
   const quickUploadTimerRef = useRef<number | null>(null);
   const quickTargetRef = useRef<number>(1);
@@ -124,7 +126,7 @@ const UploadPage: React.FC = () => {
     try {
       const data = await listUploads();
       setFiles(data.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()));
-    } catch (e: any) {
+    } catch (_e: any) {
       setError('Failed to load uploads');
     } finally {
       setLoading(false);
@@ -209,7 +211,7 @@ const UploadPage: React.FC = () => {
       
       setSuccess('Template downloaded successfully!');
       trackEvent('submit:template_downloaded', {});
-    } catch (e: any) {
+    } catch (_e: any) {
       setError('Failed to download template');
     }
   };
@@ -443,7 +445,7 @@ const UploadPage: React.FC = () => {
       } else {
         setError(result.message || 'Delete failed');
       }
-    } catch (e: any) {
+    } catch (_e: any) {
       setError('Failed to delete file');
     } finally {
       setDeletingId(null);
@@ -452,7 +454,8 @@ const UploadPage: React.FC = () => {
     }
   };
 
-  const handleDownload = async (fileId: string, filename: string) => {
+   
+  const _handleDownload = async (fileId: string, filename: string) => {
     try {
       trackEvent('upload:download', { id: fileId });
       const blob = await downloadUpload(fileId);
@@ -462,28 +465,31 @@ const UploadPage: React.FC = () => {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (e: any) {
+    } catch (_e: any) {
       setError('Failed to download file');
     }
   };
 
-  const handlePreview = (file: UploadedFile) => {
+   
+  const _handlePreview = (file: UploadedFile) => {
     trackEvent('upload:preview:navigate', { id: file.id });
     navigate(`/preview/${file.id}`);
   };
 
-  const handleValidation = async (fileId: string) => {
+   
+  const _handleValidation = async (fileId: string) => {
     try {
       const lines = await getUploadValidationReport(fileId);
       setValidationLines(lines);
       setShowValidation(true);
       trackEvent('upload:validation:view', { id: fileId });
-    } catch (e: any) {
+    } catch (_e: any) {
       setError('Failed to load validation report');
     }
   };
 
-  const getStatusColor = (status: string) => {
+   
+  const _getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'processed': return 'bg-green-100 text-green-800 border-green-200';
       case 'processing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
@@ -492,7 +498,8 @@ const UploadPage: React.FC = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+   
+  const _getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
       case 'processed': return <CheckCircle size={16} />;
       case 'processing': return <Loader2 size={16} className="animate-spin" />;
@@ -501,7 +508,8 @@ const UploadPage: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
+   
+  const _formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
 

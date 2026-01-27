@@ -6,7 +6,7 @@ export function formatDateString(value: any): string {
 
   // If already in d/m/Y or d-m-Y, normalize to DD-MM-YYYY
   if (typeof value === 'string') {
-    const m = value.trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    const m = value.trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
     if (m) {
       const d = m[1].padStart(2, '0');
       const mo = m[2].padStart(2, '0');

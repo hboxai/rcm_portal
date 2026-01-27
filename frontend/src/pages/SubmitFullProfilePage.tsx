@@ -69,7 +69,7 @@ const SubmitFullProfilePage: React.FC = () => {
   const submit: any = raw || (claim as any)?.__raw || {};
   const used = new Set<string>();
   const use = (...keys: string[]) => keys.forEach(k => used.add(k));
-  const usePrefixWithIndex = (prefixes: string[], count: number) => {
+  const markPrefixWithIndex = (prefixes: string[], count: number) => {
     for (let i = 1; i <= count; i++) {
       prefixes.forEach(p => used.add(`${p}${i}`));
     }
@@ -336,7 +336,7 @@ const SubmitFullProfilePage: React.FC = () => {
               </table>
             </div>
           </Section>
-          {usePrefixWithIndex(['fromdateofservice','todateofservice','placeofservice','emg','cpt','modifiera','modifierb','modifierc','modifierd','diagcodepointer','units','charges','epsdt','renderingphysqualifier','renderingphysid','renderingphysnpi'],6)}
+          {markPrefixWithIndex(['fromdateofservice','todateofservice','placeofservice','emg','cpt','modifiera','modifierb','modifierc','modifierd','diagcodepointer','units','charges','epsdt','renderingphysqualifier','renderingphysid','renderingphysnpi'],6)}
 
           <Section title="Tax/assignment/accounting" defaultOpen={false}>
             {renderFields([

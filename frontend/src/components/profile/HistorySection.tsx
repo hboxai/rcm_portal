@@ -131,7 +131,7 @@ const HistorySection: React.FC<HistorySectionProps> = ({ claimId }) => {
         hour12: true
       };
       return new Intl.DateTimeFormat('en-IN', options).format(date);
-    } catch (err) {
+    } catch (_err) {
       return dateTime; // Fallback to original string on error
     }
   };

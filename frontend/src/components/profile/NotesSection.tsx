@@ -16,8 +16,8 @@ const NotesSection: React.FC<NotesSectionProps> = ({ claim }) => {
   const [isAddingNote, setIsAddingNote] = useState(false);
 
   const handleAddNote = () => {
-    if (newNote.trim()) {
-      addNote(claim.id, newNote.trim());
+    if (newNote.trim() && claim.id) {
+      addNote(claim.id.toString(), newNote.trim());
       setNewNote('');
       setIsAddingNote(false);
     }
@@ -86,7 +86,7 @@ const NotesSection: React.FC<NotesSectionProps> = ({ claim }) => {
                 className="bg-white/5 p-4 rounded-lg border border-white/10"
               >
                 <p className="text-white/90">{note}</p>
-                {index === 0 && (
+                {index === 0 && claim.updatedAt && (
                   <p className="text-white/50 text-xs mt-2">
                     Added on {new Date(claim.updatedAt).toLocaleString()}
                   </p>

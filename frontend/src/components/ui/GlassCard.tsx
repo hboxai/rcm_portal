@@ -14,7 +14,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
   className = '',
   hoverable = false,
   variant = 'default',
-  delay = 0, // Keeping this prop for backward compatibility
+  delay: _delay = 0, // Keeping this prop for backward compatibility
   onClick
 }) => {
   const baseClasses = variant === 'dark' ? 'glass-card-dark' : 'glass-card';
