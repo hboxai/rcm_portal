@@ -94,11 +94,11 @@ const SubmitFilesPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background-900 to-background-800 text-white pt-24">
+    <div className="min-h-screen bg-gradient-to-br from-[#F4EFFF] to-white dark:from-gray-900 dark:to-gray-800 pt-24">
       <div className="p-4 md:p-8">
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-            <h1 className="text-2xl font-semibold text-textDark">Submit Files</h1>
+            <h1 className="text-2xl font-semibold text-textDark dark:text-gray-100">Submit Files</h1>
             <div className="flex flex-col sm:flex-row gap-2 self-start md:self-auto">
               <button
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-purple text-white hover:bg-purple/90 border border-purple/30 shadow-sm"
