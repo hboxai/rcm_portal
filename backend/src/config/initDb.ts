@@ -1,4 +1,5 @@
 import pool from './db.js';
+import createAuditLogsTable from '../migrations/createAuditLogsTable.js';
 
 /**
  * Database initialization script
@@ -69,6 +70,9 @@ export const initializeDatabase = async () => {
     } else {
       console.log('rcm_portal_auth_users table already exists');
     }
+    
+    // Create audit logs table
+    await createAuditLogsTable();
     
     return { success: true };
   } catch (error) {
