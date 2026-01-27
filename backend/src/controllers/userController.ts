@@ -4,6 +4,7 @@ import { ApiUser } from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import { validatePassword, getPasswordRequirementsMessage } from '../utils/passwordValidation.js';
 import { logAudit, getClientInfo, AuditActions } from '../services/auditService.js';
+import { userCache, CacheKeys, queryCache } from '../services/cacheService.js';
 
 // Helper to get current user from request (set by auth middleware)
 const getCurrentUser = (req: any) => ({
@@ -13,6 +14,18 @@ const getCurrentUser = (req: any) => ({
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
+    // Use cache-aside pattern for user list
+    const cacheKey = 'users:list:all';
+    const cachedUsers = queryCache.get<ApiUser[]>(cacheKey);
+    
+    if (cachedUsers) {
+      return res.status(200).json({
+        success: true,
+        data: cachedUsers,
+        cached: true,
+      });
+    }
+    
     const result = await query(`
       SELECT id, username, email, role, status, last_login_at, created_at, updated_at 
       FROM rcm_portal_auth_users 
@@ -26,6 +39,9 @@ export const getUsers = async (req: Request, res: Response) => {
       email: r.email,
       role: r.role === 'Admin' ? 'Admin' : 'User'
     }));
+
+    // Cache the result for 2 minutes
+    queryCache.set(cacheKey, apiUsers, 120);
 
     res.status(200).json({
       success: true,
@@ -101,6 +117,9 @@ export const createUser = async (req: Request, res: Response) => {
       status: 'success',
     });
     
+    // Invalidate user list cache
+    queryCache.delete('users:list:all');
+    
     res.status(201).json({
       success: true,
       data: {
@@ -165,6 +184,10 @@ export const updateUser = async (req: Request, res: Response) => {
       status: 'success',
     });
     
+    // Invalidate user caches
+    queryCache.delete('users:list:all');
+    userCache.delete(CacheKeys.user(Number(id)));
+    
     res.status(200).json({
       success: true,
       data: {
@@ -217,6 +240,10 @@ export const deleteUser = async (req: Request, res: Response) => {
       ...getClientInfo(req),
       status: 'success',
     });
+    
+    // Invalidate user caches
+    queryCache.delete('users:list:all');
+    userCache.delete(CacheKeys.user(Number(id)));
     
     res.status(200).json({
       success: true,
