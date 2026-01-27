@@ -9,6 +9,8 @@ import {
   deleteSubmitUpload,
   getSubmitUploadDeleteImpact,
   getSubmitUploadDownloadUrl,
+  submitUploadCommit,
+  reimburseUploadCommit,
 } from '../services/uploadService';
 import { trackEvent } from '../utils/audit';
 import ConfirmPinkModal from '../components/ui/ConfirmPinkModal';
@@ -183,6 +185,29 @@ const UploadPage: React.FC = () => {
       void refreshSubmitUploads();
     }
   }, [quickPreview, refreshSubmitUploads, setCommitDone, setCommitSummary, setError, setQuickPreview, setSuccess]);
+
+  // Handle commit from history table (for PENDING/COMPLETED uploads)
+  const [committingId, setCommittingId] = useState<string | null>(null);
+  const handleCommitFromHistory = useCallback(async (uploadId: string) => {
+    setCommittingId(uploadId);
+    setError(null);
+    try {
+      if (isReimburse) {
+        const r = await reimburseUploadCommit(uploadId);
+        setSuccess(`Reimburse committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
+        trackEvent('reimburse:commit', { id: uploadId, inserted: r.inserted_count, updated: r.updated_count });
+      } else {
+        const r = await submitUploadCommit(uploadId);
+        setSuccess(`Claims committed: inserted ${r.inserted_count}, updated ${r.updated_count}, skipped ${r.skipped_count}`);
+        trackEvent('submit:commit', { id: uploadId, inserted: r.inserted_count, updated: r.updated_count });
+      }
+      await refreshSubmitUploads();
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || 'Commit failed');
+    } finally {
+      setCommittingId(null);
+    }
+  }, [isReimburse, refreshSubmitUploads, setError, setSuccess]);
 
   // Handle validation modal
   const handleValidation = useCallback(
@@ -365,6 +390,7 @@ const UploadPage: React.FC = () => {
         isAdmin={isAdmin}
         onDownload={onSubmitDownload}
         onDelete={handleDeleteClick}
+        onCommit={handleCommitFromHistory}
         onRefresh={refreshSubmitUploads}
         fileTypeLabel={fileTypeLabel}
       />
