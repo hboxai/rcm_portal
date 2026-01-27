@@ -6,6 +6,7 @@ import {
 import Button from '../ui/Button';
 import GlassInput from '../ui/GlassInput';
 import GlassCard from '../ui/GlassCard';
+import PasswordInput from './PasswordInput';
 import { User } from '../../types/user';
 import { getUsers, deleteUser } from '../../services/userService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -105,17 +106,13 @@ const UserFormModal = memo(({ isOpen, user, onClose, onSave, errors, onChange }:
                 />
               </div>
               <div>
-                <GlassInput
-                  label={`Password ${user.id ? '(Leave blank to keep current)' : ''}`}
+                <PasswordInput
                   name="password"
-                  type="password"
-                  placeholder={user.id ? "••••••••" : "Enter password"}
                   value={user.password || ''}
                   onChange={onChange}
                   error={errors.password}
-                  labelClassName="text-textDark/80"
-                  inputClassName="text-textDark placeholder:text-textDark/60"
-                  className="border-purple/30 focus:border-purple"
+                  showRequirements={true}
+                  isOptional={!!user.id}
                 />
               </div>
               <div>
