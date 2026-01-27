@@ -2,16 +2,17 @@ import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ClaimProvider } from './contexts/ClaimContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import './index.css';
 import Header from './components/layout/Header';
 
 // Loading fallback component
 const LoadingFallback = () => (
-  <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple/10 to-blue/10">
-    <div className="p-6 rounded-lg bg-white/90 backdrop-blur-sm shadow-lg border border-purple/20">
+  <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple/10 to-blue/10 dark:from-gray-900 dark:to-gray-800">
+    <div className="p-6 rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-lg border border-purple/20 dark:border-purple/30">
       <div className="flex flex-col items-center">
         <div className="w-12 h-12 border-4 border-transparent border-t-purple border-r-pink rounded-full animate-spin"></div>
-        <p className="mt-4 text-textDark font-medium">Loading...</p>
+        <p className="mt-4 text-textDark dark:text-gray-100 font-medium">Loading...</p>
       </div>
     </div>
   </div>
@@ -108,13 +109,15 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <ClaimProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </ClaimProvider>
-    </AuthProvider>
+    <ThemeProvider defaultTheme="system">
+      <AuthProvider>
+        <ClaimProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </ClaimProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

@@ -4,6 +4,7 @@ import { Menu, X, History, LogOut } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import LogoutConfirmModal from '../ui/LogoutConfirmModal';
+import ThemeToggle from '../ui/ThemeToggle';
 
 const menuItemVariants = {
   hidden: { opacity: 0, y: -10 },
@@ -184,7 +185,8 @@ const Header: React.FC = () => {
             )}
           </nav>
             {/* Logout Button - Right */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            <ThemeToggle className="hidden md:block" />
             <motion.button 
               onClick={handleLogout}
               className="hidden md:flex items-center gap-2 text-white px-4 py-2 rounded-md bg-pink hover:bg-pink/90 border border-pink/20 transition-all duration-200 shadow-sm shadow-pink/30 hover:shadow-md hover:shadow-pink/40"
