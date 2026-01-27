@@ -92,7 +92,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Call server to revoke refresh token
+    try {
+      await authService.logoutFromServer();
+    } catch {
+      // Continue with local logout even if server call fails
+    }
+    
     authService.logout();
     setToken(null); // Clear token state
     clearCsrfToken(); // Clear CSRF token on logout
