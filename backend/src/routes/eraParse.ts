@@ -2,17 +2,18 @@ import { Router } from 'express';
 import multer from 'multer';
 import { triggerParseForEraFile, getLatestBatchForEraFile, reviewRows, commitBatch } from '../controllers/eraParseController.js';
 import { uploadEraFilesGlobal, listEraFilesGlobal, deleteEraFileGlobal, autoParseEraFile } from '../controllers/eraFileController.js';
+import { createFileFilter, MAX_FILE_SIZES } from '../utils/fileSanitization.js';
 
 const router = Router();
 
-// Multer for global ERA PDF uploads (memory)
+// Multer for global ERA PDF uploads (memory) - with enhanced sanitization
 const upload = multer({
 	storage: multer.memoryStorage(),
-	limits: { fileSize: 25 * 1024 * 1024 },
-	fileFilter: (req, file, cb) => {
-		if (file.mimetype === 'application/pdf') cb(null, true);
-		else cb(new Error('Only PDF files are allowed'));
-	}
+	limits: { 
+		fileSize: MAX_FILE_SIZES.pdf, // 25MB for PDFs
+		files: 10, // Max 10 files at once
+	},
+	fileFilter: createFileFilter(['.pdf']),
 });
 
 // Global ERA files (not tied to a single claim)

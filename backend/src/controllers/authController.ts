@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt, { Secret } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import pool from '../config/db.js';
+import { logAudit, getClientInfo, AuditActions } from '../services/auditService.js';
 
 /**
  * User authentication controller
@@ -14,6 +15,8 @@ import pool from '../config/db.js';
  * Login user and generate JWT token
  */
 export const login = async (req: Request, res: Response) => {
+  const clientInfo = getClientInfo(req);
+  
   try {
     const { email, password } = req.body;
     const normEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -27,11 +30,31 @@ export const login = async (req: Request, res: Response) => {
       [normEmail]
     );
     if (!authRes.rowCount) {
+      // Log failed login attempt - user not found
+      await logAudit({
+        action: AuditActions.LOGIN_FAILURE,
+        resource: 'auth',
+        details: { email: normEmail, reason: 'User not found' },
+        ...clientInfo,
+        status: 'failure',
+        errorMessage: 'Invalid email or password',
+      });
       return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
     }
     const authRow = authRes.rows[0];
     const passwordOk = await bcrypt.compare(normPassword, authRow.password_hash);
     if (!passwordOk) {
+      // Log failed login attempt - wrong password
+      await logAudit({
+        userId: authRow.id,
+        username: authRow.username,
+        action: AuditActions.LOGIN_FAILURE,
+        resource: 'auth',
+        details: { email: normEmail, reason: 'Invalid password' },
+        ...clientInfo,
+        status: 'failure',
+        errorMessage: 'Invalid email or password',
+      });
       return res.status(401).json({ status: 'error', message: 'Invalid email or password' });
     }
 
@@ -51,6 +74,17 @@ export const login = async (req: Request, res: Response) => {
 
     // Update last_login_at (ignore errors)
     pool.query('UPDATE rcm_portal_auth_users SET last_login_at = NOW() WHERE id=$1', [authRow.id]).catch(()=>{});
+
+    // Log successful login
+    await logAudit({
+      userId: authRow.id,
+      username: authRow.username,
+      action: AuditActions.LOGIN_SUCCESS,
+      resource: 'auth',
+      details: { email: authRow.email, role },
+      ...clientInfo,
+      status: 'success',
+    });
 
     return res.status(200).json({
       status: 'success',
