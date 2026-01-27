@@ -14,6 +14,7 @@ import submitUploadsRouter from './routes/submitUploads.js';
 import reimburseRouter from './routes/reimburse.js';
 import officeAllyRouter from './routes/officeAlly.js';
 import eraParseRouter from './routes/eraParse.js';
+import healthRouter from './routes/health.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path'; // Added for static file serving
@@ -80,32 +81,14 @@ app.get('/', (req, res) => {
   res.send('API is running...');
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is healthy' });
-});
-
-// Database connection test
-app.get('/api/db-test', async (req, res) => {
-  try {
-    const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
-    client.release();
-    
-    res.status(200).json({
-      status: 'success',
-      message: 'Database connection successful',
-      timestamp: result.rows[0].now
-    });
-  } catch (error) {
-    console.error('Database connection error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Database connection failed',
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
+// Health check endpoints (no auth required)
+// Available endpoints:
+//   GET /api/health - Basic health check
+//   GET /api/health/detailed - Detailed system info
+//   GET /api/health/ready - Readiness probe (checks database)
+//   GET /api/health/live - Liveness probe
+//   GET /api/health/db - Database health with pool stats
+app.use('/api/health', healthRouter);
 
 // Authentication routes (no auth required)
 app.use('/api/auth', authRoutes);
