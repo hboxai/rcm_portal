@@ -123,7 +123,8 @@ export const fetchClaimById = async (id: string): Promise<any> => {
   }
 };
 
-export const updateClaim = async (id: string, updatedData: Partial<VisitClaim>, retries = 0): Promise<{ success: boolean; data?: VisitClaim; message?: string; error?: any }> => {
+ 
+export const updateClaim = async (id: string, updatedData: Partial<VisitClaim>, _retries = 0): Promise<{ success: boolean; data?: VisitClaim; message?: string; error?: any }> => {
   try {
     const response = await axios.put(`${API_BASE_URL}/claims/${id}`, updatedData, {
       headers: { Authorization: getAuthToken() }

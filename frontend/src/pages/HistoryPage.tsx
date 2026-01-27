@@ -92,7 +92,7 @@ const HistoryPage: React.FC = () => {
     setError(null);
     setLastFetchTime(now);
 
-    let currentFilters = { ...filters };
+    const currentFilters = { ...filters };
     if (!isAdmin && user?.username) {
       currentFilters.user_name = user.username;
     }
@@ -213,7 +213,7 @@ const HistoryPage: React.FC = () => {
         hour12: true
       };
       return new Intl.DateTimeFormat('en-US', options).format(date);
-    } catch (err) {
+    } catch (_err) {
       return dateTime;
     }
   };
@@ -241,7 +241,8 @@ const HistoryPage: React.FC = () => {
   };
   
   // Helper to create a simple from/to change description
-  const getChangeDescription = (log: ChangeLog): string => {
+   
+  const _getChangeDescription = (log: ChangeLog): string => {
     const oldVal = log.old_value || 'None';
     const newVal = log.new_value || 'None';
     return `${oldVal} → ${newVal}`;

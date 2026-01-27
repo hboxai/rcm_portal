@@ -222,7 +222,7 @@ export const ClaimProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setTotalPages(0);
           }
           setInitialLoadDone(true);
-        } catch (err: any) {
+        } catch (_err: any) {
           const errorMessage = 'Error connecting to the claims API';
           setError(errorMessage);
           setClaims([]);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
-import { FileText, AlertCircle, CheckCircle, XCircle, Save, Loader2, User, DollarSign, Calendar } from 'lucide-react';
+import { FileText, AlertCircle, CheckCircle, XCircle, Save, User, DollarSign, Calendar } from 'lucide-react';
 import GlassCard from '../ui/GlassCard';
 import GlassInput from '../ui/GlassInput';
 import Button from '../ui/Button';
@@ -76,7 +76,7 @@ const formatDateForInput = (dateString: string | null | undefined): string => {
     const day = String(date.getDate()).padStart(2, '0');
     
     return `${year}-${month}-${day}`;
-  } catch (e) {
+  } catch (_e) {
     console.warn('Failed to format date value for input:', dateString);
     return '';
   }
@@ -497,7 +497,8 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
 
   // Field status tracking for real-time feedback
   type FieldStatus = 'loading' | 'success' | 'error' | null;
-  const [fieldStatuses, setFieldStatuses] = useState<Record<string, FieldStatus>>({});
+   
+  const [_fieldStatuses, _setFieldStatuses] = useState<Record<string, FieldStatus>>({});
 
   const claimDetailsComplete = isClaimDetailsComplete();
   
@@ -697,7 +698,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="primIns"
               value={primaryForm.primIns}
               onChange={handlePrimaryChange}
-              status={fieldStatuses.primIns}
+              status={_fieldStatuses.primIns}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -709,7 +710,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               step="0.01"
               value={primaryForm.primAmt}
               onChange={handlePrimaryChange}
-              status={fieldStatuses.primAmt}
+              status={_fieldStatuses.primAmt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -720,7 +721,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               type="date"
               value={formatDateForInput(primaryForm.primPostDt)}
               onChange={handlePrimaryChange}
-              status={fieldStatuses.primPostDt}
+              status={_fieldStatuses.primPostDt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -730,7 +731,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="primChkDetails"
               value={primaryForm.primChkDetails}
               onChange={handlePrimaryChange}
-              status={fieldStatuses.primChkDetails}
+              status={_fieldStatuses.primChkDetails}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -741,7 +742,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               type="date"
               value={formatDateForInput(primaryForm.primRecDt)}
               onChange={handlePrimaryChange}
-              status={fieldStatuses.primRecDt}
+              status={_fieldStatuses.primRecDt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -753,7 +754,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               step="0.01"
               value={primaryForm.primChkAmt}
               onChange={handlePrimaryChange}
-              status={fieldStatuses.primChkAmt}
+              status={_fieldStatuses.primChkAmt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -796,7 +797,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="secIns"
               value={secondaryForm.secIns}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secIns}
+              status={_fieldStatuses.secIns}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -808,7 +809,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               step="0.01"
               value={secondaryForm.secAmt}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secAmt}
+              status={_fieldStatuses.secAmt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -819,7 +820,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               type="date"
               value={formatDateForInput(secondaryForm.secPostDt)}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secPostDt}
+              status={_fieldStatuses.secPostDt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -829,7 +830,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="secChkDetails"
               value={secondaryForm.secChkDetails}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secChkDetails}
+              status={_fieldStatuses.secChkDetails}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -840,7 +841,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               type="date"
               value={formatDateForInput(secondaryForm.secRecDt)}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secRecDt}
+              status={_fieldStatuses.secRecDt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -852,7 +853,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               step="0.01"
               value={secondaryForm.secChkAmt}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secChkAmt}
+              status={_fieldStatuses.secChkAmt}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"
@@ -873,7 +874,7 @@ const ClaimTabs: React.FC<ClaimTabsProps> = ({ claim }) => {
               name="secDenialCode"
               value={secondaryForm.secDenialCode}
               onChange={handleSecondaryChange}
-              status={fieldStatuses.secDenialCode}
+              status={_fieldStatuses.secDenialCode}
               className="bg-white/80 text-dark"
               labelClassName="text-dark/80"
               inputClassName="bg-white/80 text-dark border border-purple/30 focus:border-purple"

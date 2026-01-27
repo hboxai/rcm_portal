@@ -1,4 +1,4 @@
-import { StrictMode, Suspense } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
@@ -53,13 +53,13 @@ root.render(
 
 // Log performance metrics after hydration
 window.addEventListener('load', () => {
-  const loadTime = performance.now() - startTime;
+  const _loadTime = performance.now() - startTime;
 
   // Report performance to analytics if needed
   if ('requestIdleCallback' in window) {
     window.requestIdleCallback(() => {
       // Capture any vitals you want to track
-      // Example: Analytics.sendTiming('App Initial Render', loadTime);
+      // Example: Analytics.sendTiming('App Initial Render', _loadTime);
     });
   }
 });

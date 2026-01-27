@@ -26,7 +26,7 @@ const PASSWORD_REQUIREMENTS: Omit<PasswordRequirement, 'met'>[] = [
   { id: 'uppercase', label: 'One uppercase letter (A-Z)', regex: /[A-Z]/ },
   { id: 'lowercase', label: 'One lowercase letter (a-z)', regex: /[a-z]/ },
   { id: 'number', label: 'One number (0-9)', regex: /[0-9]/ },
-  { id: 'special', label: 'One special character (!@#$%^&*)', regex: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/ },
+  { id: 'special', label: 'One special character (!@#$%^&*)', regex: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/ },
 ];
 
 /**
@@ -81,7 +81,8 @@ const PasswordInput: React.FC<PasswordInputProps> = ({
   }, [value]);
 
   // Color based on strength
-  const getStrengthColor = () => {
+   
+  const _getStrengthColor = () => {
     switch (strength.level) {
       case 'weak': return 'bg-red-500';
       case 'fair': return 'bg-yellow-500';

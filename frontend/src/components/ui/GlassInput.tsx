@@ -26,7 +26,7 @@ const GlassInput: React.FC<GlassInputProps> = ({
   ...props 
 }) => {
   const [isFocused, setIsFocused] = useState(false);
-  const [hasValue, setHasValue] = useState(false);
+  const [_hasValue, setHasValue] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
   // Update hasValue when value changes

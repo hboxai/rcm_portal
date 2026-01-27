@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, User, DollarSign, Shield } from 'lucide-react';
 import GlassCard from '../components/ui/GlassCard';
 import { useClaims } from '../contexts/ClaimContext';
@@ -39,7 +39,7 @@ const FullProfilePage: React.FC = () => {
         if (!isNaN(date.getTime())) {
           return date.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
         }
-      } catch (e) {
+      } catch (_e) {
         // If date parsing fails, return the original value
         return value;
       }

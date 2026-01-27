@@ -157,6 +157,15 @@ export type SubmitPreviewResponse = {
   can_commit: boolean;
   duplicate_of?: string | null;
   errors?: string[]; // when cannot commit
+  validation_summary?: {
+    total_rows: number;
+    rows_checked: number;
+    valid_rows: number;
+    rows_with_errors: number;
+    error_count: number;
+    errors: Array<{row: number; field: string; message: string}>;
+  };
+  note?: string;
 };
 
 export type SubmitCommitResponse = {
@@ -219,7 +228,7 @@ export type SubmitUploadListItem = {
   file_kind: 'SUBMIT_EXCEL' | 'REIMBURSE_EXCEL' | 'REIMBURSE_PDF';
   original_filename: string;
   row_count: number | null;
-  status: 'PENDING' | 'COMPLETED' | 'COMMITTED' | 'FAILED';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'COMMITTED' | 'FAILED';
   message: string | null;
   created_by: string | null;
   created_at: string;

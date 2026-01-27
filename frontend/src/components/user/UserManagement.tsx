@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  UserPlus, Edit2, Trash2, Search, Check, X, AlertCircle, ShieldAlert
+  UserPlus, Edit2, Trash2, Check, X, AlertCircle, ShieldAlert
 } from 'lucide-react';
 import Button from '../ui/Button';
 import GlassInput from '../ui/GlassInput';

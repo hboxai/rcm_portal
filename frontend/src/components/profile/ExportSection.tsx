@@ -4,13 +4,12 @@ import { Download, X } from 'lucide-react';
 import GlassCard from '../ui/GlassCard';
 import Button from '../ui/Button';
 import GlassInput from '../ui/GlassInput';
-import { VisitClaim } from '../../types/claim';
 
 interface ExportSectionProps {
-  claim: VisitClaim;
+  claimId?: string; // Accept claim ID if needed
 }
 
-const ExportSection: React.FC<ExportSectionProps> = ({ claim }) => {
+const ExportSection: React.FC<ExportSectionProps> = ({ claimId: _claimId }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportType, setExportType] = useState<'single' | 'bulk'>('single');
   const [dateRange, setDateRange] = useState({

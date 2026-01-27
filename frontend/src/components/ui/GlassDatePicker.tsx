@@ -50,7 +50,7 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({
         day: 'numeric',
         year: 'numeric',
       });
-    } catch (e) {
+    } catch (_e) {
       return '';
     }
   };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { CheckCircle, Edit2, Lock, ChevronUp, Calendar, User, Clock, Tag, Eye, FileText, DollarSign, Clipboard, Activity } from 'lucide-react';
+import { CheckCircle, Edit2, Lock, ChevronUp, User, Clock, Tag, Eye, FileText, DollarSign, Clipboard, Activity } from 'lucide-react';
 import GlassCard from '../ui/GlassCard';
 import Button from '../ui/Button';
 import ClaimField, { formatters } from '../ui/ClaimField';
@@ -76,7 +76,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
       }
       
       updateClaim(updateData)
-      .then((result) => {
+      .then(() => {
         setIsEditable(false);
         setHasBeenEdited(true);
         setShowConfirmation(true);
@@ -88,7 +88,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ claim, onToggleDetails, isExp
           (saveButton as HTMLButtonElement).innerHTML = 'Save';
         }
       })
-      .catch((error) => {
+      .catch(() => {
         alert('Failed to save status. Please try again.');
         if (saveButton) {
           (saveButton as HTMLButtonElement).disabled = false;

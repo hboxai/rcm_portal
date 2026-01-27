@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, FileText } from 'lucide-react';
 import SummaryCard from '../components/profile/SummaryCard';
 import ClaimTabs from '../components/profile/ClaimTabs';
@@ -40,7 +40,7 @@ const ProfilePage: React.FC = () => {
         day: 'numeric',
         year: 'numeric'
       });
-    } catch (e) {
+    } catch (_e) {
       return 'Invalid Date';
     }
   };
