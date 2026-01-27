@@ -16,7 +16,7 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
   name,
   value = '',
   onChange,
-  placeholder = "dd-mm-yyyy",
+  placeholder = "DD-MM-YYYY",
   className = ''
 }) => {
   const [isFocused, setIsFocused] = useState(false);
@@ -127,48 +127,62 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
       clearTimeout(formatTimeoutRef.current);
     }
     
-    // Allow only numbers and dashes, limit length
-    inputValue = inputValue.replace(/[^\d-]/g, '').slice(0, 10);
+    // Allow only numbers and dashes
+    inputValue = inputValue.replace(/[^\d-]/g, '');
     
-    // Set the raw value immediately
-    setDisplayValue(inputValue);
+    // Auto-insert dashes as user types for better keyboard experience
+    const numbersOnly = inputValue.replace(/-/g, '');
+    let formatted = '';
     
-    // Debounce the formatting and validation
+    for (let i = 0; i < numbersOnly.length && i < 8; i++) {
+      formatted += numbersOnly[i];
+      // Insert dash after day (2 digits) and after month (4 digits)
+      if ((i === 1 || i === 3) && i < numbersOnly.length - 1) {
+        formatted += '-';
+      }
+    }
+    
+    // Set formatted value immediately for smooth typing
+    setDisplayValue(formatted);
+    
+    // Debounce the validation and parent notification
     formatTimeoutRef.current = setTimeout(() => {
-      let formattedValue = inputValue;
-      
-      // Only format if user stopped typing
-      if (inputValue.length > 0) {
-        // Remove existing dashes for processing
-        const numbers = inputValue.replace(/-/g, '');
+      // Validate day and month ranges
+      if (formatted.length >= 2) {
+        const parts = formatted.split('-');
+        const dayStr = parts[0] || '';
+        const monthStr = parts[1] || '';
+        const yearStr = parts[2] || '';
         
-        if (numbers.length >= 2) {
-          const day = Math.min(Math.max(parseInt(numbers.slice(0, 2)) || 1, 1), 31);
-          let formatted = day.toString().padStart(2, '0');
-          
-          if (numbers.length >= 4) {
-            const month = Math.min(Math.max(parseInt(numbers.slice(2, 4)) || 1, 1), 12);
-            formatted += '-' + month.toString().padStart(2, '0');
-            
-            if (numbers.length >= 6) {
-              const year = Math.min(Math.max(parseInt(numbers.slice(4)) || 2024, 1900), 2100);
-              formatted += '-' + year.toString();
-            } else if (numbers.length > 4) {
-              formatted += '-' + numbers.slice(4);
-            }
-          } else if (numbers.length > 2) {
-            formatted += '-' + numbers.slice(2);
-          }
-          
-          formattedValue = formatted;
+        let day = parseInt(dayStr) || 0;
+        let month = parseInt(monthStr) || 0;
+        
+        // Clamp day (1-31) and month (1-12)
+        if (dayStr.length === 2) {
+          day = Math.min(Math.max(day, 1), 31);
+        }
+        if (monthStr.length === 2) {
+          month = Math.min(Math.max(month, 1), 12);
+        }
+        
+        // Reconstruct formatted value with validated ranges
+        let validatedFormat = dayStr.length === 2 ? day.toString().padStart(2, '0') : dayStr;
+        if (monthStr) {
+          validatedFormat += '-' + (monthStr.length === 2 ? month.toString().padStart(2, '0') : monthStr);
+        }
+        if (yearStr) {
+          validatedFormat += '-' + yearStr;
+        }
+        
+        if (validatedFormat !== formatted) {
+          setDisplayValue(validatedFormat);
+          formatted = validatedFormat;
         }
       }
       
-      setDisplayValue(formattedValue);
-      
-      // Convert to ISO format for parent component only if complete
-      if (formattedValue.length === 10 && /^\d{2}-\d{2}-\d{4}$/.test(formattedValue)) {
-        const [day, month, year] = formattedValue.split('-');
+      // Convert to ISO format for parent component only if complete (DD-MM-YYYY)
+      if (formatted.length === 10 && /^\d{2}-\d{2}-\d{4}$/.test(formatted)) {
+        const [day, month, year] = formatted.split('-');
         const isoDate = `${year}-${month}-${day}`;
         
         const syntheticEvent = {
@@ -181,7 +195,7 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
         };
         onChange(syntheticEvent);
       }
-    }, 300); // 300ms debounce
+    }, 150); // Reduced debounce for faster feedback
   };
 
   const handleCalendarClick = () => {
@@ -280,7 +294,7 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
         </label>
       )}
       
-  <div className="relative" ref={containerRef}>
+  <div className="relative pb-5" ref={containerRef}>
         {/* Calendar Icon */}
         <div 
           className="absolute left-3 top-1/2 z-10 cursor-pointer" 
@@ -306,8 +320,15 @@ const GlassDateInput: React.FC<GlassDateInputProps> = ({
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           maxLength={10}
+          autoComplete="off"
+          inputMode="numeric"
           className="w-full pl-12 pr-12 border border-purple/30 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue/50 bg-white/90 text-textDark placeholder-purple/50 transition-all duration-200"
         />
+
+        {/* Format hint below input */}
+        <div className="absolute -bottom-5 left-0 text-xs text-textDark/50">
+          Format: DD-MM-YYYY
+        </div>
 
         {/* Date picker icon */}
         <div 
