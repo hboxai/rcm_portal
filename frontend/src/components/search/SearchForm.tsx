@@ -190,7 +190,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
             name="dateOfBirth"
             value={filters.dateOfBirth || ''}
             onChange={handleChange}
-            placeholder="Select Date of Birth"
+            placeholder="DD-MM-YYYY"
           />
 
           <div>
@@ -252,7 +252,7 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
             name="dos"
             value={filters.dos || ''}
             onChange={handleChange}
-            placeholder="Select a date"
+            placeholder="DD-MM-YYYY"
           />
           
           <div>

@@ -60,7 +60,7 @@ const SubmitSearchForm: React.FC<Props> = ({ onSearch, isLoading, filters, setFi
             name="dateOfBirth"
             value={filters.dateOfBirth || ''}
             onChange={handleChange}
-            placeholder="Select Date of Birth"
+            placeholder="DD-MM-YYYY"
           />
           <div>
             <label className="block text-textDark mb-2 font-medium">Patient ID</label>
@@ -81,7 +81,7 @@ const SubmitSearchForm: React.FC<Props> = ({ onSearch, isLoading, filters, setFi
             name="dos"
             value={filters.dos || ''}
             onChange={handleChange}
-            placeholder="Select a date"
+            placeholder="DD-MM-YYYY"
           />
           <div>
             <label className="block text-textDark mb-2 font-medium">Billing ID</label>
