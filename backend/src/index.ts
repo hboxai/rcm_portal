@@ -19,6 +19,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path'; // Added for static file serving
 import { fileURLToPath } from 'url'; // Added for __dirname
+import logger from './utils/logger.js'; // Structured logging
+import { setupRequestLogging } from './middleware/requestLogging.js'; // Request logging middleware
 
 // Added for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -70,6 +72,10 @@ app.use(cors({
 
 // Add preflight handling
 app.options('*', cors());
+
+// Request logging - adds request ID and logs requests/responses
+app.use(setupRequestLogging);
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
@@ -103,17 +109,19 @@ app.use('/api/office-ally', authMiddleware, officeAllyRouter); // Office Ally st
 app.use('/api/history', authMiddleware, historyRoutes); // Add the history routes to the app
 app.use('/api/users', userRoutes); // User routes - auth handled per-route in router
 app.use('/api/era', (req, res, next) => {
-  console.log(`ERA route: ${req.method} ${req.path}`);
+  req.log.debug({ path: req.path }, 'ERA route accessed');
   next();
 }, authMiddleware, eraParseRouter);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
+  const log = req.log || logger;
+  log.error({ err, requestId: req.requestId }, 'Unhandled error');
   res.status(500).json({
     status: 'error',
     message: 'Something went wrong on the server',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+    requestId: req.requestId,
   });
 });
 
@@ -121,24 +129,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 initializeDatabase()
   .then(result => {
     if (result.success) {
-      console.log('Database initialization completed successfully');
+      logger.info('Database initialization completed successfully');
     } else {
-      console.warn('Database initialization failed, some features may not work properly');
-      console.warn('Error:', result.error);
+      logger.warn({ error: result.error }, 'Database initialization failed, some features may not work properly');
     }
     
     // Start server
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Server started');
     });
   })
   .catch(err => {
-    console.error('Failed to initialize database:', err);
-    console.log('Starting server without database initialization...');
+    logger.error({ err }, 'Failed to initialize database');
+    logger.info('Starting server without database initialization...');
     
     // Start server anyway
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT} (without database initialization)`);
+      logger.warn({ port: PORT }, 'Server running without database initialization');
     });
   });
