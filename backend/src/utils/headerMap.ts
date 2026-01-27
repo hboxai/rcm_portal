@@ -62,6 +62,15 @@ export const alias: Record<string, string> = {
   clia_number: "clia_number",
 };
 
+// Map common DOS headers without line numbers to fromdateofservice1
+alias[norm("DOS")] = "fromdateofservice1";
+alias[norm("DateOfService")] = "fromdateofservice1";
+alias[norm("Date of Service")] = "fromdateofservice1";
+alias[norm("ServiceDate")] = "fromdateofservice1";
+alias[norm("Service Date")] = "fromdateofservice1";
+alias[norm("FromDOS")] = "fromdateofservice1";
+alias[norm("From DOS")] = "fromdateofservice1";
+
 // Programmatic mapping for service lines 1..6
 const SL: Array<[string, string]> = [
   ["FromDateOfService", "fromdateofservice"],

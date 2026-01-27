@@ -231,8 +231,8 @@ function hasAnyServiceLine(mapped: Record<string, any>): boolean {
   for (let li = 1; li <= 6; li++) {
     const cpt = mapped[`cpt${li}`];
     const chg = mapped[`charges${li}`];
-    const dos = mapped[`fromdateofservice${li}`];
-    if (cpt != null && cpt !== '' && chg != null && chg !== '' && dos != null && dos !== '') return true;
+    // DOS is optional - many Excel exports don't have per-line dates
+    if (cpt != null && cpt !== '' && chg != null && chg !== '') return true;
   }
   return false;
 }
