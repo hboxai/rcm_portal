@@ -135,4 +135,80 @@ export const authService = {
       return { valid: false };
     }
   },
+
+  /**
+   * Refresh access token using refresh token cookie
+   */
+  async refreshToken(): Promise<{ token: string; user: User } | null> {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
+
+      if (response.data.status === 'success') {
+        const { token, user } = response.data.data;
+        localStorage.setItem('token', token);
+        return { token, user };
+      }
+      return null;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Logout from server (revokes refresh token)
+   */
+  async logoutFromServer(): Promise<void> {
+    try {
+      await axios.post(
+        `${API_BASE_URL}/auth/logout`,
+        {},
+        { withCredentials: true }
+      );
+    } catch (error) {
+      console.error('Server logout failed:', error);
+    }
+  },
+
+  /**
+   * Logout from all devices
+   */
+  async logoutAllDevices(): Promise<void> {
+    try {
+      const token = this.getToken();
+      await axios.post(
+        `${API_BASE_URL}/auth/logout-all`,
+        {},
+        { 
+          withCredentials: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
+      );
+    } catch (error) {
+      console.error('Logout all devices failed:', error);
+    }
+  },
+
+  /**
+   * Check if token is expired or about to expire
+   */
+  isTokenExpiringSoon(bufferSeconds = 60): boolean {
+    const token = this.getToken();
+    if (!token) return true;
+
+    try {
+      const payloadBase64 = token.split('.')[1];
+      const payload = JSON.parse(atob(payloadBase64));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      
+      return now >= (exp - bufferSeconds * 1000);
+    } catch {
+      return true;
+    }
+  },
 };

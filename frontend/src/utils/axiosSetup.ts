@@ -1,7 +1,12 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { API_BASE_URL } from '../config/api';
 
 // CSRF token management
 let csrfToken: string | null = null;
+
+// Token refresh state
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
 
 // Get CSRF token from cookie
 function getCsrfFromCookie(): string | null {
@@ -30,9 +35,55 @@ export function clearCsrfToken(): void {
   localStorage.removeItem('csrfToken');
 }
 
-// Request interceptor to add CSRF token to state-changing requests
+// Subscribe to token refresh
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  refreshSubscribers.push(callback);
+}
+
+// Notify all subscribers with new token
+function onTokenRefreshed(token: string) {
+  refreshSubscribers.forEach(callback => callback(token));
+  refreshSubscribers = [];
+}
+
+// Check if token is expiring soon
+function isTokenExpiringSoon(bufferSeconds = 60): boolean {
+  const token = localStorage.getItem('token');
+  if (!token) return true;
+
+  try {
+    const payloadBase64 = token.split('.')[1];
+    const payload = JSON.parse(atob(payloadBase64));
+    const exp = payload.exp * 1000;
+    return Date.now() >= (exp - bufferSeconds * 1000);
+  } catch {
+    return true;
+  }
+}
+
+// Refresh access token
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/auth/refresh`,
+      {},
+      { withCredentials: true }
+    );
+
+    if (response.data.status === 'success') {
+      const { token } = response.data.data;
+      localStorage.setItem('token', token);
+      return token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Request interceptor to add tokens
 axios.interceptors.request.use(
-  (config) => {
+  async (config: InternalAxiosRequestConfig) => {
     const method = config.method?.toUpperCase();
     
     // Add CSRF token to POST, PUT, DELETE, PATCH requests
@@ -43,6 +94,24 @@ axios.interceptors.request.use(
       }
     }
     
+    // Add Authorization header if token exists
+    const authToken = localStorage.getItem('token');
+    if (authToken && !config.url?.includes('/auth/login') && !config.url?.includes('/auth/refresh')) {
+      config.headers['Authorization'] = `Bearer ${authToken}`;
+      
+      // Proactively refresh if token is expiring soon (not for refresh endpoint itself)
+      if (isTokenExpiringSoon(120) && !isRefreshing) {
+        isRefreshing = true;
+        const newToken = await refreshAccessToken();
+        isRefreshing = false;
+        
+        if (newToken) {
+          config.headers['Authorization'] = `Bearer ${newToken}`;
+          onTokenRefreshed(newToken);
+        }
+      }
+    }
+    
     return config;
   },
   (error) => {
@@ -50,7 +119,7 @@ axios.interceptors.request.use(
   }
 );
 
-// Response interceptor to capture CSRF token from responses
+// Response interceptor to handle errors and capture tokens
 axios.interceptors.response.use(
   (response) => {
     // Capture CSRF token from response header if present
@@ -60,21 +129,63 @@ axios.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
-    // Handle 401 Unauthorized errors globally
-    if (error.response && error.response.status === 401) {
-      // Clear token to force re-login
-      localStorage.removeItem('token');
-      
-      // Redirect to login page if not already there
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    
+    // Handle 401 Unauthorized - try to refresh token
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      // Don't retry for login/refresh endpoints
+      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+        localStorage.removeItem('token');
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      originalRequest._retry = true;
+
+      if (!isRefreshing) {
+        isRefreshing = true;
+        
+        try {
+          const newToken = await refreshAccessToken();
+          isRefreshing = false;
+          
+          if (newToken) {
+            onTokenRefreshed(newToken);
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            return axios(originalRequest);
+          } else {
+            // Refresh failed - redirect to login
+            localStorage.removeItem('token');
+            if (!window.location.pathname.includes('/login')) {
+              window.location.href = '/login';
+            }
+            return Promise.reject(error);
+          }
+        } catch {
+          isRefreshing = false;
+          localStorage.removeItem('token');
+          if (!window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+          return Promise.reject(error);
+        }
+      } else {
+        // Wait for ongoing refresh to complete
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            resolve(axios(originalRequest));
+          });
+        });
       }
     }
     
     // Handle CSRF errors - fetch new token and suggest retry
-    if (error.response && error.response.status === 403) {
-      const code = error.response.data?.code;
+    if (error.response?.status === 403) {
+      const code = (error.response.data as { code?: string })?.code;
       if (code === 'CSRF_TOKEN_MISSING' || code === 'CSRF_TOKEN_INVALID') {
         clearCsrfToken();
         console.warn('CSRF token error - token cleared. Please retry the action.');

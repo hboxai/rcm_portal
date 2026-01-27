@@ -3,6 +3,13 @@ import jwt, { Secret } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import pool from '../config/db.js';
 import { logAudit, getClientInfo, AuditActions } from '../services/auditService.js';
+import {
+  generateRefreshToken,
+  storeRefreshToken,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  revokeAllUserTokens,
+} from '../services/refreshTokenService.js';
 
 /**
  * User authentication controller
@@ -66,10 +73,20 @@ export const login = async (req: Request, res: Response) => {
       return res.status(500).json({ status: 'error', message: 'Internal server error' });
     }
 
-    const token = jwt.sign(
+    // Generate short-lived access token (15 minutes)
+    const accessToken = jwt.sign(
       { id: authRow.id, email: authRow.email, role, username: authRow.username },
       jwtSecret as Secret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' } as jwt.SignOptions
+    );
+
+    // Generate long-lived refresh token (7 days)
+    const refreshToken = generateRefreshToken();
+    await storeRefreshToken(
+      authRow.id,
+      refreshToken,
+      req.headers['user-agent'],
+      clientInfo.ipAddress
     );
 
     // Update last_login_at (ignore errors)
@@ -86,11 +103,21 @@ export const login = async (req: Request, res: Response) => {
       status: 'success',
     });
 
+    // Set refresh token as httpOnly cookie (more secure than localStorage)
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/api/auth', // Only sent to auth endpoints
+    });
+
     return res.status(200).json({
       status: 'success',
       data: {
         user: { id: authRow.id, name: authRow.username, email: authRow.email, role },
-        token
+        token: accessToken,
+        expiresIn: 900, // 15 minutes in seconds
       }
     });
   } catch (error) {
@@ -161,6 +188,156 @@ export const verifyToken = async (req: Request, res: Response) => {
       status: 'error',
       message: 'Internal server error',
       error: error instanceof Error ? error.message : String(error)
+    });
+  }
+};
+
+/**
+ * Refresh access token using refresh token
+ * Implements token rotation for security
+ */
+export const refreshAccessToken = async (req: Request, res: Response) => {
+  const clientInfo = getClientInfo(req);
+  
+  try {
+    // Get refresh token from httpOnly cookie
+    const refreshToken = req.cookies?.refreshToken;
+    
+    if (!refreshToken) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Refresh token required. Please log in again.',
+        code: 'REFRESH_TOKEN_MISSING',
+      });
+    }
+
+    // Rotate the refresh token (revoke old, issue new)
+    const result = await rotateRefreshToken(
+      refreshToken,
+      req.headers['user-agent'],
+      clientInfo.ipAddress
+    );
+
+    if (!result) {
+      // Clear the invalid cookie
+      res.clearCookie('refreshToken', { path: '/api/auth' });
+      
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid or expired refresh token. Please log in again.',
+        code: 'REFRESH_TOKEN_INVALID',
+      });
+    }
+
+    const { newToken, userId } = result;
+
+    // Get user details
+    const userResult = await pool.query(
+      'SELECT id, email, username, role FROM rcm_portal_auth_users WHERE id = $1 AND status = $2',
+      [userId, 'active']
+    );
+
+    if (userResult.rows.length === 0) {
+      res.clearCookie('refreshToken', { path: '/api/auth' });
+      return res.status(401).json({
+        status: 'error',
+        message: 'User not found or inactive',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    const user = userResult.rows[0];
+    const role = user.role === 'Admin' ? 'Admin' : 'User';
+
+    // Generate new access token
+    const jwtSecret = process.env.JWT_SECRET || '';
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email, role, username: user.username },
+      jwtSecret as Secret,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' } as jwt.SignOptions
+    );
+
+    // Set new refresh token cookie
+    res.cookie('refreshToken', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/auth',
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        token: accessToken,
+        expiresIn: 900,
+        user: { id: user.id, name: user.username, email: user.email, role },
+      },
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+};
+
+/**
+ * Logout - revoke refresh token
+ */
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+
+    // Clear the cookie
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
+    });
+  }
+};
+
+/**
+ * Logout from all devices - revoke all user's refresh tokens
+ */
+export const logoutAll = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication required',
+      });
+    }
+
+    await revokeAllUserTokens(userId);
+
+    // Clear the current cookie
+    res.clearCookie('refreshToken', { path: '/api/auth' });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Logged out from all devices',
+    });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error',
     });
   }
 };
