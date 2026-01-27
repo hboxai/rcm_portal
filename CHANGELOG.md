@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CSRF protection middleware with token generation and validation (Issue #8)
+- JWT refresh token rotation with secure httpOnly cookies (Issue #9)
+- In-memory database caching service with TTL and LRU eviction (Issue #13)
+- Cache statistics endpoint at `/api/health/cache`
 - Professional GitHub workflow templates
 - Pre-commit hooks with Husky and lint-staged
 - Commitlint for conventional commits enforcement
@@ -15,13 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prettier configuration for consistent formatting
 
 ### Changed
+- Refactored UploadPage into reusable components (Issue #19):
+  - Created `useUpload` custom hook for upload state/logic
+  - Created `FileDropZone` component for drag-drop uploads
+  - Created `UploadPreviewPanel` for validation preview
+  - Created `UploadHistoryTable` for upload history display
 - Enhanced CI/CD pipeline with additional checks
+- Auth tokens now use 15-minute access + 7-day refresh pattern
 
 ### Fixed
 - N/A
 
 ### Security
-- N/A
+- CSRF tokens protect against cross-site request forgery attacks
+- Refresh token rotation prevents token replay attacks
+- httpOnly cookies prevent XSS token theft
 
 ---
 
