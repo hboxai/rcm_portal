@@ -1,9 +1,7 @@
 import { LoginCredentials, User } from '../types/auth';
 import * as jose from 'jose';
 import axios from '../utils/axiosSetup';
-
-// Use a direct string to avoid any environment variable issues
-const API_BASE_URL = '/api';
+import { API_BASE_URL } from '../config/api';
 
 /**
  * Authentication service for handling user login and token management

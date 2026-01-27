@@ -1,8 +1,7 @@
 import axios from '../utils/axiosSetup';
 import { UploadedFile, UploadListFilters, ClaimsByUploadFilters } from '../types/file';
 import { PaginatedClaimsResponse, SearchFilters } from '../types/claim';
-
-const API_BASE_URL = '/api';
+import { API_BASE_URL } from '../config/api';
 
 const getAuthToken = () => {
   const token = localStorage.getItem('token');

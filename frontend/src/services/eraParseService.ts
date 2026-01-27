@@ -1,6 +1,5 @@
 import axios from '../utils/axiosSetup';
-
-const API_BASE_URL = '/api/era';
+import { ERA_API_BASE_URL as API_BASE_URL } from '../config/api';
 
 const authHeader = () => ({ Authorization: localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '' });
 
