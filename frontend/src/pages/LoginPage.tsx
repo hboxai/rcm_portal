@@ -115,7 +115,7 @@ const LoginPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut", delay: 1.4 }}
         >
-          © 2025 Revenue Cycle Management. All rights reserved.
+          © {new Date().getFullYear()} Revenue Cycle Management. All rights reserved.
         </motion.div>
       </motion.div>
       
