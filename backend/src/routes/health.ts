@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../config/db.js';
 import os from 'os';
+import { userCache, queryCache, sessionCache } from '../services/cacheService.js';
 
 const router = Router();
 
@@ -158,5 +159,23 @@ function formatBytes(bytes: number): string {
   
   return `${size.toFixed(2)} ${units[unitIndex]}`;
 }
+
+/**
+ * Cache statistics endpoint
+ * Use for: Monitoring cache performance, debugging
+ */
+router.get('/cache', (_req: Request, res: Response) => {
+  const stats = {
+    userCache: userCache.getStats(),
+    queryCache: queryCache.getStats(),
+    sessionCache: sessionCache.getStats(),
+  };
+  
+  res.status(200).json({
+    status: 'success',
+    data: stats,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 export default router;
