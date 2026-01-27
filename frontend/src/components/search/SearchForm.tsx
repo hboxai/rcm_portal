@@ -121,16 +121,12 @@ const SearchForm: React.FC<SearchFormProps> = ({ onSearch, isLoading, filters, s
       // Normal handling for non-date fields
       setFilters(prev => ({ ...prev, [name]: value }));
     }
-    
-    console.log(`Search field ${name} changed to: ${value}`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Search form submitted with filters:', filters);
     onSearch(filters);
   };  const handleClear = () => {
-    console.log('Clearing search form');
     setFilters({
       patientId: '',
       billingId: '',

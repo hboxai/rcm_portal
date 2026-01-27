@@ -59,14 +59,11 @@ export default function EraInboxPage() {
     if (!ev.target.files || ev.target.files.length === 0) return;
     setBusy(true);
     try {
-      console.log('Uploading files:', ev.target.files.length);
       const result = await uploadEraPdfsGlobal(Array.from(ev.target.files));
-      console.log('Upload result:', result);
       await loadFiles();
       ev.target.value = '';
       success(`Successfully uploaded ${result.length} file(s)`);
     } catch (err: any) {
-      console.error('Upload error:', err);
       error(`Upload failed: ${err?.response?.data?.message || err?.message || 'Unknown error'}`);
     } finally {
       setBusy(false);

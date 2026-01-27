@@ -75,7 +75,6 @@ const HistoryPage: React.FC = () => {
     if (!forceRefresh && 
         historyPageCache[cacheKey] && 
         now - historyPageCache[cacheKey].timestamp < HISTORY_PAGE_CACHE_EXPIRY) {
-      console.log(`Using cached history page data for key ${cacheKey}`);
       setHistory(historyPageCache[cacheKey].data.data);
       setPagination(prev => ({
         ...prev,
@@ -86,7 +85,6 @@ const HistoryPage: React.FC = () => {
     }
     
     if (!forceRefresh && now - lastFetchTime < 2000) {
-      console.log('Skipping history page fetch - throttled');
       return;
     }
     
@@ -136,7 +134,6 @@ const HistoryPage: React.FC = () => {
           setError('Network error. Please check your connection and try again.');
         } else {
           // Don't show an error for empty results
-          console.log('API response indicates no history data available');
         }
         setHistory([]);
       }

@@ -54,7 +54,6 @@ root.render(
 // Log performance metrics after hydration
 window.addEventListener('load', () => {
   const loadTime = performance.now() - startTime;
-  console.log(`Initial render completed in ${loadTime.toFixed(2)}ms`);
 
   // Report performance to analytics if needed
   if ('requestIdleCallback' in window) {

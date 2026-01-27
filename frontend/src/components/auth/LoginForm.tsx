@@ -151,8 +151,6 @@ const LoginForm: React.FC = () => {
     }
     
     try {
-      console.log('Submitting login form with:', credentials.email);
-      
   // Clear any previous form-level error
   if (errors.form) setErrors(prev => { const ne={...prev}; delete ne.form; return ne; });
       
@@ -168,14 +166,10 @@ const LoginForm: React.FC = () => {
         // Clear any previous errors on successful login
         setErrors({});
         setLoginResult({ success: true });
-        console.log("Login successful, showing loading state and preparing to navigate");
       }
       
     } catch (error: any) {
-      console.error('Login form submission error:', error);
-      
       // Show error immediately, stay on same screen
-      console.log("Login error occurred - staying on login screen");
       const form = e.target as HTMLFormElement;
       form.classList.add('animate-shake');
       setTimeout(() => form.classList.remove('animate-shake'), 500);

@@ -26,7 +26,6 @@ export const loadFonts = () => {
     
     document.head.appendChild(styleElement);
     
-    console.log('Inter font loading initiated');
     return true;
   } catch (error) {
     console.warn('Font loading failed, falling back to system fonts:', error);
