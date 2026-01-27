@@ -1,8 +1,15 @@
 import { Router } from 'express';
-import { getUsers, createUser, updateUser, deleteUser } from '../controllers/userController.js';
+import { getUsers, createUser, updateUser, deleteUser, changePassword, getPasswordRequirements } from '../controllers/userController.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
+
+/**
+ * @route GET /api/users/password-requirements
+ * @description Get password complexity requirements
+ * @access Public
+ */
+router.get('/password-requirements', getPasswordRequirements);
 
 /**
  * @route GET /api/users
@@ -24,6 +31,13 @@ router.post('/', authMiddleware, createUser);
  * @access Private (requires authentication)
  */
 router.put('/:id', authMiddleware, updateUser);
+
+/**
+ * @route PUT /api/users/:id/password
+ * @description Change user password
+ * @access Private (requires authentication)
+ */
+router.put('/:id/password', authMiddleware, changePassword);
 
 /**
  * @route DELETE /api/users/:id

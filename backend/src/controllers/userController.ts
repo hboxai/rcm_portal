@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { query } from '../config/db.js';
 import { ApiUser } from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import { validatePassword, getPasswordRequirementsMessage } from '../utils/passwordValidation.js';
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -42,6 +43,17 @@ export const createUser = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: username, email, password'
+      });
+    }
+    
+    // Validate password complexity
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password does not meet requirements',
+        details: passwordValidation.errors,
+        requirements: getPasswordRequirementsMessage()
       });
     }
     
@@ -173,4 +185,104 @@ export const deleteUser = async (req: Request, res: Response) => {
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
+};
+
+/**
+ * Change user password
+ * Requires current password verification and validates new password complexity
+ */
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { currentPassword, newPassword } = req.body;
+    
+    // Validate required fields
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Current password and new password are required'
+      });
+    }
+    
+    // Get user's current password hash
+    const userResult = await query(
+      'SELECT id, password_hash FROM rcm_portal_auth_users WHERE id = $1 AND status = $2',
+      [id, 'active']
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+    
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Current password is incorrect'
+      });
+    }
+    
+    // Validate new password complexity
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password does not meet requirements',
+        details: passwordValidation.errors,
+        requirements: getPasswordRequirementsMessage()
+      });
+    }
+    
+    // Check that new password is different from current
+    const isSamePassword = await bcrypt.compare(newPassword, userResult.rows[0].password_hash);
+    if (isSamePassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password must be different from current password'
+      });
+    }
+    
+    // Hash and update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await query(
+      'UPDATE rcm_portal_auth_users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [hashedPassword, id]
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to change password',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+};
+
+/**
+ * Get password requirements
+ * Public endpoint to show password rules to users
+ */
+export const getPasswordRequirements = (req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    requirements: {
+      minLength: 8,
+      maxLength: 128,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumbers: true,
+      requireSpecialChars: true,
+      message: getPasswordRequirementsMessage()
+    }
+  });
 };
