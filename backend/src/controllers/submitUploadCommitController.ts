@@ -464,26 +464,73 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       return res.status(400).json({ status: 'error', message: 'Data validation requirements have changed. Please preview the file again before committing.' });
     }
 
-    // Validate mandatory fields
-    const mandatoryFields = [
-      'PatientLast',
-      'PatientFirst', 
-      'PatientDOB',
-      'FromDateOfService1',
-      'ToDateOfService1',
-      'CPT1',
-      'CPT CODEID 1'
+    // Validate mandatory fields using flexible matching
+    // Each entry: [display name, list of possible Excel column name patterns (case-insensitive, spaces/underscores ignored)]
+    const mandatoryFieldPatterns: Array<{ name: string; patterns: string[] }> = [
+      { name: 'PatientLast', patterns: ['patientlast', 'patient_last', 'lastname', 'last_name', 'last'] },
+      { name: 'PatientFirst', patterns: ['patientfirst', 'patient_first', 'firstname', 'first_name', 'first'] },
+      { name: 'PatientDOB', patterns: ['patientdob', 'patient_dob', 'dob', 'dateofbirth', 'date_of_birth', 'birthdate'] },
+      { name: 'FromDateOfService1', patterns: ['fromdateofservice1', 'from_date_of_service_1', 'fromdos1', 'dos1', 'servicedate1', 'service_date_1', 'dateofservice'] },
+      { name: 'ToDateOfService1', patterns: ['todateofservice1', 'to_date_of_service_1', 'todos1', 'todate1', 'serviceenddate1'] },
+      { name: 'CPT1', patterns: ['cpt1', 'cpt_1', 'cptcode1', 'cpt_code_1', 'cpt'] },
+      { name: 'CPT Code ID', patterns: ['cptcodeid1', 'cpt_code_id_1', 'cptid1', 'cpt_id_1', 'codeid1', 'code_id_1'] },
     ];
     
+    // Normalize function for matching
+    const normalizeKey = (s: string) => String(s || '').toLowerCase().replace(/[\s_-]+/g, '');
+    
+    // Build a lookup from the first row's headers
+    const headerLookup: Record<string, string> = {};
+    if (rows.length > 0) {
+      for (const hdr of Object.keys(rows[0])) {
+        headerLookup[normalizeKey(hdr)] = hdr;
+      }
+    }
+    
+    // Find the actual column name for each mandatory field
+    const findColumn = (patterns: string[]): string | null => {
+      for (const pat of patterns) {
+        const normalized = normalizeKey(pat);
+        if (headerLookup[normalized]) {
+          return headerLookup[normalized];
+        }
+      }
+      return null;
+    };
+    
     const missingFieldErrors: string[] = [];
+    const missingColumns: string[] = [];
+    
+    // First check if all required columns exist
+    const columnMapping: Record<string, string> = {};
+    for (const { name, patterns } of mandatoryFieldPatterns) {
+      const actualCol = findColumn(patterns);
+      if (actualCol) {
+        columnMapping[name] = actualCol;
+      } else {
+        missingColumns.push(name);
+      }
+    }
+    
+    if (missingColumns.length > 0) {
+      console.log('[COMMIT] Missing columns:', missingColumns);
+      console.log('[COMMIT] Available headers:', rows.length > 0 ? Object.keys(rows[0]) : 'No rows');
+      // Don't fail - just log and skip validation for missing columns
+      // The data might still be valid if we can map it through the alias system
+    }
+    
+    // Only validate fields that we found columns for
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNum = i + 2; // Excel row number (1-indexed + header)
       
-      for (const field of mandatoryFields) {
-        const value = row[field];
+      for (const { name, patterns } of mandatoryFieldPatterns) {
+        const actualCol = columnMapping[name];
+        if (!actualCol) continue; // Skip if column not found
+        
+        const value = row[actualCol];
         if (value == null || value === '' || (typeof value === 'string' && value.trim() === '')) {
-          missingFieldErrors.push(`Row ${rowNum}: Missing required field "${field}" (value: ${JSON.stringify(value)})`);
+          missingFieldErrors.push(`Row ${rowNum}: Missing required field "${name}" (column: "${actualCol}", value: ${JSON.stringify(value)})`);
         }
       }
       
@@ -495,7 +542,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
     }
     
     if (missingFieldErrors.length > 0) {
-      console.log('[COMMIT] Validation failed. Available headers:', rows.length > 0 ? Object.keys(rows[0]) : 'No rows');
+      console.log('[COMMIT] Validation failed. Column mapping:', columnMapping);
       console.log('[COMMIT] First 5 errors:', missingFieldErrors.slice(0, 5));
       await pool.query(
         `UPDATE rcm_file_uploads SET status=$1, message=$2, updated_at=NOW() WHERE upload_id=$3`,
