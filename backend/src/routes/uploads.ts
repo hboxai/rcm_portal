@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { uploadFile, listUploads, getClaimsByUpload, deleteUpload, getValidationReport, downloadUploadFile, getUploadById, getUploadPreview, getMappingInfo } from '../controllers/uploadController.js';
 import { getSubmitUploadDownloadUrl } from '../controllers/submitUploadsController.js';
+import { sanitizeFilename, createFileFilter, MAX_FILE_SIZES } from '../utils/fileSanitization.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,17 +19,19 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    // Sanitize the filename before saving
+    const sanitized = sanitizeFilename(file.originalname);
+    cb(null, `${Date.now()}-${sanitized}`);
   }
 });
+
 const upload = multer({
   storage,
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const ok = ['.xlsx', '.xls', '.csv'].includes(ext);
-    if (ok) return cb(null, true);
-    cb(new Error('Only .xlsx, .xls, .csv files are allowed'));
-  }
+  limits: {
+    fileSize: MAX_FILE_SIZES.spreadsheet, // 50MB max
+    files: 1, // Only one file at a time
+  },
+  fileFilter: createFileFilter(['.xlsx', '.xls', '.csv']),
 });
 
 // Wrap multer to surface validation/parsing errors as JSON

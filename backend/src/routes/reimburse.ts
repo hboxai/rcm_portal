@@ -5,22 +5,18 @@ import multer from 'multer';
 import { uploadReimburseExcel } from '../controllers/reimburseUploadController.js';
 import { previewReimburseUpload } from '../controllers/reimburseUploadPreviewController.js';
 import { commitReimburseUpload } from '../controllers/reimburseUploadCommitController.js';
+import { createFileFilter, MAX_FILE_SIZES } from '../utils/fileSanitization.js';
 
 const router = Router();
 
-// Multer configuration for Excel uploads
+// Multer configuration for Excel uploads - with enhanced sanitization
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    const validExts = ['.xlsx', '.xls', '.csv'];
-    const ext = file.originalname.toLowerCase().slice(file.originalname.lastIndexOf('.'));
-    if (validExts.includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only .xlsx, .xls, and .csv files are allowed'));
-    }
-  }
+  limits: { 
+    fileSize: MAX_FILE_SIZES.spreadsheet, // 50MB max
+    files: 1,
+  },
+  fileFilter: createFileFilter(['.xlsx', '.xls', '.csv']),
 });
 
 // POST /api/reimburse/upload-excel - Upload reimbursement Excel file (old method)
