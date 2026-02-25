@@ -15,7 +15,7 @@ const REQUIRED_MAPPED = [
   'insuranceplanname','insurancepayerid',
   // row-level validation is relaxed to allow any service line (1..6);
   // per-line checks happen during splitting
-  'fromdateofservice1','cpt1','charges1'
+  'fromdateofservice1','cpt_code_id1','charges1'
 ];
 
 // headerMap replaced by rule-driven mapper (alias + auto-match)
@@ -42,7 +42,7 @@ function mapRow(excelRow: Record<string, any>, schemaColumns: Set<string>, warni
     out[key] = val;
   }
   // derive totals
-  if ((out['units1'] == null || out['units1'] === '') && out['cpt1']) out['units1'] = 1;
+  if ((out['units1'] == null || out['units1'] === '') && out['cpt_code_id1']) out['units1'] = 1;
   if ((out['charges1'] == null || out['charges1'] === '') && out['totalcharges'] != null) {
     const u = Number(out['units1'] ?? 1);
     const tnum = Number(out['totalcharges']);
@@ -58,7 +58,7 @@ const SHEET_SYNONYMS: Record<string, string[]> = {
   patientlast: ['PatientLast','Patient Last','PatientLastName','LastName','Last Name'],
   patientdob: ['PatientDOB','DOB','DateOfBirth','Date of Birth','Birth Date'],
   fromdateofservice1: ['FromDateOfService1','From DOS1','From DOS','Service Start','ServiceDate1','DateOfService','DOS','Service Date'],
-  cpt1: ['CPT1','CPT','CPT Code','CPT-1'],
+  cpt_code_id1: ['CPT1','CPT','CPT Code','CPT-1'],
   charges1: ['Charges1','Charge1','Charge Amount','ChargeAmt1','Charge Amount 1','Charge','Amount'],
 };
 
@@ -328,24 +328,21 @@ async function findClaimByCptCodeId(client: any, cptCodeId: string): Promise<num
 }
 
 async function findExistingSubmit(client: any, rowObj: Record<string, any>): Promise<number | null> {
-  // CPT-ID only matching: find an existing claim whose set of present cpt_id1..6
+  // CPT-ID only matching: find an existing claim whose set of present cpt_code_id1..6
   // exactly matches the set in the incoming row, ignoring order. No patient/insurer keys.
   const presentCptIds: string[] = [];
   for (let li = 1; li <= 6; li++) {
-    // Check both cpt_code_id and cpt_id fields
-    const v = rowObj[`cpt_code_id${li}`] || rowObj[`cpt_id${li}`];
+    const v = rowObj[`cpt_code_id${li}`];
     if (v != null && String(v).trim() !== '') presentCptIds.push(String(v));
   }
   if (presentCptIds.length) {
     const targetSig = presentCptIds.slice().sort().join('|');
     const arrParam = presentCptIds;
     const sql = `
-      SELECT claim_id, cpt1,cpt2,cpt3,cpt4,cpt5,cpt6,
+      SELECT claim_id,
              cpt_code_id1,cpt_code_id2,cpt_code_id3,cpt_code_id4,cpt_code_id5,cpt_code_id6
         FROM api_bil_claim_submit
-       WHERE (cpt1 = ANY($1::text[]) OR cpt2 = ANY($1::text[]) OR cpt3 = ANY($1::text[])
-           OR cpt4 = ANY($1::text[]) OR cpt5 = ANY($1::text[]) OR cpt6 = ANY($1::text[])
-           OR cpt_code_id1 = ANY($1::text[]) OR cpt_code_id2 = ANY($1::text[]) OR cpt_code_id3 = ANY($1::text[])
+       WHERE (cpt_code_id1 = ANY($1::text[]) OR cpt_code_id2 = ANY($1::text[]) OR cpt_code_id3 = ANY($1::text[])
            OR cpt_code_id4 = ANY($1::text[]) OR cpt_code_id5 = ANY($1::text[]) OR cpt_code_id6 = ANY($1::text[]))
        ORDER BY claim_id DESC
        LIMIT 100`;
@@ -353,8 +350,7 @@ async function findExistingSubmit(client: any, rowObj: Record<string, any>): Pro
     for (const r of cand.rows) {
       const s: string[] = [];
       for (let li = 1; li <= 6; li++) {
-        // Check both cpt_code_id and cpt in database results
-        const v = r[`cpt_code_id${li}`] || r[`cpt${li}`];
+        const v = r[`cpt_code_id${li}`];
         if (v != null && String(v).trim() !== '') s.push(String(v));
       }
       if (s.length && s.slice().sort().join('|') === targetSig) {
@@ -472,8 +468,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       { name: 'PatientDOB', patterns: ['patientdob', 'patient_dob', 'dob', 'dateofbirth', 'date_of_birth', 'birthdate'] },
       { name: 'FromDateOfService1', patterns: ['fromdateofservice1', 'from_date_of_service_1', 'fromdos1', 'dos1', 'servicedate1', 'service_date_1', 'dateofservice'] },
       { name: 'ToDateOfService1', patterns: ['todateofservice1', 'to_date_of_service_1', 'todos1', 'todate1', 'serviceenddate1'] },
-      { name: 'CPT1', patterns: ['cpt1', 'cpt_1', 'cptcode1', 'cpt_code_1', 'cpt'] },
-      { name: 'CPT Code ID', patterns: ['cptcodeid1', 'cpt_code_id_1', 'cptid1', 'cpt_id_1', 'codeid1', 'code_id_1'] },
+      { name: 'CPT1', patterns: ['cpt1', 'cpt_1', 'cptcode1', 'cpt_code_1', 'cpt'] },  // Maps to cpt_code_id1
     ];
     
     // Normalize function for matching

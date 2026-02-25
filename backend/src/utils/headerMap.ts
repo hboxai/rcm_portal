@@ -77,7 +77,7 @@ const SL: Array<[string, string]> = [
   ["ToDateOfService", "todateofservice"],
   ["PlaceOfService", "placeofservice"],
   ["EMG", "emg"],
-  ["CPT", "cpt"],
+  ["CPT", "cpt_code_id"],  // Excel CPT1-6 now maps to cpt_code_id1-6
   ["ModifierA", "modifiera"],
   ["ModifierB", "modifierb"],
   ["ModifierC", "modifierc"],

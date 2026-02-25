@@ -28,8 +28,7 @@ function validateMandatoryFields(row: ClaimRow, rowIndex: number): string | null
     'PatientDOB',
     'FromDateOfService1',
     'ToDateOfService1',
-    'CPT1',
-    'CPT Code ID1',
+    'CPT1',  // Maps to cpt_code_id1 in schema
   ];
 
   for (const field of mandatoryFields) {

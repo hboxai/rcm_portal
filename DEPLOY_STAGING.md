@@ -252,7 +252,7 @@ ORDER BY created_at DESC
 LIMIT 5;
 
 -- Check submit claims
-SELECT claim_id, cpt_code_id1, cpt1, charges1, upload_id
+SELECT claim_id, cpt_code_id1, charges1, upload_id
 FROM api_bil_claim_submit
 ORDER BY created_at DESC
 LIMIT 5;

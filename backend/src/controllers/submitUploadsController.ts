@@ -32,11 +32,11 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     if (dateOfBirth) { params.push(dateOfBirth); where.push(`patientdob = $${params.length}::date`); }
     if (payerName) { params.push(`%${payerName}%`); where.push(`COALESCE(insuranceplanname,'') ILIKE $${params.length}`); }
     if (cptCode) {
-      // Search across cpt1..cpt6
+      // Search across cpt_code_id1..cpt_code_id6
       const param = `%${cptCode}%`;
       const base = params.length;
       params.push(param, param, param, param, param, param);
-      where.push(`(COALESCE(cpt1,'') ILIKE $${base + 1} OR COALESCE(cpt2,'') ILIKE $${base + 2} OR COALESCE(cpt3,'') ILIKE $${base + 3} OR COALESCE(cpt4,'') ILIKE $${base + 4} OR COALESCE(cpt5,'') ILIKE $${base + 5} OR COALESCE(cpt6,'') ILIKE $${base + 6})`);
+      where.push(`(COALESCE(cpt_code_id1,'') ILIKE $${base + 1} OR COALESCE(cpt_code_id2,'') ILIKE $${base + 2} OR COALESCE(cpt_code_id3,'') ILIKE $${base + 3} OR COALESCE(cpt_code_id4,'') ILIKE $${base + 4} OR COALESCE(cpt_code_id5,'') ILIKE $${base + 5} OR COALESCE(cpt_code_id6,'') ILIKE $${base + 6})`);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -46,7 +46,7 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
 
     const rowsSql = `
       SELECT claim_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid,
-        oa_claimid, payor_reference_id, totalcharges, cpt1,
+        oa_claimid, payor_reference_id, totalcharges, cpt_code_id1,
         facilityname, payor_status, cycle
       FROM api_bil_claim_submit
       ${whereSql}
@@ -63,7 +63,7 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
       patientlast: r.patientlast ?? '',
       patient_id: r.patient_id ?? '',
       prim_ins: r.insuranceplanname ?? '',
-      cpt_code: r.cpt1 ?? '',
+      cpt_code: r.cpt_code_id1 ?? '',
       total_amt: r.totalcharges ?? 0,
       claim_status: '',
       cycle: r.cycle ?? 1,
@@ -231,7 +231,7 @@ export async function getClaimsBySubmitUpload(req: Request, res: Response) {
     const total = totalRes.rows[0]?.total ?? 0;
 
     const rowsRes = await pool.query(
-      `SELECT claim_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid, oa_claimid, payor_reference_id, totalcharges, cpt1,
+      `SELECT claim_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid, oa_claimid, payor_reference_id, totalcharges, cpt_code_id1,
        facilityname, payor_status
        FROM api_bil_claim_submit
        WHERE upload_id=$1
@@ -248,7 +248,7 @@ export async function getClaimsBySubmitUpload(req: Request, res: Response) {
       patientlast: r.patientlast ?? '',
       patient_id: r.patient_id ?? '',
       prim_ins: r.insuranceplanname ?? '',
-      cpt_code: r.cpt1 ?? '',
+      cpt_code: r.cpt_code_id1 ?? '',
       total_amt: r.totalcharges ?? 0,
       claim_status: '',
       // pass-throughs for preview card

@@ -7,7 +7,6 @@ import * as crypto from 'crypto';
 export function generateCptHash(lineNum: 1 | 2 | 3 | 4 | 5 | 6, claimData: any): string {
   // Fields that matter for each CPT line
   const fields = [
-    `cpt${lineNum}`,
     `cpt_code_id${lineNum}`,
     `fromdateofservice${lineNum}`,
     `todateofservice${lineNum}`,
@@ -98,33 +97,33 @@ export function getAllClaimFields(): string[] {
     
     // CPT Line 1
     'fromdateofservice1', 'todateofservice1', 'placeofservice1',
-    'emg1', 'cpt1', 'modifiera1', 'modifierb1', 'modifierc1', 'modifierd1',
-    'diagnosispointer1', 'charges1', 'units1', 'cpt_code_id1',
+    'emg1', 'cpt_code_id1', 'modifiera1', 'modifierb1', 'modifierc1', 'modifierd1',
+    'diagnosispointer1', 'charges1', 'units1',
     
     // CPT Line 2
     'fromdateofservice2', 'todateofservice2', 'placeofservice2',
-    'emg2', 'cpt2', 'modifiera2', 'modifierb2', 'modifierc2', 'modifierd2',
-    'diagnosispointer2', 'charges2', 'units2', 'cpt_code_id2',
+    'emg2', 'cpt_code_id2', 'modifiera2', 'modifierb2', 'modifierc2', 'modifierd2',
+    'diagnosispointer2', 'charges2', 'units2',
     
     // CPT Line 3
     'fromdateofservice3', 'todateofservice3', 'placeofservice3',
-    'emg3', 'cpt3', 'modifiera3', 'modifierb3', 'modifierc3', 'modifierd3',
-    'diagnosispointer3', 'charges3', 'units3', 'cpt_code_id3',
+    'emg3', 'cpt_code_id3', 'modifiera3', 'modifierb3', 'modifierc3', 'modifierd3',
+    'diagnosispointer3', 'charges3', 'units3',
     
     // CPT Line 4
     'fromdateofservice4', 'todateofservice4', 'placeofservice4',
-    'emg4', 'cpt4', 'modifiera4', 'modifierb4', 'modifierc4', 'modifierd4',
-    'diagnosispointer4', 'charges4', 'units4', 'cpt_code_id4',
+    'emg4', 'cpt_code_id4', 'modifiera4', 'modifierb4', 'modifierc4', 'modifierd4',
+    'diagnosispointer4', 'charges4', 'units4',
     
     // CPT Line 5
     'fromdateofservice5', 'todateofservice5', 'placeofservice5',
-    'emg5', 'cpt5', 'modifiera5', 'modifierb5', 'modifierc5', 'modifierd5',
-    'diagnosispointer5', 'charges5', 'units5', 'cpt_code_id5',
+    'emg5', 'cpt_code_id5', 'modifiera5', 'modifierb5', 'modifierc5', 'modifierd5',
+    'diagnosispointer5', 'charges5', 'units5',
     
     // CPT Line 6
     'fromdateofservice6', 'todateofservice6', 'placeofservice6',
-    'emg6', 'cpt6', 'modifiera6', 'modifierb6', 'modifierc6', 'modifierd6',
-    'diagnosispointer6', 'charges6', 'units6', 'cpt_code_id6',
+    'emg6', 'cpt_code_id6', 'modifiera6', 'modifierb6', 'modifierc6', 'modifierd6',
+    'diagnosispointer6', 'charges6', 'units6',
     
     // Additional fields (add more based on your 280 columns)
     // Add any remaining fields from your Excel structure here

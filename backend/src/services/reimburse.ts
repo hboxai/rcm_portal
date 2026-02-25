@@ -109,7 +109,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         claim_id::bigint,
         upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
-        UPPER(TRIM(cpt1)) AS cpt_id,
+        UPPER(TRIM(cpt_code_id1)) AS cpt_id,
         CASE 
           WHEN fromdateofservice1 IS NOT NULL 
             AND fromdateofservice1::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
@@ -122,11 +122,10 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         insuranceplanname,
         TRIM(cpt_code_id1) AS submit_cpt_id
       FROM api_bil_claim_submit
-      WHERE UPPER(TRIM(COALESCE(cpt1, ''))) != '' 
-        AND UPPER(TRIM(COALESCE(cpt1, ''))) != '0'
+      WHERE UPPER(TRIM(COALESCE(cpt_code_id1, ''))) != '' 
+        AND UPPER(TRIM(COALESCE(cpt_code_id1, ''))) != '0'
         AND charges1 IS NOT NULL
         AND charges1::numeric > 0
-        AND TRIM(COALESCE(cpt_code_id1, '')) != ''
         ${scopeSql ? 'AND upload_id = $1' : ''}
       
       UNION ALL
@@ -134,17 +133,16 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
       SELECT 
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
-        UPPER(TRIM(cpt2)),
+        UPPER(TRIM(cpt_code_id2)),
         CASE WHEN fromdateofservice2 IS NOT NULL AND fromdateofservice2::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice2::date ELSE NULL END,
         charges2::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id2)
       FROM api_bil_claim_submit
-      WHERE UPPER(TRIM(COALESCE(cpt2, ''))) != ''
-        AND UPPER(TRIM(COALESCE(cpt2, ''))) != '0'
+      WHERE UPPER(TRIM(COALESCE(cpt_code_id2, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt_code_id2, ''))) != '0'
         AND charges2 IS NOT NULL
         AND charges2::numeric > 0
-        AND TRIM(COALESCE(cpt_code_id2, '')) != ''
         ${scopeSql ? 'AND upload_id = $1' : ''}
       
       UNION ALL
@@ -152,17 +150,16 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
       SELECT 
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
-        UPPER(TRIM(cpt3)),
+        UPPER(TRIM(cpt_code_id3)),
         CASE WHEN fromdateofservice3 IS NOT NULL AND fromdateofservice3::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice3::date ELSE NULL END,
         charges3::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id3)
       FROM api_bil_claim_submit
-      WHERE UPPER(TRIM(COALESCE(cpt3, ''))) != ''
-        AND UPPER(TRIM(COALESCE(cpt3, ''))) != '0'
+      WHERE UPPER(TRIM(COALESCE(cpt_code_id3, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt_code_id3, ''))) != '0'
         AND charges3 IS NOT NULL
         AND charges3::numeric > 0
-        AND TRIM(COALESCE(cpt_code_id3, '')) != ''
         ${scopeSql ? 'AND upload_id = $1' : ''}
       
       UNION ALL
@@ -170,17 +167,16 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
       SELECT 
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
-        UPPER(TRIM(cpt4)),
+        UPPER(TRIM(cpt_code_id4)),
         CASE WHEN fromdateofservice4 IS NOT NULL AND fromdateofservice4::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice4::date ELSE NULL END,
         charges4::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id4)
       FROM api_bil_claim_submit
-      WHERE UPPER(TRIM(COALESCE(cpt4, ''))) != ''
-        AND UPPER(TRIM(COALESCE(cpt4, ''))) != '0'
+      WHERE UPPER(TRIM(COALESCE(cpt_code_id4, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt_code_id4, ''))) != '0'
         AND charges4 IS NOT NULL
         AND charges4::numeric > 0
-        AND TRIM(COALESCE(cpt_code_id4, '')) != ''
         ${scopeSql ? 'AND upload_id = $1' : ''}
       
       UNION ALL
@@ -188,17 +184,16 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
       SELECT 
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
-        UPPER(TRIM(cpt5)),
+        UPPER(TRIM(cpt_code_id5)),
         CASE WHEN fromdateofservice5 IS NOT NULL AND fromdateofservice5::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice5::date ELSE NULL END,
         charges5::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id5)
       FROM api_bil_claim_submit
-      WHERE UPPER(TRIM(COALESCE(cpt5, ''))) != ''
-        AND UPPER(TRIM(COALESCE(cpt5, ''))) != '0'
+      WHERE UPPER(TRIM(COALESCE(cpt_code_id5, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt_code_id5, ''))) != '0'
         AND charges5 IS NOT NULL
         AND charges5::numeric > 0
-        AND TRIM(COALESCE(cpt_code_id5, '')) != ''
         ${scopeSql ? 'AND upload_id = $1' : ''}
       
       UNION ALL
@@ -206,17 +201,16 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
       SELECT 
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
-        UPPER(TRIM(cpt6)),
+        UPPER(TRIM(cpt_code_id6)),
         CASE WHEN fromdateofservice6 IS NOT NULL AND fromdateofservice6::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice6::date ELSE NULL END,
         charges6::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id6)
       FROM api_bil_claim_submit
-      WHERE UPPER(TRIM(COALESCE(cpt6, ''))) != ''
-        AND UPPER(TRIM(COALESCE(cpt6, ''))) != '0'
+      WHERE UPPER(TRIM(COALESCE(cpt_code_id6, ''))) != ''
+        AND UPPER(TRIM(COALESCE(cpt_code_id6, ''))) != '0'
         AND charges6 IS NOT NULL
         AND charges6::numeric > 0
-        AND TRIM(COALESCE(cpt_code_id6, '')) != ''
         ${scopeSql ? 'AND upload_id = $1' : ''}
     `;
 
