@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Loader2, CheckCircle, AlertCircle, FileText, Eye, Download, Trash2, RefreshCw, PlayCircle } from 'lucide-react';
+import { Loader2, AlertCircle, FileText, Eye, Download, Trash2, RefreshCw, PlayCircle } from 'lucide-react';
 import type { SubmitUploadListItem } from '../../services/uploadService';
 
 interface UploadHistoryTableProps {
