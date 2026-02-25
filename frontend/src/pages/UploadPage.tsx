@@ -19,7 +19,7 @@ import { useUpload } from '../hooks/useUpload';
 import { FileDropZone, UploadPreviewPanel, UploadHistoryTable } from '../components/upload';
 
 const UploadPage: React.FC = () => {
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const uploadType = searchParams.get('type') || 'submit';
   const isReimburse = uploadType === 'reimburse';
@@ -187,7 +187,7 @@ const UploadPage: React.FC = () => {
   }, [quickPreview, refreshSubmitUploads, setCommitDone, setCommitSummary, setError, setQuickPreview, setSuccess]);
 
   // Handle commit from history table (for PENDING/COMPLETED uploads)
-  const [committingId, setCommittingId] = useState<string | null>(null);
+  const [_committingId, setCommittingId] = useState<string | null>(null);
   const handleCommitFromHistory = useCallback(async (uploadId: string) => {
     setCommittingId(uploadId);
     setError(null);
@@ -210,7 +210,7 @@ const UploadPage: React.FC = () => {
   }, [isReimburse, refreshSubmitUploads, setError, setSuccess]);
 
   // Handle validation modal
-  const handleValidation = useCallback(
+  const _handleValidation = useCallback(
     async (fileId: string) => {
       try {
         const lines = await getUploadValidationReport(fileId);
