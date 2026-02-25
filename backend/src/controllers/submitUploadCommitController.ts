@@ -11,11 +11,11 @@ import { mirrorReimburseForUpload } from '../services/reimburse.js';
 
 // Required fields refer to mapped property names (see headerMap values)
 const REQUIRED_MAPPED = [
-  'insurerid','patientlast','patientfirst','patientdob',
+  'patient_id','patientlast','patientfirst','patientdob',
   'insuranceplanname','insurancepayerid',
   // row-level validation is relaxed to allow any service line (1..6);
   // per-line checks happen during splitting
-  'fromdateofservice1','cpt_code_id1','charges1'
+  'dateofservice1','cpt_code_id1','charges1'
 ];
 
 // headerMap replaced by rule-driven mapper (alias + auto-match)
@@ -31,7 +31,8 @@ function mapRow(excelRow: Record<string, any>, schemaColumns: Set<string>, warni
     const k = normHdr(String(hdr));
     const key = alias[k] ?? k; // alias or normalized
     if (!schemaColumns.has(key)) {
-      if (warnings.length < 200) warnings.push(`Unmapped header: "${hdr}"`);
+      // Suppress unmapped header warnings from user - too noisy (debug only)
+      // console.debug(`Unmapped header: "${hdr}" → "${key}"`);
       continue;
     }
     const t = colType[key] ?? 'text';
@@ -57,7 +58,7 @@ const SHEET_SYNONYMS: Record<string, string[]> = {
   patientfirst: ['PatientFirst','Patient First','PatientFirstName','FirstName','First Name'],
   patientlast: ['PatientLast','Patient Last','PatientLastName','LastName','Last Name'],
   patientdob: ['PatientDOB','DOB','DateOfBirth','Date of Birth','Birth Date'],
-  fromdateofservice1: ['FromDateOfService1','From DOS1','From DOS','Service Start','ServiceDate1','DateOfService','DOS','Service Date'],
+  dateofservice1: ['FromDateOfService1','From DOS1','From DOS','Service Start','ServiceDate1','DateOfService','DOS','Service Date'],
   cpt_code_id1: ['CPT1','CPT','CPT Code','CPT-1'],
   charges1: ['Charges1','Charge1','Charge Amount','ChargeAmt1','Charge Amount 1','Charge','Amount'],
 };
@@ -229,7 +230,7 @@ function sanitizeByType(row: Record<string, any>, colTypes: Record<string, Colum
 
 function hasAnyServiceLine(mapped: Record<string, any>): boolean {
   for (let li = 1; li <= 6; li++) {
-    const cpt = mapped[`cpt${li}`];
+    const cpt = mapped[`cpt_code_id${li}`];
     const chg = mapped[`charges${li}`];
     // DOS is optional - many Excel exports don't have per-line dates
     if (cpt != null && cpt !== '' && chg != null && chg !== '') return true;
@@ -239,7 +240,7 @@ function hasAnyServiceLine(mapped: Record<string, any>): boolean {
 
 function listMissingForAnyLine(mapped: Record<string, any>): string[] {
   const missing: string[] = [];
-  if (!mapped.insurerid) missing.push('insurerid');
+  if (!mapped.patient_id) missing.push('patient_id');
   if (!(mapped.patientfirst && mapped.patientlast && mapped.patientdob)) missing.push('patient info');
   if (!(mapped.insurancepayerid || mapped.insuranceplanname)) missing.push('payer id or plan name');
   if (!hasAnyServiceLine(mapped)) missing.push('at least one complete service line');
@@ -248,11 +249,11 @@ function listMissingForAnyLine(mapped: Record<string, any>): string[] {
 
 // Deterministic per-line ID generator when input file doesn't supply CPT ID columns
 function genLineId(row: Record<string, any>, line: number): string {
-  const pref = row.payor_reference_id || row.oa_claimid || row.insurerid || row.patient_id || 'UNK';
+  const pref = row.payor_reference_id || row.oa_claimid || row.patient_id || 'UNK';
   const parts = [
     String(pref ?? ''),
-    String(row[`fromdateofservice${line}`] ?? ''),
-    String(row[`cpt${line}`] ?? ''),
+    String(row[`dateofservice${line}`] ?? ''),
+    String(row[`cpt_code_id${line}`] ?? ''),
     String(row[`units${line}`] ?? ''),
     String(row[`charges${line}`] ?? ''),
     String(line)
@@ -277,9 +278,9 @@ function prepareClaimFromRow(excelRow: Record<string, any>): Record<string, any>
 function canonicalLine(row: Record<string, any>, i: number): Record<string, any> {
   const out: Record<string, any> = {};
   const keys = [
-    `fromdateofservice${i}`,
+    `dateofservice${i}`,
     `todateofservice${i}`,
-    `cpt${i}`,
+    `cpt_code_id${i}`,
     `modifiera${i}`,
     `modifierb${i}`,
     `modifierc${i}`,
@@ -578,13 +579,14 @@ export async function commitSubmitUpload(req: Request, res: Response) {
       const tableIsEmpty = parseInt(countResult.rows[0].count) === 0;
       console.log('[COMMIT] Table has', countResult.rows[0].count, 'existing rows, empty:', tableIsEmpty);
 
-      // FAST PATH: If table is empty, use bulk INSERT with split-row model
+      // FAST PATH: If table is empty, use true batch INSERT
       if (tableIsEmpty) {
-        console.log('[COMMIT] Using fast bulk insert path with split-row model');
-        const batchSize = 100;
-        let claimCount = 0;
+        console.log('[COMMIT] Using fast batch insert path');
+        const BATCH_SIZE = 200; // Insert 200 rows at a time
         let inserted = 0;
         
+        // Phase 1: Prepare all valid rows
+        const preparedRows: { clean: Record<string, any>; rowIdx: number }[] = [];
         for (let i = 0; i < rows.length; i++) {
           const raw = rows[i];
           const mapped = mapRow(raw, schemaColumns, warnings);
@@ -592,11 +594,11 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           // Basic validation
           const hasPayerId = mapped.insurancepayerid != null && mapped.insurancepayerid !== '';
           const hasPlanName = mapped.insuranceplanname != null && mapped.insuranceplanname !== '';
-          const hasInsurer = mapped.insurerid != null && mapped.insurerid !== '';
+          const hasPatientId = mapped.patient_id != null && mapped.patient_id !== '';
           const hasPatient = mapped.patientfirst && mapped.patientlast && mapped.patientdob;
           const hasAnyLine = hasAnyServiceLine(mapped);
           
-          if (!hasInsurer || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
+          if (!hasPatientId || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
             skipped++;
             if (warnings.length < 50) {
               const miss = listMissingForAnyLine(mapped);
@@ -605,7 +607,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
             continue;
           }
           
-          // NO SPLIT: Each Excel row = 1 claim (keeps all CPT1-6)
+          // Prepare row for insert
           const rowObj: Record<string, any> = prepareClaimFromRow(mapped);
           rowObj.upload_id = upload_id;
           rowObj.source_system = 'OFFICE_ALLY';
@@ -613,12 +615,8 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           
           // Generate cpt_code_id for each CPT position that has data
           for (let li = 1; li <= 6; li++) {
-            if (rowObj[`cpt${li}`] && (!rowObj[`cpt_code_id${li}`] || String(rowObj[`cpt_code_id${li}`]).trim() === '')) {
-              rowObj[`cpt_code_id${li}`] = genLineId(rowObj, li);
+            if (rowObj[`cpt_code_id${li}`] && String(rowObj[`cpt_code_id${li}`]).trim() !== '') {
               rowObj[`cpt_id${li}`] = rowObj[`cpt_code_id${li}`];
-            }
-            // Set cycle and hash for each populated CPT
-            if (rowObj[`cpt${li}`]) {
               rowObj[`cpt_cycle${li}`] = 1;
               const canon = canonicalLine(rowObj, li);
               rowObj[`cpt_hash${li}`] = hashLine(canon);
@@ -626,41 +624,88 @@ export async function commitSubmitUpload(req: Request, res: Response) {
           }
           
           const { clean } = sanitizeByType(rowObj, colTypes);
-          const cols = Object.keys(clean).filter(c => schemaColumns.has(c));
-          const vals = cols.map(c => clean[c]);
+          preparedRows.push({ clean, rowIdx: i });
+        }
+        
+        console.log(`[COMMIT] Prepared ${preparedRows.length} valid rows, ${skipped} skipped`);
+        
+        // Phase 2: Batch insert claims
+        const allClaimIds: { claimId: number; clean: Record<string, any> }[] = [];
+        for (let batch = 0; batch < preparedRows.length; batch += BATCH_SIZE) {
+          const chunk = preparedRows.slice(batch, batch + BATCH_SIZE);
+          if (chunk.length === 0) continue;
           
+          // Get columns from first row (all rows should have same structure)
+          const cols = Object.keys(chunk[0].clean).filter(c => schemaColumns.has(c));
           const colSql = cols.map(c => '"' + c + '"').join(',');
-          const ph = vals.map((_, idx) => `$${idx + 1}`).join(',');
-          const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES (${ph}) RETURNING claim_id`;
-          const r = await client.query(sql, vals);
-          inserts.push(r.rows[0].claim_id);
-          claimCount++;
           
-          // Audit initial state for each CPT line
-          for (let li = 1; li <= 6; li++) {
-            if (clean[`cpt${li}`] && clean[`cpt_code_id${li}`]) {
-              const canon = canonicalLine(clean, li);
-              await client.query(
-                `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-                [clean[`cpt_code_id${li}`], r.rows[0].claim_id, li, 1, upload_id, null, clean[`cpt_hash${li}`], null, JSON.stringify(canon), JSON.stringify(canon)]
-              );
-            }
+          // Build multi-value INSERT
+          const valueSets: string[] = [];
+          const allVals: any[] = [];
+          let paramIdx = 1;
+          
+          for (const { clean } of chunk) {
+            const placeholders = cols.map(() => `$${paramIdx++}`).join(',');
+            valueSets.push(`(${placeholders})`);
+            cols.forEach(c => allVals.push(clean[c]));
           }
           
-          inserted++;
+          const sql = `INSERT INTO api_bil_claim_submit (${colSql}) VALUES ${valueSets.join(',')} RETURNING claim_id`;
+          const r = await client.query(sql, allVals);
           
-          if (claimCount % batchSize === 0) {
-            const pct = Math.floor((claimCount / rows.length) * 100);
-            await pool.query(
-              `UPDATE rcm_file_uploads SET message=$1, updated_at=NOW() WHERE upload_id=$2`,
-              [`Bulk inserting ${claimCount} claims from ${i + 1}/${rows.length} rows (${pct}%)`, upload_id]
-            );
-            console.log(`[COMMIT] Bulk insert progress: ${claimCount} claims from ${i + 1}/${rows.length} rows`);
+          // Map returned claim_ids back to their clean data
+          r.rows.forEach((row: { claim_id: number }, idx: number) => {
+            allClaimIds.push({ claimId: row.claim_id, clean: chunk[idx].clean });
+            inserts.push(row.claim_id);
+          });
+          
+          inserted += chunk.length;
+          const pct = Math.floor((inserted / preparedRows.length) * 100);
+          await pool.query(
+            `UPDATE rcm_file_uploads SET message=$1, updated_at=NOW() WHERE upload_id=$2`,
+            [`Inserting claims: ${inserted}/${preparedRows.length} (${pct}%)`, upload_id]
+          );
+          console.log(`[COMMIT] Batch insert: ${inserted}/${preparedRows.length} claims (${pct}%)`);
+        }
+        
+        // Phase 3: Batch insert audit records
+        console.log('[COMMIT] Inserting audit records...');
+        const auditRows: any[][] = [];
+        for (const { claimId, clean } of allClaimIds) {
+          for (let li = 1; li <= 6; li++) {
+            if (clean[`cpt_code_id${li}`]) {
+              const canon = canonicalLine(clean, li);
+              auditRows.push([
+                clean[`cpt_code_id${li}`], claimId, li, 1, upload_id,
+                null, clean[`cpt_hash${li}`], null, JSON.stringify(canon), JSON.stringify(canon)
+              ]);
+            }
           }
         }
         
-        console.log(`[COMMIT] Bulk insert complete: ${inserts.length} claims from ${rows.length} Excel rows`);
+        // Batch insert audit records in chunks
+        for (let batch = 0; batch < auditRows.length; batch += BATCH_SIZE) {
+          const chunk = auditRows.slice(batch, batch + BATCH_SIZE);
+          if (chunk.length === 0) continue;
+          
+          const valueSets: string[] = [];
+          const allVals: any[] = [];
+          let paramIdx = 1;
+          
+          for (const row of chunk) {
+            const placeholders = row.map(() => `$${paramIdx++}`).join(',');
+            valueSets.push(`(${placeholders})`);
+            allVals.push(...row);
+          }
+          
+          await client.query(
+            `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff) VALUES ${valueSets.join(',')}`,
+            allVals
+          );
+        }
+        console.log(`[COMMIT] Inserted ${auditRows.length} audit records`);
+        
+        console.log(`[COMMIT] Batch insert complete: ${inserts.length} claims from ${rows.length} Excel rows`);
       } else {
         // SLOW PATH: Table has data, check for updates with split-row model
         console.log('[COMMIT] Using row-by-row path with split-row model and update detection');
@@ -679,11 +724,11 @@ export async function commitSubmitUpload(req: Request, res: Response) {
         // Basic validation
         const hasPayerId = mapped.insurancepayerid != null && mapped.insurancepayerid !== '';
         const hasPlanName = mapped.insuranceplanname != null && mapped.insuranceplanname !== '';
-        const hasInsurer = mapped.insurerid != null && mapped.insurerid !== '';
+        const hasPatientId = mapped.patient_id != null && mapped.patient_id !== '';
         const hasPatient = mapped.patientfirst && mapped.patientlast && mapped.patientdob;
         const hasAnyLine = hasAnyServiceLine(mapped);
         
-        if (!hasInsurer || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
+        if (!hasPatientId || !hasPatient || (!hasPayerId && !hasPlanName) || !hasAnyLine) {
           skipped++;
           if (warnings.length < 50) {
             const miss = listMissingForAnyLine(mapped);
@@ -746,7 +791,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
               if (clean[`cpt${li}`] && clean[`cpt_code_id${li}`]) {
                 const canon = canonicalLine(clean, li);
                 await client.query(
-                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
+                  `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, hash_old, hash_new, old_line, new_line, diff)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
                   [clean[`cpt_code_id${li}`], newId, li, 1, upload_id, null, clean[`cpt_hash${li}`], null, JSON.stringify(canon), JSON.stringify(canon)]
                 );
@@ -813,7 +858,7 @@ export async function commitSubmitUpload(req: Request, res: Response) {
                   
                   if (clean[`cpt_code_id${li}`]) {
                     await client.query(
-                      `INSERT INTO rcm_submit_line_audit (submit_cpt_id, claim_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
+                      `INSERT INTO rcm_submit_line_audit (submit_cpt_id, bil_claim_submit_id, line_index, cycle, upload_id, changed_at, hash_old, hash_new, old_line, new_line, diff)
                        VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9,$10)`,
                       [clean[`cpt_code_id${li}`], existingId, li, lineCycle, upload_id, oldHash, newHash, JSON.stringify(oldCanon), JSON.stringify(newCanon), JSON.stringify(diff)]
                     );

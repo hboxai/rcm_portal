@@ -111,9 +111,9 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
         UPPER(TRIM(cpt_code_id1)) AS cpt_id,
         CASE 
-          WHEN fromdateofservice1 IS NOT NULL 
-            AND fromdateofservice1::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-          THEN fromdateofservice1::date
+          WHEN dateofservice1 IS NOT NULL 
+            AND dateofservice1::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          THEN dateofservice1::date
           ELSE NULL
         END AS charge_dt,
         charges1::numeric AS charge_amt,
@@ -134,7 +134,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
         UPPER(TRIM(cpt_code_id2)),
-        CASE WHEN fromdateofservice2 IS NOT NULL AND fromdateofservice2::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice2::date ELSE NULL END,
+        CASE WHEN dateofservice2 IS NOT NULL AND dateofservice2::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN dateofservice2::date ELSE NULL END,
         charges2::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id2)
@@ -151,7 +151,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
         UPPER(TRIM(cpt_code_id3)),
-        CASE WHEN fromdateofservice3 IS NOT NULL AND fromdateofservice3::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice3::date ELSE NULL END,
+        CASE WHEN dateofservice3 IS NOT NULL AND dateofservice3::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN dateofservice3::date ELSE NULL END,
         charges3::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id3)
@@ -168,7 +168,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
         UPPER(TRIM(cpt_code_id4)),
-        CASE WHEN fromdateofservice4 IS NOT NULL AND fromdateofservice4::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice4::date ELSE NULL END,
+        CASE WHEN dateofservice4 IS NOT NULL AND dateofservice4::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN dateofservice4::date ELSE NULL END,
         charges4::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id4)
@@ -185,7 +185,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
         UPPER(TRIM(cpt_code_id5)),
-        CASE WHEN fromdateofservice5 IS NOT NULL AND fromdateofservice5::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice5::date ELSE NULL END,
+        CASE WHEN dateofservice5 IS NOT NULL AND dateofservice5::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN dateofservice5::date ELSE NULL END,
         charges5::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id5)
@@ -202,7 +202,7 @@ export async function mirrorReimburseForUpload(uploadId?: string): Promise<Mirro
         claim_id::bigint, upload_id,
         CASE WHEN patient_id IS NOT NULL THEN patient_id::bigint ELSE NULL END,
         UPPER(TRIM(cpt_code_id6)),
-        CASE WHEN fromdateofservice6 IS NOT NULL AND fromdateofservice6::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN fromdateofservice6::date ELSE NULL END,
+        CASE WHEN dateofservice6 IS NOT NULL AND dateofservice6::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN dateofservice6::date ELSE NULL END,
         charges6::numeric,
         oa_claimid, payor_reference_id, insuranceplanname,
         TRIM(cpt_code_id6)

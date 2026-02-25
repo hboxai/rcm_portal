@@ -47,7 +47,7 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
     const rowsSql = `
       SELECT claim_id, patientfirst, patientlast, patient_id, insuranceplanname, insurancepayerid,
         oa_claimid, payor_reference_id, totalcharges, cpt_code_id1,
-        facilityname, payor_status, cycle
+        facilityname, cycle
       FROM api_bil_claim_submit
       ${whereSql}
       ORDER BY claim_id
@@ -69,7 +69,6 @@ export async function getAllSubmitClaims(req: Request, res: Response) {
       cycle: r.cycle ?? 1,
       // pass-throughs for preview card
       facilityname: r.facilityname ?? null,
-      payor_status: r.payor_status ?? null,
     }));
 
     return res.json({ data, totalCount: total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });

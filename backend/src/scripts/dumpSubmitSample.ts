@@ -20,7 +20,7 @@ const SHEET_SYNONYMS: Record<string, string[]> = {
   patientfirst: ['PatientFirst','Patient First','PatientFirstName','FirstName','First Name'],
   patientlast: ['PatientLast','Patient Last','PatientLastName','LastName','Last Name'],
   patientdob: ['PatientDOB','DOB','DateOfBirth','Date of Birth','Birth Date'],
-  fromdateofservice1: ['FromDateOfService1','From DOS1','From DOS','Service Start','ServiceDate1','DateOfService','DOS','Service Date'],
+  dateofservice1: ['FromDateOfService1','From DOS1','From DOS','Service Start','ServiceDate1','DateOfService','DOS','Service Date'],
   cpt_code_id1: ['CPT1','CPT','CPT Code','CPT-1'],
   charges1: ['Charges1','Charge1','Charge Amount','ChargeAmt1','Charge Amount 1','Charge','Amount'],
 };

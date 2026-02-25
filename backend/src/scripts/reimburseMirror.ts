@@ -20,12 +20,12 @@ async function main() {
     const sample = await pool.query(
   `SELECT s.bil_claim_submit_id AS submit_id, s.oa_claimid AS claim_id,
       to_char((SELECT MIN(dv) FROM (VALUES
-                 (NULLIF(NULLIF(s.fromdateofservice1::text,'') , '')::date),
-                 (NULLIF(NULLIF(s.fromdateofservice2::text,'') , '')::date),
-                 (NULLIF(NULLIF(s.fromdateofservice3::text,'') , '')::date),
-                 (NULLIF(NULLIF(s.fromdateofservice4::text,'') , '')::date),
-                 (NULLIF(NULLIF(s.fromdateofservice5::text,'') , '')::date),
-                 (NULLIF(NULLIF(s.fromdateofservice6::text,'') , '')::date)
+                 (NULLIF(NULLIF(s.dateofservice1::text,'') , '')::date),
+                 (NULLIF(NULLIF(s.dateofservice2::text,'') , '')::date),
+                 (NULLIF(NULLIF(s.dateofservice3::text,'') , '')::date),
+                 (NULLIF(NULLIF(s.dateofservice4::text,'') , '')::date),
+                 (NULLIF(NULLIF(s.dateofservice5::text,'') , '')::date),
+                 (NULLIF(NULLIF(s.dateofservice6::text,'') , '')::date)
        ) v(dv)), 'FMMM/FMDD/YYYY') AS charge_dt,
               NULLIF(NULLIF(s.totalcharges::text,'') , '')::numeric AS charge_amt,
               s.insuranceplanname AS prim_ins,

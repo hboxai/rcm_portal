@@ -8,8 +8,8 @@ export function norm(s: string): string {
 
 export const alias: Record<string, string> = {
   // Exact header → canonical key (normalized)
-  // PatientID in XLS should populate insurerid in submit table
-  patientid: "insurerid",
+  // PatientID in XLS should populate patient_id in submit table
+  patientid: "patient_id",
   patientlast: "patientlast",
   patientfirst: "patientfirst",
   patientdob: "patientdob",
@@ -62,18 +62,19 @@ export const alias: Record<string, string> = {
   clia_number: "clia_number",
 };
 
-// Map common DOS headers without line numbers to fromdateofservice1
-alias[norm("DOS")] = "fromdateofservice1";
-alias[norm("DateOfService")] = "fromdateofservice1";
-alias[norm("Date of Service")] = "fromdateofservice1";
-alias[norm("ServiceDate")] = "fromdateofservice1";
-alias[norm("Service Date")] = "fromdateofservice1";
-alias[norm("FromDOS")] = "fromdateofservice1";
-alias[norm("From DOS")] = "fromdateofservice1";
+// Map common DOS headers without line numbers to dateofservice1
+alias[norm("DOS")] = "dateofservice1";
+alias[norm("DateOfService")] = "dateofservice1";
+alias[norm("Date of Service")] = "dateofservice1";
+alias[norm("ServiceDate")] = "dateofservice1";
+alias[norm("Service Date")] = "dateofservice1";
+alias[norm("FromDOS")] = "dateofservice1";
+alias[norm("From DOS")] = "dateofservice1";
+alias[norm("FromDateOfService")] = "dateofservice1";
 
 // Programmatic mapping for service lines 1..6
 const SL: Array<[string, string]> = [
-  ["FromDateOfService", "fromdateofservice"],
+  ["FromDateOfService", "dateofservice"],
   ["ToDateOfService", "todateofservice"],
   ["PlaceOfService", "placeofservice"],
   ["EMG", "emg"],

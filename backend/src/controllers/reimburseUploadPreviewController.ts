@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import XLSX from 'xlsx';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../config/db.js';
 
@@ -88,6 +89,9 @@ export async function previewReimburseUpload(req: Request, res: Response) {
     const uploadId = uuidv4();
     const originalFilename = req.file.originalname;
     const tempFilePath = path.join(process.cwd(), 'uploads', 'temp', `${uploadId}_${originalFilename}`);
+
+    // Compute content hash
+    const contentSha256 = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
 
     // Ensure temp directory exists
     const tempDir = path.dirname(tempFilePath);
@@ -179,13 +183,14 @@ export async function previewReimburseUpload(req: Request, res: Response) {
     // Create upload record with PENDING status
     await pool.query(
       `INSERT INTO rcm_file_uploads 
-       (upload_id, file_kind, original_filename, temp_file_path, status, created_by, row_count, message, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+       (upload_id, file_kind, original_filename, temp_file_path, content_sha256, status, created_by, row_count, message, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
       [
         uploadId,
         'REIMBURSE_EXCEL',
         originalFilename,
         tempFilePath,
+        contentSha256,
         'PENDING',
         username,
         rawRows.length,
@@ -208,8 +213,8 @@ export async function previewReimburseUpload(req: Request, res: Response) {
       sample_valid: rawRows.slice(0, 5), // First 5 rows for preview
       sample_invalid: [],
       warnings: validationErrors.length > 0 ? validationErrors : [],
-      can_commit: validRows > 0 && invalidRows === 0,
-      errors: invalidRows > 0 ? [`${invalidRows} rows failed validation`] : undefined,
+      can_commit: validRows > 0, // Allow commit if any valid rows (invalid rows will be skipped)
+      errors: invalidRows > 0 ? [`${invalidRows} rows will be skipped (missing cpt_id)`] : undefined,
     });
 
   } catch (error: any) {
